@@ -1,0 +1,15 @@
+#pragma once
+#include "pch.h"
+
+namespace zec
+{
+    struct SysInfo
+    {
+        bool initialized = false;
+        size_t page_size = 0;
+    };
+
+    extern SysInfo g_sys_info;
+
+    const SysInfo& get_sys_info();
+}
