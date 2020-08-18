@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "app.h"
+#include "gfx/gfx.h"
 
 namespace zec
 {
@@ -23,7 +24,6 @@ namespace zec
     i32 App::run()
     {
         init_internal();
-        shutdown_internal();
 
         while (window.is_alive()) {
             if (!window.is_minimized()) {
@@ -51,11 +51,15 @@ namespace zec
         init_time_data(time_data);
         window.show();
 
+        init_renderer(renderer);
+
         init();
     }
 
     void App::shutdown_internal()
-    { }
+    {
+        destroy(renderer);
+    }
 
     void App::update_internal()
     {
@@ -65,7 +69,9 @@ namespace zec
     }
 
     void App::render_internal()
-    { }
+    {
+
+    }
 
     void App::before_reset_internal()
     { }
