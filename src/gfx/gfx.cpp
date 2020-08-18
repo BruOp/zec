@@ -15,22 +15,22 @@
 
 namespace zec
 {
-    void init_api_context(GfxApiContext& api_context)
+    void init_renderer(Renderer& renderer, D3D_FEATURE_LEVEL min_feature_level)
     {
-        ASSERT(api_context.adapter == nullptr);
-        ASSERT(api_context.factory == nullptr);
+        ASSERT(renderer.adapter == nullptr);
+        ASSERT(renderer.factory == nullptr);
         constexpr int ADAPTER_NUMBER = 0;
 
-        DXCall(CreateDXGIFactory1(IID_PPV_ARGS(&api_context.factory)));
+        DXCall(CreateDXGIFactory1(IID_PPV_ARGS(&renderer.factory)));
 
-        api_context.factory->EnumAdapters1(ADAPTER_NUMBER, &api_context.adapter);
+        renderer.factory->EnumAdapters1(ADAPTER_NUMBER, &renderer.adapter);
 
-        if (api_context.adapter == nullptr) {
+        if (renderer.adapter == nullptr) {
             throw Exception(L"Unabled to located DXGI 1.4 adapter that supports D3D12.");
         }
 
         DXGI_ADAPTER_DESC1 desc{  };
-        api_context.adapter->GetDesc1(&desc);
+        renderer.adapter->GetDesc1(&desc);
         write_log("Creating DX12 device on adapter '%ls'", desc.Description);
 
     #ifdef _DEBUG
@@ -46,17 +46,7 @@ namespace zec
     #endif // USE_GPU_VALIDATION
         debug_ptr->Release();
     #endif // DEBUG
-    }
-
-    void zec::destroy(GfxApiContext& api_context)
-    {
-        api_context.factory->Release();
-        api_context.adapter->Release();
-    }
-
-    void init_device(Device& device, const GfxApiContext& api_context, D3D_FEATURE_LEVEL min_feature_level)
-    {
-        DXCall(D3D12CreateDevice(api_context.adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device.api_device)));
+        DXCall(D3D12CreateDevice(renderer.adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&renderer.device)));
 
         D3D_FEATURE_LEVEL feature_levels_arr[4] = {
             D3D_FEATURE_LEVEL_11_0,
@@ -67,14 +57,14 @@ namespace zec
         D3D12_FEATURE_DATA_FEATURE_LEVELS feature_levels = { };
         feature_levels.NumFeatureLevels = ARRAY_SIZE(feature_levels_arr);
         feature_levels.pFeatureLevelsRequested = feature_levels_arr;
-        DXCall(device.api_device->CheckFeatureSupport(
+        DXCall(renderer.device->CheckFeatureSupport(
             D3D12_FEATURE_FEATURE_LEVELS,
             &feature_levels,
             sizeof(feature_levels)
         ));
-        device.supported_feature_level = feature_levels.MaxSupportedFeatureLevel;
+        renderer.supported_feature_level = feature_levels.MaxSupportedFeatureLevel;
 
-        if (device.supported_feature_level < min_feature_level) {
+        if (renderer.supported_feature_level < min_feature_level) {
             std::wstring majorLevel = to_string<int>(min_feature_level >> 12);
             std::wstring minorLevel = to_string<int>((min_feature_level >> 8) & 0xF);
             throw Exception(L"The device doesn't support the minimum feature level required to run this sample (DX" + majorLevel + L"." + minorLevel + L")");
@@ -82,7 +72,7 @@ namespace zec
 
     #ifdef USE_DEBUG_DEVICE
         ID3D12InfoQueue* infoQueue;
-        DXCall(device.api_device->QueryInterface(IID_PPV_ARGS(&infoQueue)));
+        DXCall(renderer.device->QueryInterface(IID_PPV_ARGS(&infoQueue)));
 
         D3D12_MESSAGE_ID disabledMessages[] =
         {
@@ -100,23 +90,49 @@ namespace zec
         infoQueue->Release();
 
     #endif // USE_DEBUG_DEVICE
-    }
 
-    void destroy(Device& device)
-    {
-        device.api_device->Release();
-    }
+        // Initialize command allocators and command list
+        // We need N allocators for N frames, since we cannot reset them and reclaim the associated memory
+        // until the GPU is finished executing against them. So we have to use fences
+        for (u64 i = 0; i < render_latency; i++) {
+            DXCall(renderer.device->CreateCommandAllocator(
+                D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&renderer.cmd_allocators[i])
+            ));
+        }
 
-    void init_renderer(Renderer& renderer)
-    {
-        init_api_context(renderer.gfx_api_context);
-        init_device(renderer.device, renderer.gfx_api_context, D3D_FEATURE_LEVEL_12_0);
+        // Command lists, however, can be reset as soon as we've submitted them.
+        DXCall(renderer.device->CreateCommandList(
+            0, D3D12_COMMAND_LIST_TYPE_DIRECT, renderer.cmd_allocators[0], nullptr, IID_PPV_ARGS(&renderer.cmd_list)
+        ));
+        DXCall(renderer.cmd_list->Close());
+        renderer.cmd_list->SetName(L"Graphics command list");
+
+        // Initialize graphics queue
+        D3D12_COMMAND_QUEUE_DESC queue_desc{ };
+        queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+        queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+
+        DXCall(renderer.device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&renderer.gfx_queue)));
+        renderer.gfx_queue->SetName(L"Graphics queue");
+
+        // Set current frame index and reset command allocator and list appropriately
+        renderer.current_frame_idx = renderer.current_cpu_frame % render_latency;
+        ID3D12CommandAllocator* current_cmd_allocator = renderer.cmd_allocators[renderer.current_frame_idx];
+        DXCall(current_cmd_allocator->Reset());
+        DXCall(renderer.cmd_list->Reset(current_cmd_allocator, nullptr));
     }
 
     void destroy(Renderer& renderer)
     {
         write_log("Destroying Renderer");
-        destroy(renderer.device);
-        destroy(renderer.gfx_api_context);
+
+        renderer.cmd_list->Release();
+        for (u64 i = 0; i < ARRAY_SIZE(renderer.cmd_allocators); i++) {
+            renderer.cmd_allocators[i]->Release();
+        }
+
+        renderer.device->Release();
+        renderer.adapter->Release();
+        renderer.factory->Release();
     }
 }
