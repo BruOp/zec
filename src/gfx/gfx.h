@@ -1,32 +1,19 @@
 #pragma once
 #include "pch.h"
+#include "device.h"
+#include "resources.h"
+#include "swap_chain.h"
 
 namespace zec
 {
-    // TODO: Support triple buffering?
-    constexpr u64 render_latency = 2;
-
-    // Used to setup validation layers, create device
-    struct GfxApiContext
+    struct Fence
     {
-
+        ID3D12Fence* d3d_fence;
+        HANDLE fence_event = INVALID_HANDLE_VALUE;
     };
 
-    struct Device
-    {
-
-    };
-
-    void init_api_context(GfxApiContext& api_context);
-    void destroy(GfxApiContext& api_context);
-
-    void init_device(Device& device, const GfxApiContext& api_context, );
-    void destroy(Device& device);
-
-    struct SwapChain
-    {
-        IDXGISwapChain1* swapChain = nullptr;
-    };
+    //void init_fence(Fence& fence, const u64 initial_value = 0);
+    //void destroy(Fence& fence);
 
     struct Renderer
     {
@@ -34,14 +21,9 @@ namespace zec
         u64 current_gpu_frame = 0;
         u64 current_frame_idx = 0;
 
-        IDXGIFactory4* factory = nullptr;
-        IDXGIAdapter1* adapter = nullptr;
-        ID3D12Device* device = nullptr;
-        D3D_FEATURE_LEVEL supported_feature_level;
+        Device device;
 
-        ID3D12GraphicsCommandList1* cmd_list = nullptr;
-        ID3D12CommandQueue* gfx_queue = nullptr;
-        ID3D12CommandAllocator* cmd_allocators[render_latency];
+        //Fence fence;
     };
 
     void init_renderer(Renderer& renderer, D3D_FEATURE_LEVEL min_feature_level);
