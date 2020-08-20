@@ -17,6 +17,8 @@ namespace zec
         u32 is_cubemap = 0;
     };
 
+    void destroy(Texture& texture);
+
 
     struct RenderTexture
     {
@@ -26,4 +28,6 @@ namespace zec
         u32 mssa_samples = 0;
         u32 msaa_quality = 0;
     };
+
+    void destroy(RenderTexture& render_texture);
 }
