@@ -30,7 +30,7 @@ namespace zec
     inline std::string wstring_to_ansi(const wchar* wideString)
     {
         char buffer[512];
-        Win32Call(WideCharToMultiByte(CP_ACP, 0, wideString, -1, buffer, 612, NULL, NULL));
+        Win32Call(WideCharToMultiByte(CP_ACP, 0, wideString, -1, buffer, 512, NULL, NULL));
         return std::string(buffer);
     }
 

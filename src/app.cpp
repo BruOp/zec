@@ -79,7 +79,11 @@ namespace zec
 
     void App::render_internal()
     {
+        start_frame();
 
+        render();
+
+        end_frame();
     }
 
     void App::before_reset_internal()

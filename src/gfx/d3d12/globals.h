@@ -4,6 +4,8 @@
 
 namespace zec
 {
+    struct RendererDesc;
+
     namespace dx12
     {
         struct SwapChain;
@@ -26,7 +28,7 @@ namespace zec
 
         extern DescriptorHeap rtv_descriptor_heap;
 
-        extern Fence frame_fence;
+        static Array<IUnknown*> deferred_releases{ };
 
         // ---------- Helper functions For globals ----------
         void init_renderer(const RendererDesc& renderer_desc);
@@ -36,7 +38,15 @@ namespace zec
         void end_frame();
 
         template<typename T>
-        void queue_resource_destruction(T*& unknown);
+        void queue_resource_destruction(T*& resource)
+        {
+            if (resource == nullptr) {
+                return;
+            }
+            // So resource is a reference to a ptr of type T that is castable to IUnknown
+            deferred_releases.push_back(resource);
+            resource = nullptr;
+        }
 
     } // namespace dx12
 } // namespace zec

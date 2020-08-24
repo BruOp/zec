@@ -32,7 +32,7 @@ namespace zec
                 DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&swap_chain.back_buffers[i].texture.resource)));
 
                 D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = { };
-                rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_BUFFER;
+                rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
                 rtvDesc.Format = swap_chain.format;
                 rtvDesc.Texture2D.MipSlice = 0;
                 rtvDesc.Texture2D.PlaneSlice = 0;
@@ -102,6 +102,7 @@ namespace zec
             d3d_swap_chain_desc.BufferDesc.Format = swap_chain.format;
             d3d_swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
             d3d_swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+            d3d_swap_chain_desc.SampleDesc.Count = 1;
             d3d_swap_chain_desc.OutputWindow = desc.output_window;
             d3d_swap_chain_desc.Windowed = TRUE;
             d3d_swap_chain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH |

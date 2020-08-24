@@ -16,26 +16,28 @@ namespace zec
 
         u32 get_idx_from_handle(const DescriptorHeap& heap, const D3D12_CPU_DESCRIPTOR_HANDLE handle)
         {
+            u64 descriptor_size = u64(heap.descriptor_size);
             ASSERT(heap.heaps[heap.heap_idx] != nullptr);
             // Check that our handle is after the start of the heap's allocated memory range
             ASSERT(handle.ptr >= heap.cpu_start[heap.heap_idx].ptr);
             // Check that our handle is before the end of the heap's allocated memory range
-            ASSERT(handle.ptr < heap.cpu_start[heap.heap_idx].ptr + heap.descriptor_size * (heap.num_persistent + heap.num_temporary));
+            ASSERT(handle.ptr < heap.cpu_start[heap.heap_idx].ptr + descriptor_size * (u64(heap.num_persistent) + u64(heap.num_temporary)));
             // Check that our handle is aligned with the individual heap allocations
-            ASSERT((handle.ptr - heap.cpu_start[heap.heap_idx].ptr) % heap.descriptor_size == 0);
-            return (handle.ptr - heap.cpu_start[heap.heap_idx].ptr) / heap.descriptor_size;
+            ASSERT((handle.ptr - heap.cpu_start[heap.heap_idx].ptr) % descriptor_size == 0);
+            return static_cast<u32>((handle.ptr - heap.cpu_start[heap.heap_idx].ptr) / descriptor_size);
         }
 
         u32 get_idx_from_handle(const DescriptorHeap& heap, const D3D12_GPU_DESCRIPTOR_HANDLE handle)
         {
+            u64 descriptor_size = u64(heap.descriptor_size);
             ASSERT(heap.heaps[heap.heap_idx] != nullptr);
             // Check that our handle is after the start of the heap's allocated memory range
             ASSERT(handle.ptr >= heap.gpu_start[heap.heap_idx].ptr);
             // Check that our handle is before the end of the heap's allocated memory range
-            ASSERT(handle.ptr < heap.gpu_start[heap.heap_idx].ptr + heap.descriptor_size * (heap.num_persistent + heap.num_temporary));
+            ASSERT(handle.ptr < heap.gpu_start[heap.heap_idx].ptr + descriptor_size * (u64(heap.num_persistent) + u64(heap.num_temporary)));
             // Check that our handle is aligned with the individual heap allocations
-            ASSERT((handle.ptr - heap.gpu_start[heap.heap_idx].ptr) % heap.descriptor_size == 0);
-            return (handle.ptr - heap.gpu_start[heap.heap_idx].ptr) / heap.descriptor_size;
+            ASSERT((handle.ptr - heap.gpu_start[heap.heap_idx].ptr) % descriptor_size == 0);
+            return static_cast<u32>((handle.ptr - heap.gpu_start[heap.heap_idx].ptr) / descriptor_size);
         }
 
         void init(DescriptorHeap& descriptor_heap, const DescriptorHeapDesc& desc)

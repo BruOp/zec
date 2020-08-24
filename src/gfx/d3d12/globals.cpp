@@ -20,6 +20,7 @@ namespace zec
 {
     namespace dx12
     {
+        // ---------- Global variables ----------
         u64 current_frame_idx = 0;
         u64 current_cpu_frame = 0;
         u64 current_gpu_frame = 0;
@@ -36,9 +37,19 @@ namespace zec
 
         DescriptorHeap rtv_descriptor_heap = {};
 
-        static ID3D12CommandAllocator* cmd_allocators[zec::RENDER_LATENCY] = {};
-        static Array<IUnknown*> deferred_releases = {};
+        static Fence frame_fence{};
+        static ID3D12CommandAllocator* cmd_allocators[NUM_CMD_ALLOCATORS] = {};
 
+        // ---------- Helpers ----------
+        void process_deferred_destruction()
+        {
+            for (size_t i = 0; i < deferred_releases.size; i++) {
+                deferred_releases[i]->Release();
+                deferred_releases[i] = nullptr;
+            }
+        }
+
+        // ---------- Implementation ----------
         void init_renderer(const RendererDesc& renderer_desc)
         {
             // Factory, Adaptor and Device initialization
@@ -47,7 +58,23 @@ namespace zec
                 ASSERT(factory == nullptr);
                 constexpr int ADAPTER_NUMBER = 0;
 
-                DXCall(CreateDXGIFactory1(IID_PPV_ARGS(&factory)));
+            #ifdef USE_DEBUG_DEVICE
+                ID3D12Debug* debug_ptr;
+                DXCall(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_ptr)));
+                debug_ptr->EnableDebugLayer();
+
+                UINT factory_flags = DXGI_CREATE_FACTORY_DEBUG;
+
+            #ifdef USE_GPU_VALIDATION
+                ID3D12Debug1* debug1;
+                debug_ptr->QueryInterface(IID_PPV_ARGS(&debug1));
+                debug1->SetEnableGPUBasedValidation(true);
+                debug1->Release();
+            #endif // USE_GPU_VALIDATION
+                debug_ptr->Release();
+            #endif // DEBUG
+
+                DXCall(CreateDXGIFactory2(factory_flags, IID_PPV_ARGS(&factory)));
 
                 factory->EnumAdapters1(ADAPTER_NUMBER, &adapter);
 
@@ -59,19 +86,6 @@ namespace zec
                 adapter->GetDesc1(&desc);
                 write_log("Creating DX12 device on adapter '%ls'", desc.Description);
 
-            #ifdef USE_DEBUG_DEVICE
-                ID3D12Debug* debug_ptr;
-                DXCall(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_ptr)));
-                debug_ptr->EnableDebugLayer();
-
-            #ifdef USE_GPU_VALIDATION
-                ID3D12Debug1* debug1;
-                debug_ptr->QueryInterface(IID_PPV_ARGS(&debug1));
-                debug1->SetEnableGPUBasedValidation(true);
-                debug1->Release();
-            #endif // USE_GPU_VALIDATION
-                debug_ptr->Release();
-            #endif // DEBUG
                 DXCall(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device)));
 
                 D3D_FEATURE_LEVEL feature_levels_arr[4] = {
@@ -166,6 +180,8 @@ namespace zec
             swap_chain_desc.output_window = renderer_desc.window;
 
             init(swap_chain, swap_chain_desc);
+
+            init(frame_fence, 0);
         }
 
         void destroy_renderer()
@@ -180,13 +196,49 @@ namespace zec
                 cmd_allocators[i]->Release();
             }
 
+            destroy(frame_fence);
+
             device->Release();
             adapter->Release();
             factory->Release();
 
         }
 
-        void start_frame() { }
+        void reset_for_frame()
+        {
+            // Wait for the GPU to catch up so we can freely reset our frame's command allocator
+            const u64 gpu_lag = current_cpu_frame - current_gpu_frame;
+            ASSERT(gpu_lag <= RENDER_LATENCY);
+            if (gpu_lag == RENDER_LATENCY) {
+                wait(frame_fence, current_gpu_frame + 1);
+                ++current_gpu_frame;
+            }
+
+            current_frame_idx = swap_chain.swap_chain->GetCurrentBackBufferIndex();
+
+            DXCall(cmd_allocators[current_frame_idx]->Reset());
+            DXCall(cmd_list->Reset(cmd_allocators[current_frame_idx], nullptr));
+
+            // Reset Heaps
+
+            // Process resources queued for destruction
+            process_deferred_destruction();
+
+            // Process shader resource views queued for creation
+
+        }
+
+        void start_frame()
+        {
+
+            // Reset Heaps
+            if (current_cpu_frame != 0) {
+                reset_for_frame();
+            }
+
+            // 
+        }
+
         void end_frame()
         {
             DXCall(cmd_list->Close());
@@ -202,31 +254,9 @@ namespace zec
                 DXCall(swap_chain.swap_chain->Present(sync_intervals, swap_chain.vsync ? 0 : DXGI_PRESENT_ALLOW_TEARING));
             }
 
+            // Increment our cpu frame couter to indicate submission
             ++current_cpu_frame;
-
-
-            // Signal the fence with the current frame number, so that we can check back on it
-            //FrameFence.Signal(GfxQueue, CurrentCPUFrame);
-
-        }
-
-        template<typename T>
-        void queue_resource_destruction(T*& resource)
-        {
-            if (resource == nullptr) {
-                return;
-            }
-            // So resource is a reference to a ptr of type T that is castable to IUnknown
-            deferred_releases.push_back(resource);
-            resource == nullptr;
-        }
-
-        void destroy_deferred_resources()
-        {
-            for (size_t i = 0; i < deferred_releases.size; i++) {
-                deferred_releases[i]->Release();
-                deferred_releases[i] = nullptr;
-            }
+            signal(frame_fence, gfx_queue, current_cpu_frame);
         }
     }
 }

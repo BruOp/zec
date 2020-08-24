@@ -1,11 +1,15 @@
 #include "pch.h"
+
+#define USE_D3D_RENDERER
+
+#ifdef USE_D3D_RENDERER
+
 #include "gfx/public.h"
 #include "globals.h"
 #include "utils/utils.h"
 
 namespace zec
 {
-
     void init_renderer(const RendererDesc& renderer_desc)
     {
         dx12::init_renderer(renderer_desc);
@@ -36,3 +40,5 @@ namespace zec
         dx12::end_frame();
     }
 }
+
+#endif // USE_D3D_RENDERER
