@@ -16,6 +16,8 @@ namespace zec
         virtual i32 run();
 
         Window window;
+        u32 width;
+        u32 height;
 
     protected:
         virtual void init() = 0;
@@ -33,8 +35,6 @@ namespace zec
         TimeData time_data = {};
         std::wstring app_name;
         D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_12_0;
-
-        Renderer renderer;
 
     private:
 

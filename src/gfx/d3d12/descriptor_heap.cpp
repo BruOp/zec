@@ -7,8 +7,36 @@ namespace zec
 {
     namespace dx12
     {
-
         constexpr u32 NUM_HEAPS = RENDER_LATENCY;
+
+        inline ID3D12DescriptorHeap* get_active_heap(const DescriptorHeap& heap)
+        {
+            return heap.heaps[heap.heap_idx];
+        }
+
+        u32 get_idx_from_handle(const DescriptorHeap& heap, const D3D12_CPU_DESCRIPTOR_HANDLE handle)
+        {
+            ASSERT(heap.heaps[heap.heap_idx] != nullptr);
+            // Check that our handle is after the start of the heap's allocated memory range
+            ASSERT(handle.ptr >= heap.cpu_start[heap.heap_idx].ptr);
+            // Check that our handle is before the end of the heap's allocated memory range
+            ASSERT(handle.ptr < heap.cpu_start[heap.heap_idx].ptr + heap.descriptor_size * (heap.num_persistent + heap.num_temporary));
+            // Check that our handle is aligned with the individual heap allocations
+            ASSERT((handle.ptr - heap.cpu_start[heap.heap_idx].ptr) % heap.descriptor_size == 0);
+            return (handle.ptr - heap.cpu_start[heap.heap_idx].ptr) / heap.descriptor_size;
+        }
+
+        u32 get_idx_from_handle(const DescriptorHeap& heap, const D3D12_GPU_DESCRIPTOR_HANDLE handle)
+        {
+            ASSERT(heap.heaps[heap.heap_idx] != nullptr);
+            // Check that our handle is after the start of the heap's allocated memory range
+            ASSERT(handle.ptr >= heap.gpu_start[heap.heap_idx].ptr);
+            // Check that our handle is before the end of the heap's allocated memory range
+            ASSERT(handle.ptr < heap.gpu_start[heap.heap_idx].ptr + heap.descriptor_size * (heap.num_persistent + heap.num_temporary));
+            // Check that our handle is aligned with the individual heap allocations
+            ASSERT((handle.ptr - heap.gpu_start[heap.heap_idx].ptr) % heap.descriptor_size == 0);
+            return (handle.ptr - heap.gpu_start[heap.heap_idx].ptr) / heap.descriptor_size;
+        }
 
         void init(DescriptorHeap& descriptor_heap, const DescriptorHeapDesc& desc)
         {
@@ -27,7 +55,7 @@ namespace zec
                 descriptor_heap.is_shader_visible = false;
             }
 
-            descriptor_heap.num_heaps = descriptor_heap.is_shader_visible ? 2 : 1;
+            descriptor_heap.num_heaps = descriptor_heap.is_shader_visible ? NUM_HEAPS : 1;
             descriptor_heap.dead_list.grow(descriptor_heap.num_persistent);
             for (u32 i = 0; i < descriptor_heap.num_persistent; i++) {
                 descriptor_heap.dead_list[i] = i;
@@ -57,7 +85,7 @@ namespace zec
 
         void destroy(DescriptorHeap& descriptor_heap)
         {
-            ASSERT(descriptor_heap.num_allocated_persistant == 0);
+            ASSERT(descriptor_heap.num_allocated_persistent == 0);
             for (size_t i = 0; i < NUM_HEAPS; i++) {
                 descriptor_heap.heaps[i]->Release();
             }
@@ -68,9 +96,9 @@ namespace zec
             ASSERT(heap.heaps[0] != nullptr);
 
             // Aquire lock so we can't accidentally allocate from several threads at once
-            ASSERT(heap.num_allocated_persistant < heap.num_persistent);
-            u32 idx = heap.dead_list[heap.num_allocated_persistant];
-            heap.num_allocated_persistant++;
+            ASSERT(heap.num_allocated_persistent < heap.num_persistent);
+            u32 idx = heap.dead_list[heap.num_allocated_persistent];
+            heap.num_allocated_persistent++;
 
             // Release Lock
 
@@ -78,8 +106,8 @@ namespace zec
             alloc.idx = idx;
             for (size_t i = 0; i < NUM_HEAPS; i++) {
                 // Assign and shift the allocation's ptr to the correct place in memory
-                alloc.hadles[i] = heap.cpu_start[i];
-                alloc.hadles[i].ptr += u64(idx) * u64(heap.descriptor_size);
+                alloc.handles[i] = heap.cpu_start[i];
+                alloc.handles[i].ptr += u64(idx) * u64(heap.descriptor_size);
             }
 
             return alloc;
@@ -96,11 +124,27 @@ namespace zec
 
             // TODO: Acquire lock
 
-            ASSERT(heap.num_allocated_persistant > 0);
+            ASSERT(heap.num_allocated_persistent > 0);
 
-            heap.dead_list[heap.num_allocated_persistant--] = alloc_idx;
+            heap.dead_list[heap.num_allocated_persistent--] = alloc_idx;
 
             // TODO: Release lock
+        }
+
+        void free_persistent_alloc(DescriptorHeap& heap, const D3D12_CPU_DESCRIPTOR_HANDLE& handle)
+        {
+            if (handle.ptr != 0) {
+                u32 idx = get_idx_from_handle(heap, handle);
+                free_persistent_alloc(heap, idx);
+            }
+        }
+
+        void free_persistent_alloc(DescriptorHeap& heap, const D3D12_GPU_DESCRIPTOR_HANDLE& handle)
+        {
+            if (handle.ptr != 0) {
+                u32 idx = get_idx_from_handle(heap, handle);
+                free_persistent_alloc(heap, idx);
+            }
         }
     }
 }

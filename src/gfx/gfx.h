@@ -1,5 +1,6 @@
 #pragma once
 #include "pch.h"
+#include "public.h"
 
 #define USE_D3D_RENDERER
 

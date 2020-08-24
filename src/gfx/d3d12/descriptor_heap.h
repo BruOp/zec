@@ -7,10 +7,9 @@ namespace zec
 {
     namespace dx12
     {
-
         struct PersistentDescriptorAlloc
         {
-            D3D12_CPU_DESCRIPTOR_HANDLE hadles[NUM_HEAPS] = { };
+            D3D12_CPU_DESCRIPTOR_HANDLE handles[RENDER_LATENCY] = { };
             u32 idx = UINT32_MAX;
         };
 
@@ -26,7 +25,7 @@ namespace zec
         {
             ID3D12DescriptorHeap* heaps[RENDER_LATENCY] = {  };
             u32 num_persistent = 0;
-            u32 num_allocated_persistant = 0;
+            u32 num_allocated_persistent = 0;
             Array<u32> dead_list = {};
 
             u32 num_temporary = 0;
@@ -45,6 +44,8 @@ namespace zec
         void destroy(DescriptorHeap& descriptor_heap);
 
         PersistentDescriptorAlloc allocate_persistent_descriptor(DescriptorHeap& descriptor_heap);
-        void free_persistent_allocs(DescriptorHeap& descriptor_heap, const u32 alloc_indx);
+        void free_persistent_alloc(DescriptorHeap& descriptor_heap, const u32 alloc_indx);
+        void free_persistent_alloc(DescriptorHeap& descriptor_heap, const D3D12_CPU_DESCRIPTOR_HANDLE& handle);
+        void free_persistent_alloc(DescriptorHeap& descriptor_heap, const D3D12_GPU_DESCRIPTOR_HANDLE& handle);
     }
 }

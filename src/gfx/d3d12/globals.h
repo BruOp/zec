@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "swap_chain.h"
+#include "descriptor_heap.h"
 
 namespace zec
 {
@@ -24,11 +26,17 @@ namespace zec
 
         extern DescriptorHeap rtv_descriptor_heap;
 
+        extern Fence frame_fence;
+
         // ---------- Helper functions For globals ----------
-        void initialize_renderer();
+        void init_renderer(const RendererDesc& renderer_desc);
         void destroy_renderer();
 
         void start_frame();
         void end_frame();
+
+        template<typename T>
+        void queue_resource_destruction(T*& unknown);
+
     } // namespace dx12
 } // namespace zec

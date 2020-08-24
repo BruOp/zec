@@ -6,13 +6,15 @@ namespace zec
 {
     App::App(const wchar* app_name) :
         app_name{ app_name },
+        width{ 1600 },
+        height{ 900 },
         window{
             nullptr,
             app_name,
             WS_OVERLAPPEDWINDOW,
             WS_EX_APPWINDOW,
-            1600,
-            900 }
+            width,
+            height }
     {
     }
 
@@ -24,6 +26,7 @@ namespace zec
     i32 App::run()
     {
         init_internal();
+        after_reset_internal();
 
         while (window.is_alive()) {
             if (!window.is_minimized()) {
@@ -51,14 +54,20 @@ namespace zec
         init_time_data(time_data);
         window.show();
 
-        init_renderer(renderer);
+        RendererDesc renderer_desc{ };
+        renderer_desc.width = 1600;
+        renderer_desc.height = 700;
+        renderer_desc.fullscreen = false;
+        renderer_desc.vsync = true;
+        renderer_desc.window = window.hwnd;
+        init_renderer(renderer_desc);
 
         init();
     }
 
     void App::shutdown_internal()
     {
-        destroy(renderer);
+        destroy_renderer();
     }
 
     void App::update_internal()

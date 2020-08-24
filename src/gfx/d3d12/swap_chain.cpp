@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "swap_chain.h"
-#include "utils/exceptions.h"
+#include "utils/utils.h"
+#include "descriptor_heap.h"
 #include "globals.h"
 
 namespace zec
@@ -25,8 +26,28 @@ namespace zec
         {
             // Re-create an RTV for each back buffer
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
-                // TODO
-                //swap_chain.back_buffers[i].rtv =
+                // RTV Descriptor heap only has one heap -> only one handle is issued
+                ASSERT(rtv_descriptor_heap.num_heaps == 1);
+                swap_chain.back_buffers[i].rtv = allocate_persistent_descriptor(rtv_descriptor_heap).handles[0];
+                DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&swap_chain.back_buffers[i].texture.resource)));
+
+                D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = { };
+                rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_BUFFER;
+                rtvDesc.Format = swap_chain.format;
+                rtvDesc.Texture2D.MipSlice = 0;
+                rtvDesc.Texture2D.PlaneSlice = 0;
+                device->CreateRenderTargetView(swap_chain.back_buffers[i].texture.resource, &rtvDesc, swap_chain.back_buffers[i].rtv);
+
+                swap_chain.back_buffers[i].texture.resource->SetName(make_string(L"Back Buffer %llu", i).c_str());
+
+                // Copy properties from swap chain to backbuffer textures, in case we need em
+                swap_chain.back_buffers[i].texture.width = swap_chain.width;
+                swap_chain.back_buffers[i].texture.height = swap_chain.height;
+                swap_chain.back_buffers[i].texture.depth = 1;
+                swap_chain.back_buffers[i].texture.array_size = 1;
+                swap_chain.back_buffers[i].texture.format = swap_chain.format;
+                swap_chain.back_buffers[i].texture.num_mips = 1;
+
             }
             swap_chain.back_buffer_idx = swap_chain.swap_chain->GetCurrentBackBufferIndex();
         }
@@ -102,7 +123,8 @@ namespace zec
         {
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
                 // Do not need to destroy the resource ourselves, since it's managed by the swap chain (??)
-                reset(swap_chain.back_buffers[i]);
+                destroy(swap_chain.back_buffers[i]);
+                free_persistent_alloc(rtv_descriptor_heap, swap_chain.back_buffers[i].rtv);
             }
 
             swap_chain.swap_chain->Release();
@@ -118,7 +140,8 @@ namespace zec
             }
 
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
-                reset(swap_chain.back_buffers[i]);
+                destroy(swap_chain.back_buffers[i]);
+                free_persistent_alloc(rtv_descriptor_heap, swap_chain.back_buffers[i].rtv);
             }
 
             set_formats(swap_chain, swap_chain.format);

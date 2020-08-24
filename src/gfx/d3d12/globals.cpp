@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "globals.h"
-
+#include "gfx/public.h"
+#include "gfx/constants.h"
 #include "utils/utils.h"
 #include "descriptor_heap.h"
 #include "swap_chain.h"
@@ -17,10 +18,6 @@
 
 namespace zec
 {
-    // TODO: Support triple buffering?
-    constexpr u64 RENDER_LATENCY = 2;
-    constexpr u64 NUM_BACK_BUFFERS = RENDER_LATENCY;
-
     namespace dx12
     {
         u64 current_frame_idx = 0;
@@ -34,13 +31,15 @@ namespace zec
 
         ID3D12GraphicsCommandList1* cmd_list = nullptr;
         ID3D12CommandQueue* gfx_queue = nullptr;
-        static ID3D12CommandAllocator* cmd_allocators[zec::RENDER_LATENCY] = {};
 
         SwapChain swap_chain = {};
 
         DescriptorHeap rtv_descriptor_heap = {};
 
-        void initialize_renderer()
+        static ID3D12CommandAllocator* cmd_allocators[zec::RENDER_LATENCY] = {};
+        static Array<IUnknown*> deferred_releases = {};
+
+        void init_renderer(const RendererDesc& renderer_desc)
         {
             // Factory, Adaptor and Device initialization
             {
@@ -160,9 +159,13 @@ namespace zec
 
             // Swapchain initializaiton
             SwapChainDesc swap_chain_desc{ };
+            swap_chain_desc.width = renderer_desc.width;
+            swap_chain_desc.height = renderer_desc.height;
+            swap_chain_desc.fullscreen = renderer_desc.fullscreen;
+            swap_chain_desc.vsync = renderer_desc.vsync;
+            swap_chain_desc.output_window = renderer_desc.window;
+
             init(swap_chain, swap_chain_desc);
-
-
         }
 
         void destroy_renderer()
@@ -183,7 +186,47 @@ namespace zec
 
         }
 
-        void start_frame() { };
-        void end_frame() { };
+        void start_frame() { }
+        void end_frame()
+        {
+            DXCall(cmd_list->Close());
+
+            // endframe uploads
+
+            ID3D12CommandList* command_lists[] = { cmd_list };
+            gfx_queue->ExecuteCommandLists(ARRAY_SIZE(command_lists), command_lists);
+
+            // Present the frame.
+            if (swap_chain.swap_chain != nullptr) {
+                u32 sync_intervals = swap_chain.vsync ? 1 : 0;
+                DXCall(swap_chain.swap_chain->Present(sync_intervals, swap_chain.vsync ? 0 : DXGI_PRESENT_ALLOW_TEARING));
+            }
+
+            ++current_cpu_frame;
+
+
+            // Signal the fence with the current frame number, so that we can check back on it
+            //FrameFence.Signal(GfxQueue, CurrentCPUFrame);
+
+        }
+
+        template<typename T>
+        void queue_resource_destruction(T*& resource)
+        {
+            if (resource == nullptr) {
+                return;
+            }
+            // So resource is a reference to a ptr of type T that is castable to IUnknown
+            deferred_releases.push_back(resource);
+            resource == nullptr;
+        }
+
+        void destroy_deferred_resources()
+        {
+            for (size_t i = 0; i < deferred_releases.size; i++) {
+                deferred_releases[i]->Release();
+                deferred_releases[i] = nullptr;
+            }
+        }
     }
 }
