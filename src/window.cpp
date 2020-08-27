@@ -8,8 +8,8 @@ namespace zec
         LPCWSTR name,
         DWORD style,
         DWORD exStyle,
-        DWORD client_width,
-        DWORD client_height,
+        i32 client_width,
+        i32 client_height,
         LPCWSTR icon_resource,
         LPCWSTR small_icon_resource,
         LPCWSTR menu_resource
@@ -54,16 +54,18 @@ namespace zec
         return static_cast<boolean>(::IsIconic(hwnd));
     }
 
-    void Window::show(bool show)
+    void Window::show(bool to_show)
     {
-        int cmd_show = show ? SW_SHOW : SW_HIDE;
-        ShowWindow(hwnd, cmd_show);
+        int cmd_show = to_show ? SW_SHOW : SW_HIDE;
+        ::ShowWindow(hwnd, cmd_show);
     }
 
     void Window::set_client_area(i32 clientX, i32 clientY)
     {
         RECT rect;
-        ::SetRect(&rect, 0, 0, static_cast<INT>(clientX), static_cast<INT>(clientY));
+        if (!::SetRect(&rect, 0, 0, clientX, clientY)) {
+            throw Win32Exception(::GetLastError());
+        }
 
         BOOL isMenu = (::GetMenu(hwnd) != nullptr);
         // Based on styles and client rect, determine the window size required

@@ -15,9 +15,9 @@ namespace zec
 
         virtual i32 run();
 
-        Window window;
         u32 width;
         u32 height;
+        Window window;
 
     protected:
         virtual void init() = 0;

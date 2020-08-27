@@ -5,20 +5,6 @@ namespace zec
 {
     namespace dx12
     {
-        struct Fence
-        {
-            ID3D12Fence* d3d_fence = nullptr;
-            HANDLE fence_event = INVALID_HANDLE_VALUE;
-        };
-
-        void init(Fence& fence, u64 initial_value = 0);
-        void destroy(Fence& fence);
-
-        void signal(Fence& fence, ID3D12CommandQueue* queue, u64 fence_value);
-        void wait(Fence& fence, u64 fence_value);
-        bool is_signaled(Fence& fence, u64 fence_value);
-        void clear(Fence& fence, u64 fence_value);
-
         struct Texture
         {
             ID3D12Resource* resource = nullptr;
@@ -45,5 +31,24 @@ namespace zec
         };
 
         void destroy(RenderTexture& render_texture);
+
+        struct Buffer
+        {
+            ID3D12Resource* resource = nullptr;
+            u32 srv = UINT32_MAX;
+            u64 curr_buffer = 0;
+            void* cpu_address = 0;
+            u64 gpu_address = 0;
+            u64 alignment = 0;
+            u64 size = 0;
+            u32 dynamic = false;
+            u32 cpu_accessible = false;
+            ID3D12Heap* heap = nullptr;
+            u64 heap_offset = 0;
+            u64 upload_frame = UINT64_MAX;
+        };
+
+        void destroy(Buffer& buffer);
+
     }
 }

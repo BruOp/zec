@@ -27,29 +27,33 @@ namespace zec
         time_data.delta = current_time - time_data.elapsed;
         time_data.delta_f = static_cast<float>(time_data.delta);
         time_data.delta_d = static_cast<double>(time_data.delta);
-        time_data.delta_seconds = time_data.delta / time_data.frequency;
-        time_data.delta_milliseconds = time_data.delta_seconds * 1000;
-        time_data.delta_microseconds = time_data.delta_seconds * 1000000;
 
-        time_data.delta_seconds_f = static_cast<float>(time_data.delta_seconds);
-        time_data.delta_seconds_d = static_cast<double>(time_data.delta_seconds);
-        time_data.delta_milliseconds_f = static_cast<float>(time_data.delta_milliseconds);
-        time_data.delta_milliseconds_d = static_cast<double>(time_data.delta_milliseconds);
-        time_data.delta_microseconds_f = static_cast<float>(time_data.delta_microseconds);
-        time_data.delta_microseconds_d = static_cast<double>(time_data.delta_microseconds);
+        time_data.delta_seconds = time_data.delta / time_data.frequency;
+        time_data.delta_seconds_d = time_data.delta / time_data.frequency_d;
+        time_data.delta_seconds_f = static_cast<float>(time_data.delta_seconds_d);
+
+        time_data.delta_milliseconds_d = time_data.delta_seconds_d * 1000.0;
+        time_data.delta_milliseconds = static_cast<i64>(time_data.delta_milliseconds_d);
+        time_data.delta_milliseconds_f = static_cast<float>(time_data.delta_milliseconds_d);
+
+        time_data.delta_microseconds_d = time_data.delta_milliseconds_d * 1000.0;
+        time_data.delta_microseconds = static_cast<i64>(time_data.delta_microseconds_d);
+        time_data.delta_microseconds_f = static_cast<float>(time_data.delta_microseconds_d);
 
         time_data.elapsed = current_time;
         time_data.elapsed_f = static_cast<float>(time_data.elapsed);
         time_data.elapsed_d = static_cast<double>(time_data.elapsed);
-        time_data.elapsed_seconds = time_data.elapsed / time_data.frequency;
-        time_data.elapsed_milliseconds = time_data.elapsed_seconds * 1000;
-        time_data.elapsed_microseconds = time_data.elapsed_seconds * 1000000;
 
-        time_data.elapsed_seconds_f = static_cast<float>(time_data.elapsed_seconds);
-        time_data.elapsed_seconds_d = static_cast<double>(time_data.elapsed_seconds);
-        time_data.elapsed_milliseconds_f = static_cast<float>(time_data.elapsed_milliseconds);
-        time_data.elapsed_milliseconds_d = static_cast<double>(time_data.elapsed_milliseconds);
-        time_data.elapsed_microseconds_f = static_cast<float>(time_data.elapsed_microseconds);
-        time_data.elapsed_microseconds_d = static_cast<double>(time_data.elapsed_microseconds);
+        time_data.elapsed_seconds = time_data.elapsed / time_data.frequency;
+        time_data.elapsed_seconds_d = time_data.elapsed_d / time_data.frequency_d;
+        time_data.elapsed_seconds_f = static_cast<float>(time_data.elapsed_seconds_d);
+
+        time_data.elapsed_milliseconds_d = time_data.elapsed_seconds_d * 1000.0;
+        time_data.elapsed_milliseconds = static_cast<i64>(time_data.elapsed_milliseconds_d);
+        time_data.elapsed_milliseconds_f = static_cast<float>(time_data.elapsed_milliseconds_d);
+
+        time_data.elapsed_microseconds_d = time_data.elapsed_milliseconds_d * 1000.0;
+        time_data.elapsed_microseconds = static_cast<i64>(time_data.elapsed_microseconds_d);
+        time_data.elapsed_microseconds_f = static_cast<float>(time_data.elapsed_microseconds_d);
     }
 }

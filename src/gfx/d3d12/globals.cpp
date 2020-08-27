@@ -37,6 +37,8 @@ namespace zec
 
         DescriptorHeap rtv_descriptor_heap = {};
 
+        Array<IUnknown*> deferred_releases = {};
+
         static Fence frame_fence{};
         static ID3D12CommandAllocator* cmd_allocators[NUM_CMD_ALLOCATORS] = {};
 
@@ -187,16 +189,24 @@ namespace zec
         void destroy_renderer()
         {
             write_log("Destroying renderer");
+            wait(frame_fence, current_cpu_frame);
 
             destroy(swap_chain);
             destroy(rtv_descriptor_heap);
 
             cmd_list->Release();
-            for (u64 i = 0; i < ARRAY_SIZE(cmd_allocators); i++) {
+            for (u64 i = 0; i < RENDER_LATENCY; i++) {
                 cmd_allocators[i]->Release();
             }
+            gfx_queue->Release();
 
             destroy(frame_fence);
+
+            // DXCall(device->QueryInterface(IID_PPV_ARGS(&debug_device)));
+            // debug_device->ReportLiveDeviceObjects(D3D12_RLDO_SUMMARY);
+            // debug_device->Release();
+
+            process_deferred_destruction();
 
             device->Release();
             adapter->Release();
@@ -230,13 +240,10 @@ namespace zec
 
         void start_frame()
         {
-
-            // Reset Heaps
+            // Don't need to reset if we haven't recorded anything yet.
             if (current_cpu_frame != 0) {
                 reset_for_frame();
             }
-
-            // 
         }
 
         void end_frame()

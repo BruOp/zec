@@ -28,8 +28,8 @@ namespace zec
             LPCWSTR name = L"Example",
             DWORD style = WS_CAPTION | WS_OVERLAPPED | WS_SYSMENU,
             DWORD exStyle = WS_EX_APPWINDOW,
-            DWORD clientWidth = 1280,
-            DWORD clientHeight = 720,
+            i32 clientWidth = 1280,
+            i32 clientHeight = 720,
             LPCWSTR iconResource = NULL,
             LPCWSTR smallIconResource = NULL,
             LPCWSTR menuResource = NULL

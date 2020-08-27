@@ -28,7 +28,7 @@ namespace zec
 
         extern DescriptorHeap rtv_descriptor_heap;
 
-        static Array<IUnknown*> deferred_releases{ };
+        extern Array<IUnknown*> deferred_releases;
 
         // ---------- Helper functions For globals ----------
         void init_renderer(const RendererDesc& renderer_desc);

@@ -7,7 +7,6 @@ namespace zec
 {
     namespace dx12
     {
-        constexpr u32 NUM_HEAPS = RENDER_LATENCY;
 
         inline ID3D12DescriptorHeap* get_active_heap(const DescriptorHeap& heap)
         {
@@ -57,7 +56,7 @@ namespace zec
                 descriptor_heap.is_shader_visible = false;
             }
 
-            descriptor_heap.num_heaps = descriptor_heap.is_shader_visible ? NUM_HEAPS : 1;
+            descriptor_heap.num_heaps = descriptor_heap.is_shader_visible ? RENDER_LATENCY : 1;
             descriptor_heap.dead_list.grow(descriptor_heap.num_persistent);
             for (u32 i = 0; i < descriptor_heap.num_persistent; i++) {
                 descriptor_heap.dead_list[i] = i;
@@ -88,7 +87,7 @@ namespace zec
         void destroy(DescriptorHeap& descriptor_heap)
         {
             ASSERT(descriptor_heap.num_allocated_persistent == 0);
-            for (size_t i = 0; i < NUM_HEAPS; i++) {
+            for (size_t i = 0; i < descriptor_heap.num_heaps; i++) {
                 descriptor_heap.heaps[i]->Release();
             }
         }
@@ -106,7 +105,7 @@ namespace zec
 
             PersistentDescriptorAlloc alloc{ };
             alloc.idx = idx;
-            for (size_t i = 0; i < NUM_HEAPS; i++) {
+            for (size_t i = 0; i < heap.num_heaps; i++) {
                 // Assign and shift the allocation's ptr to the correct place in memory
                 alloc.handles[i] = heap.cpu_start[i];
                 alloc.handles[i].ptr += u64(idx) * u64(heap.descriptor_size);

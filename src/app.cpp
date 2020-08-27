@@ -52,11 +52,11 @@ namespace zec
     void App::init_internal()
     {
         init_time_data(time_data);
-        window.show();
+        window.show(true);
 
         RendererDesc renderer_desc{ };
         renderer_desc.width = 1600;
-        renderer_desc.height = 700;
+        renderer_desc.height = 900;
         renderer_desc.fullscreen = false;
         renderer_desc.vsync = true;
         renderer_desc.window = window.hwnd;
@@ -67,6 +67,7 @@ namespace zec
 
     void App::shutdown_internal()
     {
+        shutdown();
         destroy_renderer();
     }
 
