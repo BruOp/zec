@@ -50,8 +50,8 @@ namespace zec
             if (size >= capacity) {
                 reserve(capacity + 1);
             }
-            memory::copy((void*)&data[size++], (void*)&val, sizeof(T));
-            return size;
+            memory::copy((void*)&data[size], (void*)&val, sizeof(T));
+            return size++;
         };
 
         template<typename ...Args>
@@ -60,8 +60,8 @@ namespace zec
             if (size >= capacity) {
                 reserve(capacity + 1);
             }
-            data[size++] = T{ args... };
-            return size;
+            data[size] = T{ args... };
+            return size++;
         };
 
         size_t grow(size_t additional_slots)
@@ -88,6 +88,12 @@ namespace zec
             capacity += additional_memory_required / sizeof(T);
             // Since capacity is potentiall larger than just old_capacity + additional_slots, we return it
             return capacity;
+        }
+
+        void empty()
+        {
+            memset((void*)data, 0, size * sizeof(T));
+            size = 0;
         }
     };
 } // namespace zec

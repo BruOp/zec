@@ -161,4 +161,13 @@ namespace zec
         return ((num + alignment - 1) / alignment) * alignment;
     }
 
+#define UNCOPIABLE( T ) \
+        T(const T&) = delete; \
+        T& operator=(const T&) = delete;
+
+#define UNMOVABLE( T ) \
+        T(T&&) = delete; \
+        T& operator=(T&&) = delete;
+
+
 } // namespace zec

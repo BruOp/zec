@@ -19,18 +19,13 @@ namespace zec
             u32 is_cubemap = 0;
         };
 
-        void destroy(Texture& texture);
-
-        struct RenderTexture
+        struct RenderTexture : public Texture
         {
-            Texture texture;
             D3D12_CPU_DESCRIPTOR_HANDLE rtv;
 
             u32 mssa_samples = 0;
             u32 msaa_quality = 0;
         };
-
-        void destroy(RenderTexture& render_texture);
 
         struct Buffer
         {
@@ -47,8 +42,5 @@ namespace zec
             u64 heap_offset = 0;
             u64 upload_frame = UINT64_MAX;
         };
-
-        void destroy(Buffer& buffer);
-
     }
 }

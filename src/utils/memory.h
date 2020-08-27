@@ -1,3 +1,4 @@
+
 #pragma once
 #include "pch.h"
 #include "utils/assert.h"
@@ -40,6 +41,5 @@ namespace zec
         {
             return memcpy(dest, src, size);
         }
-
     }
 }

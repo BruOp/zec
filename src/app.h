@@ -34,7 +34,7 @@ namespace zec
 
         TimeData time_data = {};
         std::wstring app_name;
-        D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_12_0;
+        Renderer renderer;
 
     private:
 

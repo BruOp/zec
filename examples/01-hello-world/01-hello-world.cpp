@@ -1,6 +1,5 @@
 #include "app.h"
 #include "utils/exceptions.h"
-#include "gfx/d3d12/globals.h"
 
 // TODO: Remove this once no longer using DXCall directly
 using namespace zec;
@@ -20,8 +19,8 @@ public:
 
     ID3D12RootSignature* root_signature = nullptr;
     ID3D12PipelineState* pso = nullptr;
-    ID3D12Resource* vertex_buffer;
-    D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view;
+    ID3D12Resource* vertex_buffer = nullptr;
+    D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view = {};
 
 protected:
     void init() override final
@@ -39,7 +38,7 @@ protected:
             ID3DBlob* signature;
             ID3DBlob* error;
             DXCall(D3D12SerializeRootSignature(&root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
-            DXCall(zec::dx12::device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root_signature)));
+            DXCall(renderer.device_context.device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root_signature)));
             signature != nullptr && signature->Release();
             error != nullptr && error->Release();
         }
@@ -110,10 +109,10 @@ protected:
             psoDesc.SampleMask = UINT_MAX;
             psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
             psoDesc.NumRenderTargets = 1;
-            psoDesc.RTVFormats[0] = zec::dx12::swap_chain.format;
+            psoDesc.RTVFormats[0] = renderer.swap_chain.format;
             psoDesc.SampleDesc.Count = 1;
 
-            dx12::device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso));
+            renderer.device_context.device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso));
         }
 
 
@@ -154,8 +153,7 @@ protected:
             resource_desc.SampleDesc.Count = 1;
             resource_desc.SampleDesc.Quality = 0;
 
-
-            DXCall(dx12::device->CreateCommittedResource(
+            DXCall(renderer.device_context.device->CreateCommittedResource(
                 &heap_properties,
                 D3D12_HEAP_FLAG_NONE,
                 &resource_desc,
@@ -193,41 +191,41 @@ protected:
     {
         D3D12_VIEWPORT viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         D3D12_RECT scissor_rect{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
-        zec::dx12::RenderTexture& render_target = zec::dx12::swap_chain.back_buffers[zec::dx12::current_frame_idx];
+        dx12::RenderTexture& render_target = renderer.swap_chain.back_buffers[renderer.current_frame_idx];
 
         // TODO: Provide interface for creating barriers like this
         D3D12_RESOURCE_BARRIER barrier{  };
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.Transition.pResource = render_target.texture.resource;
+        barrier.Transition.pResource = render_target.resource;
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
 
-        zec::dx12::cmd_list->ResourceBarrier(1, &barrier);
+        renderer.cmd_list->ResourceBarrier(1, &barrier);
 
         // TODO: Provide handles for referencing render targets
         // TODO: Provide interface for clearing a render target
-        zec::dx12::cmd_list->ClearRenderTargetView(render_target.rtv, clear_color, 0, nullptr);
+        renderer.cmd_list->ClearRenderTargetView(render_target.rtv, clear_color, 0, nullptr);
 
-        zec::dx12::cmd_list->SetGraphicsRootSignature(root_signature);
-        zec::dx12::cmd_list->RSSetViewports(1, &viewport);
-        zec::dx12::cmd_list->RSSetScissorRects(1, &scissor_rect);
-        zec::dx12::cmd_list->OMSetRenderTargets(1, &render_target.rtv, false, nullptr);
-        zec::dx12::cmd_list->SetPipelineState(pso);
-        zec::dx12::cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        zec::dx12::cmd_list->IASetVertexBuffers(0, 1, &vertex_buffer_view);
-        zec::dx12::cmd_list->DrawInstanced(3, 1, 0, 0);
+        renderer.cmd_list->SetGraphicsRootSignature(root_signature);
+        renderer.cmd_list->RSSetViewports(1, &viewport);
+        renderer.cmd_list->RSSetScissorRects(1, &scissor_rect);
+        renderer.cmd_list->OMSetRenderTargets(1, &render_target.rtv, false, nullptr);
+        renderer.cmd_list->SetPipelineState(pso);
+        renderer.cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        renderer.cmd_list->IASetVertexBuffers(0, 1, &vertex_buffer_view);
+        renderer.cmd_list->DrawInstanced(3, 1, 0, 0);
 
         D3D12_RESOURCE_BARRIER present_barrier{  };
         present_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         present_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        present_barrier.Transition.pResource = render_target.texture.resource;
+        present_barrier.Transition.pResource = render_target.resource;
         present_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         present_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
         present_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        zec::dx12::cmd_list->ResourceBarrier(1, &present_barrier);
+        renderer.cmd_list->ResourceBarrier(1, &present_barrier);
     }
 
     void before_reset() override final

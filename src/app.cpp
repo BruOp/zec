@@ -60,7 +60,7 @@ namespace zec
         renderer_desc.fullscreen = false;
         renderer_desc.vsync = true;
         renderer_desc.window = window.hwnd;
-        init_renderer(renderer_desc);
+        renderer.init(renderer_desc);
 
         init();
     }
@@ -68,7 +68,7 @@ namespace zec
     void App::shutdown_internal()
     {
         shutdown();
-        destroy_renderer();
+        renderer.destroy();
     }
 
     void App::update_internal()
@@ -80,11 +80,11 @@ namespace zec
 
     void App::render_internal()
     {
-        start_frame();
+        renderer.begin_frame();
 
         render();
 
-        end_frame();
+        renderer.end_frame();
     }
 
     void App::before_reset_internal()

@@ -3,6 +3,16 @@
 
 namespace zec
 {
+    constexpr u32 k_invalid_handle = UINT32_MAX;
+
+    // Copied from BGFX and others
+#define RESOURCE_HANDLE(_name)      \
+	struct _name { u32 idx = k_invalid_handle; }; \
+    inline bool is_valid(_name _handle) { return _handle.idx != zec::k_invalid_handle; };
+
+#define INVALID_HANDLE \
+    { zec::k_invalid_handle }
+
     struct RendererDesc
     {
         u32 width;
@@ -12,12 +22,6 @@ namespace zec
         bool vsync = true;
     };
 
-    void init_renderer(const RendererDesc& renderer_desc);
-    void destroy_renderer();
-
-    u32 get_swapchain_width();
-    u32 get_swapchain_height();
-
-    void start_frame();
-    void end_frame();
+    //RESOURCE_HANDLE(TextureHandle);
+    //RESOURCE_HANDLE(BufferHandle);
 }
