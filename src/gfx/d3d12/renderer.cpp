@@ -119,7 +119,19 @@ namespace zec
 
         #endif // USE_DEBUG_DEVICE
 
-            // Initialize command allocators and command list
+        }
+
+        // Initialize Memory Allocator
+        {
+            D3D12MA::ALLOCATOR_DESC allocatorDesc = {};
+            allocatorDesc.pDevice = device_context.device;
+            allocatorDesc.pAdapter = device_context.adapter;
+
+            DXCall(D3D12MA::CreateAllocator(&allocatorDesc, &allocator));
+        }
+
+        // Initialize command allocators and command list
+        {
             // We need N allocators for N frames, since we cannot reset them and reclaim the associated memory
             // until the GPU is finished executing against them. So we have to use fences
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
@@ -149,7 +161,6 @@ namespace zec
             DXCall(cmd_list->Reset(current_cmd_allocator, nullptr));
         }
 
-
         // RTV Descriptor Heap initialization
         dx12::DescriptorHeapDesc rtv_descriptor_heap_desc{ };
         rtv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -157,6 +168,22 @@ namespace zec
         rtv_descriptor_heap_desc.num_temporary = 0;
         rtv_descriptor_heap_desc.is_shader_visible = false;
         dx12::init(rtv_descriptor_heap, rtv_descriptor_heap_desc, device_context);
+
+        // Descriptor Heap for depth texture views
+        dx12::DescriptorHeapDesc dsv_descriptor_heap_desc{ };
+        rtv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+        rtv_descriptor_heap_desc.num_persistent = 256;
+        rtv_descriptor_heap_desc.num_temporary = 0;
+        rtv_descriptor_heap_desc.is_shader_visible = false;
+        dx12::init(dsv_descriptor_heap, rtv_descriptor_heap_desc, device_context);
+
+        // Descriptor Heap for SRV, CBV and UAV resources
+        dx12::DescriptorHeapDesc cbv_descriptor_heap_desc{ };
+        cbv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        cbv_descriptor_heap_desc.num_persistent = 1024;
+        cbv_descriptor_heap_desc.num_temporary = 1024;
+        cbv_descriptor_heap_desc.is_shader_visible = true;
+        dx12::init(srv_descriptor_heap, cbv_descriptor_heap_desc, device_context);
 
         // Swapchain initializaiton
         {
@@ -242,6 +269,8 @@ namespace zec
         gfx_queue->Release();
 
         destruction_queue.destroy();
+
+        allocator->Release();
 
         device_context.device->Release();
         device_context.adapter->Release();

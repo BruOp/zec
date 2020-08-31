@@ -173,6 +173,14 @@ protected:
             vertex_buffer_view.StrideInBytes = sizeof(Vertex);
             vertex_buffer_view.SizeInBytes = vertex_buffer_size;
         }
+
+        // Create constant buffer
+        {
+            D3D12_HEAP_PROPERTIES heap_properties{ };
+            heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
+            heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_COMBINE
+                renderer.device_context.device->CreateCommittedResource()
+        }
     }
 
     void shutdown() override final

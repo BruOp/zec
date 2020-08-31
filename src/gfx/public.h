@@ -22,6 +22,37 @@ namespace zec
         bool vsync = true;
     };
 
+    enum BufferUsage : uint8_t
+    {
+        UNUSED = 0,
+        VERTEX = (1 << 0),
+        INDEX = (1 << 1),
+        SHADER_READABLE = (1 << 2),
+        COMPUTE_WRITABLE = (1 << 3),
+        CPU_WRITABLE = (1 << 4),
+        CONSTANT = (1 << 5),
+
+    };
+
     //RESOURCE_HANDLE(TextureHandle);
-    //RESOURCE_HANDLE(BufferHandle);
+
+    RESOURCE_HANDLE(BufferHandle);
+
+    enum struct BufferUsage : u8
+    {
+        VERTEX = 0,
+        INDEX,
+        CONSTANT,
+    };
+
+    struct BufferDesc
+    {
+        BufferType type = BufferType::CONSTANT;
+        ResourceUsage usage = ResourceUsage::STATIC;
+        u32 width = 0;
+        u32 height = 0;
+        u32 depth = 0;
+
+    };
+
 }

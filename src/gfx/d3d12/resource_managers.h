@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "wrappers.h"
 #include "utils/utils.h"
+#include "D3D12MemAlloc/D3D12MemAlloc.h"
 
 namespace zec
 {
@@ -70,5 +71,41 @@ namespace zec
         //    ResourceDestructionQueue* destruction_queue = nullptr;
         //    Array<Resource> resources;
         //};
+
+        class BufferManager
+        {
+        public:
+            BufferManager() = default;
+
+            UNCOPIABLE(BufferManager);
+            UNMOVABLE(BufferManager);
+
+            void init(D3D12MA::Allocator* allocator);
+            void destroy();
+
+
+            BufferHandle create_buffer(BufferDesc);
+
+            inline Buffer& get(const BufferHandle handle)
+            {
+                return buffers[handle.idx];
+            };
+            inline const Buffer& get(const BufferHandle handle) const
+            {
+                return buffers[handle.idx];
+            };
+            inline Buffer& operator[](const BufferHandle handle)
+            {
+                return buffers[handle.idx];
+            };
+            inline const Buffer& operator[](const BufferHandle handle) const
+            {
+                return buffers[handle.idx];
+            };
+
+        private:
+            D3D12MA::Allocator* allocator;
+            Array<Buffer> buffers;
+        };
     }
 }

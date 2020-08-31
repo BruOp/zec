@@ -1,5 +1,6 @@
 #pragma once
 #include "pch.h"
+#include "D3D12MemAlloc/D3D12MemAlloc.h"
 
 namespace zec
 {
@@ -8,8 +9,9 @@ namespace zec
         struct Texture
         {
             ID3D12Resource* resource = nullptr;
+            D3D12MA::Allocation* allocation = nullptr;
             u32 srv = UINT32_MAX;
-            D3D12_CPU_DESCRIPTOR_HANDLE uav;
+            D3D12_CPU_DESCRIPTOR_HANDLE uav = {};
             u32 width = 0;
             u32 height = 0;
             u32 depth = 0;
@@ -30,17 +32,15 @@ namespace zec
         struct Buffer
         {
             ID3D12Resource* resource = nullptr;
+            D3D12MA::Allocation* allocation = nullptr;
             u32 srv = UINT32_MAX;
-            u64 curr_buffer = 0;
+            D3D12_CPU_DESCRIPTOR_HANDLE uav = {};
             void* cpu_address = 0;
             u64 gpu_address = 0;
             u64 alignment = 0;
             u64 size = 0;
             u32 dynamic = false;
             u32 cpu_accessible = false;
-            ID3D12Heap* heap = nullptr;
-            u64 heap_offset = 0;
-            u64 upload_frame = UINT64_MAX;
         };
     }
 }

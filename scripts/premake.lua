@@ -81,6 +81,7 @@ project("zec_lib")
     path.join(ZEC_SRC_DIR, "shaders/**.hlsl"),
     path.join(ZEC_SRC_DIR, "**.cpp"),
     path.join(ZEC_SRC_DIR, "**.h"),
+    path.join(ZEC_DIR, "external/src/**.cpp"),
   }
 
   filter { "files:**.hlsl" }
@@ -103,7 +104,6 @@ project("zec_lib")
     "dxgi",
     "d3d12",
     "D3DCompiler",
-    "murmur_hash"
   }
 
   configuration {}

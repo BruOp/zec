@@ -3,6 +3,7 @@
 #include "wrappers.h"
 #include "resource_managers.h"
 #include "gfx/public.h"
+#include "D3D12MemAlloc/D3D12MemAlloc.h"
 
 namespace zec
 {
@@ -28,6 +29,8 @@ namespace zec
 
         dx12::DeviceContext device_context = {};
 
+        D3D12MA::Allocator* allocator = nullptr;
+
         ID3D12GraphicsCommandList1* cmd_list = 0;
         ID3D12CommandAllocator* cmd_allocators[NUM_CMD_ALLOCATORS] = {};
         ID3D12CommandQueue* gfx_queue = 0;
@@ -37,6 +40,9 @@ namespace zec
 
         dx12::SwapChain swap_chain = {};
         dx12::DescriptorHeap rtv_descriptor_heap = {};
+        dx12::DescriptorHeap dsv_descriptor_heap = {};
+        dx12::DescriptorHeap srv_descriptor_heap = {};
+
         dx12::Fence frame_fence = { };
 
     private:
