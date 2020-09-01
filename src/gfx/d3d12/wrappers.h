@@ -1,3 +1,4 @@
+
 #pragma once
 #include "pch.h"
 #include "core/array.h"
@@ -8,6 +9,13 @@ namespace zec
 {
     namespace dx12
     {
+        template<typename DXPtr>
+        void dx_destroy(DXPtr** ptr)
+        {
+            (*ptr)->Release();
+            *ptr = nullptr;
+        }
+
         struct DeviceContext
         {
             IDXGIFactory4* factory;

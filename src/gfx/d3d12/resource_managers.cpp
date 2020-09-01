@@ -10,8 +10,10 @@ namespace zec
         {
             for (size_t i = 0; i < queue.size; i++) {
                 queue[i]->Release();
+                if (allocations[i] != nullptr) allocations[i]->Release();
             }
             queue.empty();
+            allocations.empty();
         }
 
         void ResourceDestructionQueue::destroy()
@@ -30,8 +32,8 @@ namespace zec
             for (size_t i = 0; i < fences.size; i++) {
                 Fence& fence = fences[i];
                 destruction_queue->queue_for_destruction(fence.d3d_fence);
-                fence.d3d_fence = nullptr;
             }
+            fences.empty();
             device = nullptr;
             destruction_queue = nullptr;
         }

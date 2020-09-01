@@ -22,7 +22,7 @@ namespace zec
         bool vsync = true;
     };
 
-    enum BufferUsage : uint8_t
+    enum BufferUsage : u32
     {
         UNUSED = 0,
         VERTEX = (1 << 0),
@@ -34,25 +34,15 @@ namespace zec
 
     };
 
-    //RESOURCE_HANDLE(TextureHandle);
-
     RESOURCE_HANDLE(BufferHandle);
-
-    enum struct BufferUsage : u8
-    {
-        VERTEX = 0,
-        INDEX,
-        CONSTANT,
-    };
 
     struct BufferDesc
     {
-        BufferType type = BufferType::CONSTANT;
-        ResourceUsage usage = ResourceUsage::STATIC;
-        u32 width = 0;
-        u32 height = 0;
-        u32 depth = 0;
+        BufferUsage usage = BufferUsage::UNUSED;
+        u32 byte_size = 0;
+        void* data = nullptr;
 
     };
 
+    BufferHandle create_buffer(const BufferDesc& desc);
 }

@@ -19,8 +19,9 @@ public:
 
     ID3D12RootSignature* root_signature = nullptr;
     ID3D12PipelineState* pso = nullptr;
-    ID3D12Resource* vertex_buffer = nullptr;
     D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view = {};
+
+    BufferHandle vertex_buffer_handle;
 
 protected:
     void init() override final
@@ -115,6 +116,7 @@ protected:
             renderer.device_context.device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso));
         }
 
+        renderer.begin_upload();
 
         // Create the vertex buffer.
         {
@@ -127,65 +129,32 @@ protected:
                 { { -0.25f, -0.25f * aspect_ratio, 0.0f }, 0x0000ffff }
             };
 
-            const u32 vertex_buffer_size = sizeof(triangle_vertices);
+            BufferDesc buffer_desc{ };
+            buffer_desc.byte_size = sizeof(triangle_vertices);
+            buffer_desc.usage = BufferUsage::VERTEX;
+            buffer_desc.data = (void*)triangle_vertices;
 
-            // Note: using upload heaps to transfer static data like vert buffers is not 
-            // recommended. Every time the GPU needs it, the upload heap will be marshalled 
-            // over. Please read up on Default Heap usage. An upload heap is used here for 
-            // code simplicity and because there are very few verts to actually transfer.
-            D3D12_HEAP_PROPERTIES heap_properties{ };
-            heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
-            heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-            heap_properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-            heap_properties.CreationNodeMask = 1;
-            heap_properties.VisibleNodeMask = 1;
-
-            D3D12_RESOURCE_DESC resource_desc{ };
-            resource_desc.Format = DXGI_FORMAT_UNKNOWN;
-            resource_desc.Alignment = 0;
-            resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-            resource_desc.Width = vertex_buffer_size;
-            resource_desc.Height = 1;
-            resource_desc.DepthOrArraySize = 1;
-            resource_desc.MipLevels = 1;
-            resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-            resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-            resource_desc.SampleDesc.Count = 1;
-            resource_desc.SampleDesc.Quality = 0;
-
-            DXCall(renderer.device_context.device->CreateCommittedResource(
-                &heap_properties,
-                D3D12_HEAP_FLAG_NONE,
-                &resource_desc,
-                D3D12_RESOURCE_STATE_GENERIC_READ,
-                nullptr,
-                IID_PPV_ARGS(&vertex_buffer)));
-
-            // Copy the triangle data to the vertex buffer.
-            UINT8* vertex_data_begin;
-            D3D12_RANGE read_range{ 0, 0 };
-            DXCall(vertex_buffer->Map(0, &read_range, reinterpret_cast<void**>(&vertex_data_begin)));
-            memcpy(vertex_data_begin, triangle_vertices, vertex_buffer_size);
-            vertex_buffer->Unmap(0, nullptr);
+            vertex_buffer_handle = renderer.create_buffer(buffer_desc);
 
             // Initialize the vertex buffer view.
-            vertex_buffer_view.BufferLocation = vertex_buffer->GetGPUVirtualAddress();
+            vertex_buffer_view.BufferLocation = renderer.buffers[vertex_buffer_handle].resource->GetGPUVirtualAddress();
             vertex_buffer_view.StrideInBytes = sizeof(Vertex);
-            vertex_buffer_view.SizeInBytes = vertex_buffer_size;
+            vertex_buffer_view.SizeInBytes = buffer_desc.byte_size;
         }
 
+        renderer.end_upload();
+
         // Create constant buffer
-        {
-            D3D12_HEAP_PROPERTIES heap_properties{ };
-            heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
-            heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_COMBINE
-                renderer.device_context.device->CreateCommittedResource()
-        }
+        //{
+        //    D3D12_HEAP_PROPERTIES heap_properties{ };
+        //    heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
+        //    heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_COMBINE
+        //        renderer.device_context.device->CreateCommittedResource()
+        //}
     }
 
     void shutdown() override final
     {
-        vertex_buffer->Release();
         pso->Release();
         root_signature->Release();
     }
@@ -209,7 +178,6 @@ protected:
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-
 
         renderer.cmd_list->ResourceBarrier(1, &barrier);
 

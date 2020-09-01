@@ -7,7 +7,12 @@
 // compile and run any of them on any platform, but your performance with the
 // non-native version will be less than optimal.
 
+
+#include "pch.h"
 #include "murmur/MurmurHash3.h"
+
+#pragma warning( push )
+#pragma warning( disable : 4005 )
 
 //-----------------------------------------------------------------------------
 // Platform-specific functions and macros
@@ -47,6 +52,8 @@ inline uint64_t rotl64(uint64_t x, int8_t r)
 #define BIG_CONSTANT(x) (x##LLU)
 
 #endif // !defined(_MSC_VER)
+
+#pragma warning( pop )
 
 //-----------------------------------------------------------------------------
 // Block read - if your platform needs to do endian-swapping or can only
@@ -326,4 +333,3 @@ void MurmurHash3_x64_128(const void* key, const int len,
 }
 
 //-----------------------------------------------------------------------------
-

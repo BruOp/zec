@@ -7,7 +7,7 @@ struct Vector
     u32 y = 0;
     u32 z = 0;
 };
-boolean operator==(const Vector& left, const Vector& right)
+static boolean operator==(const Vector& left, const Vector& right)
 {
     return left.x == right.x && left.y == right.y && left.z == right.z;
 }
@@ -27,7 +27,7 @@ TEST_CASE("Array can be initialized without a size")
     REQUIRE(array.capacity == 0);
 }
 
-TEST_CASE("Array elements can be access using square bracket operator")
+TEST_CASE("Array elements can be accessed using square bracket operator")
 {
     size_t size = 1024;
     zec::Array<uint32_t> array{ size };
@@ -55,7 +55,7 @@ TEST_CASE("Elements can be created at the back of the array")
     REQUIRE(array[array.size - 1] == expected);
 }
 
-TEST_CASE("Array can grown")
+TEST_CASE("Array can be grown")
 {
     zec::Array<uint32_t> array{ 1024 };
     array.grow(1000);

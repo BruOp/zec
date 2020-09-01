@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "renderer.h"
+#include "d3dx12/d3dx12.h"
 #include "gfx/public.h"
 
 #if _DEBUG
@@ -148,12 +149,24 @@ namespace zec
             cmd_list->SetName(L"Graphics command list");
 
             // Initialize graphics queue
-            D3D12_COMMAND_QUEUE_DESC queue_desc{ };
-            queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-            queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+            {
+                D3D12_COMMAND_QUEUE_DESC queue_desc{ };
+                queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+                queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-            DXCall(device_context.device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&gfx_queue)));
-            gfx_queue->SetName(L"Graphics queue");
+                DXCall(device_context.device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&gfx_queue)));
+                gfx_queue->SetName(L"Graphics queue");
+            }
+
+            // Initialize graphics queue
+            {
+                D3D12_COMMAND_QUEUE_DESC queue_desc{ };
+                queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+                queue_desc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
+
+                DXCall(device_context.device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&copy_queue)));
+                copy_queue->SetName(L"Copy Queue");
+            }
 
             // Set current frame index and reset command allocator and list appropriately
             ID3D12CommandAllocator* current_cmd_allocator = cmd_allocators[0];
@@ -171,19 +184,19 @@ namespace zec
 
         // Descriptor Heap for depth texture views
         dx12::DescriptorHeapDesc dsv_descriptor_heap_desc{ };
-        rtv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-        rtv_descriptor_heap_desc.num_persistent = 256;
-        rtv_descriptor_heap_desc.num_temporary = 0;
-        rtv_descriptor_heap_desc.is_shader_visible = false;
-        dx12::init(dsv_descriptor_heap, rtv_descriptor_heap_desc, device_context);
+        dsv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+        dsv_descriptor_heap_desc.num_persistent = 256;
+        dsv_descriptor_heap_desc.num_temporary = 0;
+        dsv_descriptor_heap_desc.is_shader_visible = false;
+        dx12::init(dsv_descriptor_heap, dsv_descriptor_heap_desc, device_context);
 
         // Descriptor Heap for SRV, CBV and UAV resources
-        dx12::DescriptorHeapDesc cbv_descriptor_heap_desc{ };
-        cbv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        cbv_descriptor_heap_desc.num_persistent = 1024;
-        cbv_descriptor_heap_desc.num_temporary = 1024;
-        cbv_descriptor_heap_desc.is_shader_visible = true;
-        dx12::init(srv_descriptor_heap, cbv_descriptor_heap_desc, device_context);
+        dx12::DescriptorHeapDesc srv_descriptor_heap_desc{ };
+        srv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        srv_descriptor_heap_desc.num_persistent = 1024;
+        srv_descriptor_heap_desc.num_temporary = 1024;
+        srv_descriptor_heap_desc.is_shader_visible = true;
+        dx12::init(srv_descriptor_heap, srv_descriptor_heap_desc, device_context);
 
         // Swapchain initializaiton
         {
@@ -214,7 +227,7 @@ namespace zec
                 swap_chain.non_sRGB_format = swap_chain.format;
             }
 
-            DXGI_SWAP_CHAIN_DESC d3d_swap_chain_desc{  };
+            DXGI_SWAP_CHAIN_DESC d3d_swap_chain_desc = {  };
             d3d_swap_chain_desc.BufferCount = NUM_BACK_BUFFERS;
             d3d_swap_chain_desc.BufferDesc.Width = swap_chain.width;
             d3d_swap_chain_desc.BufferDesc.Height = swap_chain.height;
@@ -240,6 +253,12 @@ namespace zec
         }
         fence_manager.init(device_context.device, &destruction_queue);
         frame_fence = fence_manager.create_fence(0);
+
+        upload_manager.init({
+            device_context.device,
+            allocator,
+            copy_queue,
+            &fence_manager });
     }
 
     void Renderer::destroy()
@@ -260,24 +279,36 @@ namespace zec
         }
 
         dx12::destroy(rtv_descriptor_heap);
+        dx12::destroy(dsv_descriptor_heap);
+        dx12::destroy(srv_descriptor_heap);
+        upload_manager.destroy();
+        buffers.destroy();
         fence_manager.destroy();
 
-        cmd_list->Release();
+        dx12::dx_destroy(&cmd_list);
         for (u64 i = 0; i < RENDER_LATENCY; i++) {
             cmd_allocators[i]->Release();
         }
-        gfx_queue->Release();
+        dx12::dx_destroy(&gfx_queue);
+        dx12::dx_destroy(&copy_queue);
 
         destruction_queue.destroy();
+        dx12::dx_destroy(&allocator);
 
-        allocator->Release();
+        dx12::dx_destroy(&device_context.device);
+        dx12::dx_destroy(&device_context.adapter);
+        dx12::dx_destroy(&device_context.factory);
+    }
 
-        device_context.device->Release();
-        device_context.adapter->Release();
-        device_context.factory->Release();
-        device_context.device = nullptr;
-        device_context.adapter = nullptr;
-        device_context.factory = nullptr;
+    void Renderer::begin_upload()
+    {
+        upload_manager.begin_upload();
+    }
+
+    void Renderer::end_upload()
+    {
+        upload_manager.end_upload();
+        gfx_queue->Wait(upload_manager.fence.d3d_fence, upload_manager.current_fence_value);
     }
 
     void Renderer::begin_frame()
@@ -344,6 +375,43 @@ namespace zec
         swap_chain.width = closest_match.Width;
         swap_chain.height = closest_match.Height;
         swap_chain.refresh_rate = closest_match.RefreshRate;
+    }
+
+    BufferHandle Renderer::create_buffer(BufferDesc desc)
+    {
+        ASSERT(desc.byte_size != 0);
+        ASSERT(desc.usage != BufferUsage::UNUSED);
+
+        BufferHandle handle = { buffers.create_back() };
+        dx12::Buffer& buffer = buffers.get(handle);
+
+        // Create Buffer
+        {
+            D3D12_HEAP_TYPE heap_type = D3D12_HEAP_TYPE_DEFAULT;
+            if (desc.usage != BufferUsage::VERTEX) {
+                ASSERT(false);
+            }
+
+            D3D12_RESOURCE_STATES initial_resource_state = D3D12_RESOURCE_STATE_COMMON;
+
+            D3D12_RESOURCE_DESC resource_desc = CD3DX12_RESOURCE_DESC::Buffer(desc.byte_size);
+            D3D12MA::ALLOCATION_DESC alloc_desc = {};
+            alloc_desc.HeapType = heap_type;
+
+            DXCall(allocator->CreateResource(
+                &alloc_desc,
+                &resource_desc,
+                initial_resource_state,
+                NULL,
+                &buffer.allocation,
+                IID_PPV_ARGS(&buffer.resource)
+            ));
+
+            // Queue upload
+            upload_manager.queue_upload(desc, buffer.resource);
+        }
+
+        return handle;
     }
 
     void Renderer::reset()

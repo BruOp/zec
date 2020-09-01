@@ -1,7 +1,9 @@
 #pragma once
 #include "pch.h"
 #include "wrappers.h"
+#include "resources.h"
 #include "resource_managers.h"
+#include "contexts.h"
 #include "gfx/public.h"
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 
@@ -17,6 +19,9 @@ namespace zec
 
         void init(const RendererDesc& renderer_desc);
         void destroy();
+
+        void begin_upload();
+        void end_upload();
 
         void begin_frame();
         void end_frame();
@@ -34,9 +39,12 @@ namespace zec
         ID3D12GraphicsCommandList1* cmd_list = 0;
         ID3D12CommandAllocator* cmd_allocators[NUM_CMD_ALLOCATORS] = {};
         ID3D12CommandQueue* gfx_queue = 0;
+        ID3D12CommandQueue* copy_queue = 0;
 
         dx12::ResourceDestructionQueue destruction_queue = {};
         dx12::FenceManager fence_manager = {};
+        dx12::UploadManager upload_manager = { };
+
 
         dx12::SwapChain swap_chain = {};
         dx12::DescriptorHeap rtv_descriptor_heap = {};
@@ -44,6 +52,10 @@ namespace zec
         dx12::DescriptorHeap srv_descriptor_heap = {};
 
         dx12::Fence frame_fence = { };
+
+        dx12::ResourceList<dx12::Buffer, BufferHandle> buffers = { &destruction_queue };
+
+        BufferHandle create_buffer(BufferDesc buffer_desc);
 
     private:
         void reset();

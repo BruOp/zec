@@ -45,7 +45,7 @@ workspace "zec"
   }
   linkoptions {
     "/ignore:4221", -- LNK4221: This object file does not define any previously undefined public symbols, so it will not be used by any link operation that consumes this library
-    "/ignore:4006", -- LNK4221: This object file does not define any previously undefined public symbols, so it will not be used by any link operation that consumes this library
+    "/ignore:4006", -- LNK4006
   }
 
   disablewarnings {
@@ -56,21 +56,6 @@ workspace "zec"
 ---
 --- Projects
 ---
-
-project("murmur_hash")
-  uuid(os.uuid("murmur_hash"))
-  kind "StaticLib"
-
-  files {
-    path.join(ZEC_DIR, "external/src/MurmurHash3.cpp"),
-  }
-
-  includedirs {
-    EXTERNAL_DIR
-  }
-
-  configuration {}
-
 
 ZEC_SRC_DIR = path.join(ZEC_DIR, "src")
 project("zec_lib")
@@ -103,6 +88,7 @@ project("zec_lib")
   links {
     "dxgi",
     "d3d12",
+    "dxguid",
     "D3DCompiler",
   }
 
