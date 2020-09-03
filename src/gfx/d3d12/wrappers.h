@@ -3,18 +3,22 @@
 #include "pch.h"
 #include "core/array.h"
 #include "gfx/constants.h"
+#include "gfx/public.h"
 #include "./resources.h"
 
 namespace zec
 {
     namespace dx12
     {
+        // ---------- Helper functions ----------
         template<typename DXPtr>
         void dx_destroy(DXPtr** ptr)
         {
             (*ptr)->Release();
             *ptr = nullptr;
         }
+
+        // ---------- Device Context----------
 
         struct DeviceContext
         {

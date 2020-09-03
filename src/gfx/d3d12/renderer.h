@@ -3,7 +3,7 @@
 #include "wrappers.h"
 #include "resources.h"
 #include "resource_managers.h"
-#include "contexts.h"
+#include "upload_manager.h"
 #include "gfx/public.h"
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 
@@ -25,6 +25,10 @@ namespace zec
 
         void begin_frame();
         void end_frame();
+
+        // Resource creation
+        BufferHandle create_buffer(BufferDesc buffer_desc);
+        MeshHandle create_mesh(MeshDesc mesh_desc);
 
         u64 current_frame_idx = 0;
         // Total number of CPU frames completed (means that we've recorded and submitted commands for the frame)
@@ -54,8 +58,7 @@ namespace zec
         dx12::Fence frame_fence = { };
 
         dx12::ResourceList<dx12::Buffer, BufferHandle> buffers = { &destruction_queue };
-
-        BufferHandle create_buffer(BufferDesc buffer_desc);
+        Array<dx12::Mesh> meshes;
 
     private:
         void reset();

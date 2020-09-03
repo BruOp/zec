@@ -1,11 +1,11 @@
 #include "pch.h"
-#include "contexts.h"
+#include "upload_manager.h"
 
 namespace zec
 {
     namespace dx12
     {
-        void UploadManager::init(const UploadContextDesc& desc)
+        void UploadManager::init(const UploadManagerDesc& desc)
         {
             for (size_t i = 0; i < RENDER_LATENCY; i++) {
                 DXCall(desc.device->CreateCommandAllocator(
@@ -32,11 +32,11 @@ namespace zec
 
             // Check if we should discard any resources
             if (current_idx != 0) {
-                PendingUploadInfo pending_upload_info = pending_upload_infos[current_idx];
+                UploadBatchInfo pending_upload_info = upload_batch_info[current_idx];
                 wait(fence, pending_upload_info.fence_value);
                 // Release all the resources we know we've finished uploading
-                for (size_t i = pending_upload_info.start_idx; i < pending_upload_info.start_idx + pending_upload_info.size; i++) {
-                    PendingUpload pending_upload = pending_uploads.pop_front();
+                for (size_t i = 0; i < pending_upload_info.size; i++) {
+                    Upload pending_upload = upload_queue.pop_front();
                     pending_upload.resource->Release();
                     pending_upload.allocation->Release();
                 }
@@ -52,7 +52,7 @@ namespace zec
             ASSERT(desc.data != nullptr);
             // Create upload resource and schedule copy
 
-            PendingUpload upload{ };
+            Upload upload{ };
             const u64 upload_buffer_size = GetRequiredIntermediateSize(destination_resource, 0, 1);
             D3D12MA::ALLOCATION_DESC upload_alloc_desc = {};
             upload_alloc_desc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
@@ -65,7 +65,7 @@ namespace zec
                 IID_PPV_ARGS(&upload.resource)
             ));
 
-            pending_uploads.push_back(upload);
+            upload_queue.push_back(upload);
             ++pending_size;
 
             void* mapped_ptr = nullptr;
@@ -85,15 +85,13 @@ namespace zec
             ID3D12CommandList* command_lists[] = { cmd_list };
             cmd_queue->ExecuteCommandLists(1, command_lists);
 
-            PendingUploadInfo& info = pending_upload_infos[current_idx];
+            UploadBatchInfo& info = upload_batch_info[current_idx];
             info.fence_value = ++current_fence_value;
             info.size = pending_size;
-            info.start_idx = pending_start;
 
             signal(fence, cmd_queue, current_fence_value);
 
             // Reset values for next frame;
-            pending_start += pending_size;
             pending_size = 0;
             current_idx = (current_idx + 1) % RENDER_LATENCY;
         }
@@ -108,11 +106,12 @@ namespace zec
             for (size_t i = 0; i < RENDER_LATENCY; i++) {
                 cmd_allocators[i]->Release();
                 cmd_allocators[i] = nullptr;
-                pending_upload_infos[i] = { };
+                upload_batch_info[i] = { };
             }
 
-            for (size_t i = 0; i < pending_uploads.size(); i++) {
-                PendingUpload upload = pending_uploads.pop_front();
+            size_t size = upload_queue.size();
+            for (size_t i = 0; i < size; i++) {
+                Upload upload = upload_queue.pop_front();
                 upload.resource->Release();
                 upload.allocation->Release();
                 upload = {};

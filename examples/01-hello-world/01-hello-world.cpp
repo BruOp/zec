@@ -19,9 +19,8 @@ public:
 
     ID3D12RootSignature* root_signature = nullptr;
     ID3D12PipelineState* pso = nullptr;
-    D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view = {};
 
-    BufferHandle vertex_buffer_handle;
+    MeshHandle cube_mesh;
 
 protected:
     void init() override final
@@ -65,7 +64,7 @@ protected:
             D3D12_INPUT_ELEMENT_DESC input_element_desc[] =
             {
                 { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-                { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+                { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 1, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
             };
 
             D3D12_RASTERIZER_DESC rasterizer_desc = { };
@@ -120,26 +119,68 @@ protected:
 
         // Create the vertex buffer.
         {
-            float aspect_ratio = float(width) / float(height);
             // Define the geometry for a triangle.
-            Vertex triangle_vertices[] =
-            {
-                { { 0.0f, 0.25f * aspect_ratio, 0.0f }, 0xff0000ff },
-                { { 0.25f, -0.25f * aspect_ratio, 0.0f }, 0x00ff00ff },
-                { { -0.25f, -0.25f * aspect_ratio, 0.0f }, 0x0000ffff }
+
+            constexpr float cube_positions[] = {
+                -0.5f,  0.5f, -0.5f, // +Y (top face)
+                 0.5f,  0.5f, -0.5f,
+                 0.5f,  0.5f,  0.5f,
+                -0.5f,  0.5f,  0.5f,
+                -0.5f, -0.5f,  0.5f,  // -Y (bottom face)
+                 0.5f, -0.5f,  0.5f,
+                 0.5f, -0.5f, -0.5f,
+                -0.5f, -0.5f, -0.5f,
             };
 
-            BufferDesc buffer_desc{ };
-            buffer_desc.byte_size = sizeof(triangle_vertices);
-            buffer_desc.usage = BufferUsage::VERTEX;
-            buffer_desc.data = (void*)triangle_vertices;
+            constexpr u32 cube_colors[] = {
+                    0xff00ff00, // +Y (top face)
+                    0xff00ffff,
+                    0xffffffff,
+                    0xffffff00,
+                    0xffff0000, // -Y (bottom face)
+                    0xffff00ff,
+                    0xff0000ff,
+                    0xff000000,
+            };
 
-            vertex_buffer_handle = renderer.create_buffer(buffer_desc);
+            constexpr u16 cube_indices[] = {
+                2, 1, 0,
+                3, 2, 0,
+                5, 1, 2,
+                5, 6, 1,
+                4, 3, 0,
+                7, 4, 0,
+                1, 7, 0,
+                6, 7, 1,
+                4, 2, 3,
+                4, 5, 2,
+                7, 5, 4,
+                7, 6, 5
+            };
 
-            // Initialize the vertex buffer view.
-            vertex_buffer_view.BufferLocation = renderer.buffers[vertex_buffer_handle].resource->GetGPUVirtualAddress();
-            vertex_buffer_view.StrideInBytes = sizeof(Vertex);
-            vertex_buffer_view.SizeInBytes = buffer_desc.byte_size;
+            MeshDesc mesh_desc{};
+            mesh_desc.index_buffer_desc.usage = BufferUsage::INDEX;
+            mesh_desc.index_buffer_desc.type = BufferType::DEFAULT;
+            mesh_desc.index_buffer_desc.byte_size = sizeof(cube_indices);
+            mesh_desc.index_buffer_desc.stride = sizeof(cube_indices[0]);
+            mesh_desc.index_buffer_desc.data = (void*)cube_indices;
+
+            mesh_desc.vertex_buffer_descs[0] = {
+                    BufferUsage::VERTEX,
+                    BufferType::DEFAULT,
+                    sizeof(cube_positions),
+                    sizeof(cube_positions[0]),
+                    (void*)(cube_positions)
+            };
+            mesh_desc.vertex_buffer_descs[1] = {
+               BufferUsage::VERTEX,
+               BufferType::DEFAULT,
+               sizeof(cube_colors),
+               sizeof(cube_colors[0]),
+               (void*)(cube_colors)
+            };
+
+            cube_mesh = renderer.create_mesh(mesh_desc);
         }
 
         renderer.end_upload();
@@ -185,14 +226,16 @@ protected:
         // TODO: Provide interface for clearing a render target
         renderer.cmd_list->ClearRenderTargetView(render_target.rtv, clear_color, 0, nullptr);
 
+        dx12::Mesh& mesh = renderer.meshes[cube_mesh.idx];
         renderer.cmd_list->SetGraphicsRootSignature(root_signature);
         renderer.cmd_list->RSSetViewports(1, &viewport);
         renderer.cmd_list->RSSetScissorRects(1, &scissor_rect);
         renderer.cmd_list->OMSetRenderTargets(1, &render_target.rtv, false, nullptr);
         renderer.cmd_list->SetPipelineState(pso);
         renderer.cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        renderer.cmd_list->IASetVertexBuffers(0, 1, &vertex_buffer_view);
-        renderer.cmd_list->DrawInstanced(3, 1, 0, 0);
+        renderer.cmd_list->IASetIndexBuffer(&mesh.index_buffer_view);
+        renderer.cmd_list->IASetVertexBuffers(0, 1, mesh.buffer_views);
+        renderer.cmd_list->DrawIndexedInstanced(mesh.index_count, 1, 0, 0, 0);
 
         D3D12_RESOURCE_BARRIER present_barrier{  };
         present_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;

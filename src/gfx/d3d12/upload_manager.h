@@ -9,7 +9,7 @@ namespace zec
 {
     namespace dx12
     {
-        struct UploadContextDesc
+        struct UploadManagerDesc
         {
             ID3D12Device* device = nullptr;
             D3D12MA::Allocator* allocator = nullptr;
@@ -20,21 +20,20 @@ namespace zec
 
         class UploadManager
         {
-            struct PendingUploadInfo
+            struct UploadBatchInfo
             {
                 u64 fence_value;
-                u64 start_idx;
                 u64 size;
             };
 
-            struct PendingUpload
+            struct Upload
             {
                 ID3D12Resource* resource = nullptr;
                 D3D12MA::Allocation* allocation = nullptr;
             };
 
         public:
-            void init(const UploadContextDesc& desc);
+            void init(const UploadManagerDesc& desc);
             void destroy();
 
             void begin_upload();
@@ -53,20 +52,9 @@ namespace zec
             ID3D12CommandAllocator* cmd_allocators[RENDER_LATENCY] = {};
             u64 current_idx;
             u64 pending_size;
-            u64 pending_start;
 
-            RingBuffer<PendingUpload> pending_uploads = {};
-            PendingUploadInfo pending_upload_infos[RENDER_LATENCY] = {};
-        };
-
-        struct GraphicsContext
-        {
-
-        };
-
-        struct ComputeContext
-        {
-
+            RingBuffer<Upload> upload_queue = {};
+            UploadBatchInfo upload_batch_info[RENDER_LATENCY] = {};
         };
     }
 }

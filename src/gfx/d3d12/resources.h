@@ -1,5 +1,6 @@
 #pragma once
 #include "pch.h"
+#include "gfx/public.h"
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 
 namespace zec
@@ -41,6 +42,15 @@ namespace zec
             u64 size = 0;
             u32 dynamic = false;
             u32 cpu_accessible = false;
+        };
+
+        struct Mesh
+        {
+            D3D12_INDEX_BUFFER_VIEW index_buffer_view = {};
+            D3D12_VERTEX_BUFFER_VIEW buffer_views[MAX_NUM_MESH_VERTEX_BUFFERS] = {};
+            BufferHandle index_buffer_handle = INVALID_HANDLE;
+            BufferHandle vertex_buffer_handles[MAX_NUM_MESH_VERTEX_BUFFERS] = {};
+            u32 index_count = 0;
         };
     }
 }

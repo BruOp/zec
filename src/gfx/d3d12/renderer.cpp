@@ -385,11 +385,14 @@ namespace zec
         BufferHandle handle = { buffers.create_back() };
         dx12::Buffer& buffer = buffers.get(handle);
 
+        buffer.size = desc.byte_size;
         // Create Buffer
         {
             D3D12_HEAP_TYPE heap_type = D3D12_HEAP_TYPE_DEFAULT;
-            if (desc.usage != BufferUsage::VERTEX) {
-                ASSERT(false);
+            if (desc.usage & BufferUsage::VERTEX | BufferUsage::INDEX) {
+                // ASSERT it's only one or the other
+                ASSERT(desc.usage == BufferUsage::VERTEX || desc.usage == BufferUsage::INDEX);
+                // ASSERT that we're not trying to make them cpu writable?
             }
 
             D3D12_RESOURCE_STATES initial_resource_state = D3D12_RESOURCE_STATE_COMMON;
@@ -407,11 +410,67 @@ namespace zec
                 IID_PPV_ARGS(&buffer.resource)
             ));
 
+            buffer.gpu_address = buffer.resource->GetGPUVirtualAddress();
+
             // Queue upload
+            // if (desc.usage & BufferUsage::CPU_WRITABLE == 0) {
             upload_manager.queue_upload(desc, buffer.resource);
+            // } else {
+            // Copy the data now and insert resource barriers?
+            // }
         }
 
         return handle;
+    }
+
+    MeshHandle Renderer::create_mesh(MeshDesc mesh_desc)
+    {
+        dx12::Mesh mesh{};
+        // Index buffer creation
+        {
+            ASSERT(mesh_desc.index_buffer_desc.usage == BufferUsage::INDEX);
+            mesh.index_buffer_handle = create_buffer(mesh_desc.index_buffer_desc);
+
+            const dx12::Buffer& index_buffer = buffers[mesh.index_buffer_handle];
+            mesh.index_buffer_view.BufferLocation = index_buffer.gpu_address;
+            ASSERT(index_buffer.size < u64(UINT32_MAX));
+            mesh.index_buffer_view.SizeInBytes = u32(index_buffer.size);
+
+            switch (mesh_desc.index_buffer_desc.stride) {
+            case 2u:
+                mesh.index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
+                break;
+            case 4u:
+                mesh.index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
+                break;
+            default:
+                throw std::runtime_error("Cannot create an index buffer that isn't u16 or u32");
+            }
+
+            mesh.index_count = mesh_desc.index_buffer_desc.byte_size / mesh_desc.index_buffer_desc.stride;
+        }
+
+        size_t attr_idx = 0;
+
+        for (size_t i = 0; i < ARRAY_SIZE(mesh_desc.vertex_buffer_descs); i++) {
+            const BufferDesc& attr_desc = mesh_desc.vertex_buffer_descs[i];
+            if (attr_desc.usage == BufferUsage::UNUSED) break;
+
+            // TODO: Is this actually needed?
+            ASSERT(attr_desc.usage == BufferUsage::VERTEX);
+            ASSERT(attr_desc.type == BufferType::DEFAULT);
+
+            mesh.vertex_buffer_handles[attr_idx] = create_buffer(attr_desc);
+            const dx12::Buffer& buffer = buffers[mesh.vertex_buffer_handles[attr_idx]];
+
+            D3D12_VERTEX_BUFFER_VIEW& view = mesh.buffer_views[attr_idx];
+            view.BufferLocation = buffer.gpu_address;
+            view.StrideInBytes = attr_desc.stride;
+            view.SizeInBytes = attr_desc.byte_size;
+        }
+
+        // TODO: Support blend weights, indices
+        return { u32(meshes.push_back(mesh)) };
     }
 
     void Renderer::reset()
