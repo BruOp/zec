@@ -1,14 +1,18 @@
 #include "app.h"
+#include "core/zec_math.h"
 #include "utils/exceptions.h"
 
 // TODO: Remove this once no longer using DXCall directly
 using namespace zec;
 
-struct Vertex
+struct DrawData
 {
-    float position[3] = {};
-    u32 color = 0x000000ff;
+    mat44 model_view_transform;
+    mat44 projection_matrix;
+    float padding[32];
 };
+
+static_assert(sizeof(DrawData) == 256);
 
 class HelloWorldApp : public zec::App
 {
@@ -21,6 +25,7 @@ public:
     ID3D12PipelineState* pso = nullptr;
 
     MeshHandle cube_mesh;
+    BufferHandle cb_handle;
 
 protected:
     void init() override final
@@ -28,9 +33,17 @@ protected:
 
         // Create a root signature consisting of a descriptor table with a single CBV.
         {
+            D3D12_ROOT_PARAMETER root_parameters[] = {
+                { }
+            };
+            root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+            root_parameters[0].Descriptor = D3D12_ROOT_DESCRIPTOR{ 0, 0 };
+            root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+
             D3D12_ROOT_SIGNATURE_DESC root_signature_desc{};
-            root_signature_desc.NumParameters = 0;
-            root_signature_desc.pParameters = nullptr;
+            root_signature_desc.NumParameters = 1;
+            root_signature_desc.pParameters = root_parameters;
             root_signature_desc.NumStaticSamplers = 0;
             root_signature_desc.pStaticSamplers = nullptr;
             root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
@@ -57,8 +70,27 @@ protected:
         {
             // Compile the shader
             // Todo: Provide interface for compiling shaders
-            DXCall(D3DCompileFromFile(L"shaders/basic.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compile_flags, 0, &vertex_shader, nullptr));
-            DXCall(D3DCompileFromFile(L"shaders/basic.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compile_flags, 0, &pixel_shader, nullptr));
+            ID3DBlob* error = nullptr;
+
+            HRESULT result = D3DCompileFromFile(L"shaders/basic.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compile_flags, 0, &vertex_shader, &error);
+            if (error) {
+                const char* error_string = (char*)error->GetBufferPointer();
+                size_t len = std::strlen(error_string);
+                std::wstring wc(len, L'#');
+                mbstowcs(&wc[0], error_string, len);
+                debug_print(wc);
+            }
+            DXCall(result);
+
+            result = D3DCompileFromFile(L"shaders/basic.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compile_flags, 0, &pixel_shader, &error);
+            if (error) {
+                const char* error_string = (char*)error->GetBufferPointer();
+                size_t len = std::strlen(error_string);
+                std::wstring wc(len, L'#');
+                mbstowcs(&wc[0], error_string, len);
+                debug_print(wc);
+            }
+            DXCall(result);
 
             // Create the vertex input layout
             D3D12_INPUT_ELEMENT_DESC input_element_desc[] =
@@ -169,7 +201,7 @@ protected:
                     BufferUsage::VERTEX,
                     BufferType::DEFAULT,
                     sizeof(cube_positions),
-                    sizeof(cube_positions[0]),
+                    3 * sizeof(cube_positions[0]),
                     (void*)(cube_positions)
             };
             mesh_desc.vertex_buffer_descs[1] = {
@@ -185,13 +217,27 @@ protected:
 
         renderer.end_upload();
 
+        DrawData mesh_transform = { };
+        mesh_transform.model_view_transform = identity_mat44();
+        set_translation(mesh_transform.model_view_transform, vec3{ 0.0f, 0.0f, -2.0f });
+        mesh_transform.projection_matrix = perspective_projection(
+            float(width) / float(height),
+            deg_to_rad(65.0f),
+            0.1f, // near
+            100.0f // far
+        );
+
         // Create constant buffer
-        //{
-        //    D3D12_HEAP_PROPERTIES heap_properties{ };
-        //    heap_properties.Type = D3D12_HEAP_TYPE_UPLOAD;
-        //    heap_properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_COMBINE
-        //        renderer.device_context.device->CreateCommittedResource()
-        //}
+        {
+            BufferDesc cb_desc = {};
+            cb_desc.byte_size = sizeof(DrawData);
+            cb_desc.data = &mesh_transform;
+            cb_desc.stride = 0;
+            cb_desc.type = BufferType::DEFAULT;
+            cb_desc.usage = BufferUsage::CONSTANT | BufferUsage::DYNAMIC;
+
+            cb_handle = renderer.create_buffer(cb_desc);
+        }
     }
 
     void shutdown() override final
@@ -227,14 +273,16 @@ protected:
         renderer.cmd_list->ClearRenderTargetView(render_target.rtv, clear_color, 0, nullptr);
 
         dx12::Mesh& mesh = renderer.meshes[cube_mesh.idx];
+        dx12::Buffer& constant_buffer = renderer.buffers[cb_handle];
         renderer.cmd_list->SetGraphicsRootSignature(root_signature);
+        renderer.cmd_list->SetGraphicsRootConstantBufferView(0, constant_buffer.gpu_address);
         renderer.cmd_list->RSSetViewports(1, &viewport);
         renderer.cmd_list->RSSetScissorRects(1, &scissor_rect);
         renderer.cmd_list->OMSetRenderTargets(1, &render_target.rtv, false, nullptr);
         renderer.cmd_list->SetPipelineState(pso);
         renderer.cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         renderer.cmd_list->IASetIndexBuffer(&mesh.index_buffer_view);
-        renderer.cmd_list->IASetVertexBuffers(0, 1, mesh.buffer_views);
+        renderer.cmd_list->IASetVertexBuffers(0, mesh.num_vertex_buffers, mesh.buffer_views);
         renderer.cmd_list->DrawIndexedInstanced(mesh.index_count, 1, 0, 0, 0);
 
         D3D12_RESOURCE_BARRIER present_barrier{  };

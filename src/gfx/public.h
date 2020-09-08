@@ -20,10 +20,10 @@ namespace zec
         UNUSED = 0,
         VERTEX = (1 << 0),
         INDEX = (1 << 1),
-        //CONSTANT = (1 << 2),
-        //SHADER_READABLE = (1 << 3),
+        CONSTANT = (1 << 2),
+        SHADER_READABLE = (1 << 3),
         //COMPUTE_WRITABLE = (1 << 4),
-        //CPU_WRITABLE = (1 << 5),
+        DYNAMIC = (1 << 5),
     };
 
     enum MeshAttribute : u16
@@ -75,7 +75,7 @@ namespace zec
 
     struct BufferDesc
     {
-        BufferUsage usage = BufferUsage::UNUSED;
+        u16 usage = BufferUsage::UNUSED;
         BufferType type = BufferType::DEFAULT;
         u32 byte_size = 0;
         u32 stride = 0;

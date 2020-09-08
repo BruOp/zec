@@ -7,6 +7,10 @@ namespace zec
 {
     namespace dx12
     {
+        constexpr size_t CONSTANT_BUFFER_ALIGNMENT = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+        constexpr size_t VERTEX_BUFFER_ALIGNMENT = 4;
+        constexpr size_t INDEX_BUFFER_ALIGNMENT = 4;
+
         struct Texture
         {
             ID3D12Resource* resource = nullptr;
@@ -50,6 +54,7 @@ namespace zec
             D3D12_VERTEX_BUFFER_VIEW buffer_views[MAX_NUM_MESH_VERTEX_BUFFERS] = {};
             BufferHandle index_buffer_handle = INVALID_HANDLE;
             BufferHandle vertex_buffer_handles[MAX_NUM_MESH_VERTEX_BUFFERS] = {};
+            u32 num_vertex_buffers = 0;
             u32 index_count = 0;
         };
     }

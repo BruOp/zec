@@ -2,6 +2,7 @@
 #include "renderer.h"
 #include "d3dx12/d3dx12.h"
 #include "gfx/public.h"
+#include "gfx/constants.h"
 
 #if _DEBUG
 #define USE_DEBUG_DEVICE 1
@@ -389,13 +390,38 @@ namespace zec
         // Create Buffer
         {
             D3D12_HEAP_TYPE heap_type = D3D12_HEAP_TYPE_DEFAULT;
-            if (desc.usage & BufferUsage::VERTEX | BufferUsage::INDEX) {
+            D3D12_RESOURCE_STATES initial_resource_state = D3D12_RESOURCE_STATE_COMMON;
+
+            u16 vertex_or_index = BufferUsage::VERTEX | BufferUsage::INDEX;
+            // There are three different sizes to keep track of here:
+            // desc.bytes_size  => the minimum size (in bytes) that we desire our buffer to occupy
+            // buffer.size      => the above size that's been potentially grown to match alignment requirements
+            // alloc_size       => If the buffer is used "dynamically" then we actually allocate enough memory
+            //                     to update different regions of the buffer for different frames
+            //                     (so RENDER_LATENCY * buffer.size)
+            size_t alloc_size = buffer.size;
+
+            if (desc.usage & vertex_or_index) {
                 // ASSERT it's only one or the other
-                ASSERT(desc.usage == BufferUsage::VERTEX || desc.usage == BufferUsage::INDEX);
-                // ASSERT that we're not trying to make them cpu writable?
+                ASSERT((desc.usage & vertex_or_index) != vertex_or_index);
+                ASSERT(desc.data != nullptr);
             }
 
-            D3D12_RESOURCE_STATES initial_resource_state = D3D12_RESOURCE_STATE_COMMON;
+            if (desc.usage & BufferUsage::VERTEX) {
+                buffer.size = align_to(buffer.size, dx12::VERTEX_BUFFER_ALIGNMENT);
+            }
+            else if (desc.usage & BufferUsage::INDEX) {
+                buffer.size = align_to(buffer.size, dx12::INDEX_BUFFER_ALIGNMENT);
+            }
+            else if (desc.usage & BufferUsage::CONSTANT) {
+                buffer.size = align_to(buffer.size, dx12::CONSTANT_BUFFER_ALIGNMENT);
+            }
+
+            if (desc.usage & BufferUsage::DYNAMIC) {
+                heap_type = D3D12_HEAP_TYPE_UPLOAD;
+                initial_resource_state = D3D12_RESOURCE_STATE_GENERIC_READ;
+                alloc_size = RENDER_LATENCY * buffer.size;
+            }
 
             D3D12_RESOURCE_DESC resource_desc = CD3DX12_RESOURCE_DESC::Buffer(desc.byte_size);
             D3D12MA::ALLOCATION_DESC alloc_desc = {};
@@ -412,12 +438,24 @@ namespace zec
 
             buffer.gpu_address = buffer.resource->GetGPUVirtualAddress();
 
-            // Queue upload
-            // if (desc.usage & BufferUsage::CPU_WRITABLE == 0) {
-            upload_manager.queue_upload(desc, buffer.resource);
-            // } else {
-            // Copy the data now and insert resource barriers?
-            // }
+            if (desc.usage & BufferUsage::DYNAMIC) {
+                buffer.cpu_accessible = true;
+                buffer.resource->Map(0, &CD3DX12_RANGE(0, 0), &buffer.cpu_address);
+            }
+
+            if (desc.usage & BufferUsage::DYNAMIC && desc.data != nullptr) {
+                for (size_t i = 0; i < RENDER_LATENCY; i++) {
+                    // Copy the data now and insert resource barriers?
+                    memory::copy(
+                        reinterpret_cast<u8*>(buffer.cpu_address) + (i * buffer.size),
+                        desc.data,
+                        desc.byte_size
+                    );
+                }
+            }
+            else if (desc.data != nullptr) {
+                upload_manager.queue_upload(desc, buffer.resource);
+            }
         }
 
         return handle;
@@ -450,8 +488,6 @@ namespace zec
             mesh.index_count = mesh_desc.index_buffer_desc.byte_size / mesh_desc.index_buffer_desc.stride;
         }
 
-        size_t attr_idx = 0;
-
         for (size_t i = 0; i < ARRAY_SIZE(mesh_desc.vertex_buffer_descs); i++) {
             const BufferDesc& attr_desc = mesh_desc.vertex_buffer_descs[i];
             if (attr_desc.usage == BufferUsage::UNUSED) break;
@@ -460,13 +496,14 @@ namespace zec
             ASSERT(attr_desc.usage == BufferUsage::VERTEX);
             ASSERT(attr_desc.type == BufferType::DEFAULT);
 
-            mesh.vertex_buffer_handles[attr_idx] = create_buffer(attr_desc);
-            const dx12::Buffer& buffer = buffers[mesh.vertex_buffer_handles[attr_idx]];
+            mesh.vertex_buffer_handles[i] = create_buffer(attr_desc);
+            const dx12::Buffer& buffer = buffers[mesh.vertex_buffer_handles[i]];
 
-            D3D12_VERTEX_BUFFER_VIEW& view = mesh.buffer_views[attr_idx];
+            D3D12_VERTEX_BUFFER_VIEW& view = mesh.buffer_views[i];
             view.BufferLocation = buffer.gpu_address;
             view.StrideInBytes = attr_desc.stride;
             view.SizeInBytes = attr_desc.byte_size;
+            mesh.num_vertex_buffers++;
         }
 
         // TODO: Support blend weights, indices
