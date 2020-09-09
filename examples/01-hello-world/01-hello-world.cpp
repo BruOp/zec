@@ -24,8 +24,9 @@ public:
     ID3D12RootSignature* root_signature = nullptr;
     ID3D12PipelineState* pso = nullptr;
 
-    MeshHandle cube_mesh;
-    BufferHandle cb_handle;
+    MeshHandle cube_mesh = {};
+    BufferHandle cb_handle = {};
+    DrawData mesh_transform = {};
 
 protected:
     void init() override final
@@ -102,7 +103,7 @@ protected:
             D3D12_RASTERIZER_DESC rasterizer_desc = { };
             rasterizer_desc.FillMode = D3D12_FILL_MODE_SOLID;
             rasterizer_desc.CullMode = D3D12_CULL_MODE_BACK;
-            rasterizer_desc.FrontCounterClockwise = FALSE;
+            rasterizer_desc.FrontCounterClockwise = TRUE;
             rasterizer_desc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
             rasterizer_desc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
             rasterizer_desc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
@@ -217,7 +218,6 @@ protected:
 
         renderer.end_upload();
 
-        DrawData mesh_transform = { };
         mesh_transform.model_view_transform = identity_mat44();
         set_translation(mesh_transform.model_view_transform, vec3{ 0.0f, 0.0f, -2.0f });
         mesh_transform.projection_matrix = perspective_projection(
@@ -249,6 +249,12 @@ protected:
     void update(const zec::TimeData& time_data) override final
     {
         clear_color[2] = 0.5f * sinf(float(time_data.elapsed_seconds_f)) + 0.5f;
+
+        quaternion q = from_axis_angle(vec3{ 0.0f, 1.0f, -1.0f }, 0.25f * time_data.delta_seconds_f);
+        rotate(mesh_transform.model_view_transform, q);
+
+        dx12::Buffer& cb = renderer.buffers[cb_handle];
+        memory::copy(cb.cpu_address, &mesh_transform, sizeof(mesh_transform));
     }
 
     void render() override final

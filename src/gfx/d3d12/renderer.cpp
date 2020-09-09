@@ -209,6 +209,7 @@ namespace zec
             swap_chain_desc.fullscreen = renderer_desc.fullscreen;
             swap_chain_desc.vsync = renderer_desc.vsync;
             swap_chain_desc.output_window = renderer_desc.window;
+            swap_chain_desc.format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 
             device_context.adapter->EnumOutputs(0, &swap_chain.output);
 
@@ -217,22 +218,13 @@ namespace zec
             swap_chain.fullscreen = swap_chain_desc.fullscreen;
             swap_chain.vsync = swap_chain_desc.vsync;
 
-            swap_chain.format = swap_chain_desc.format;
-            if (swap_chain_desc.format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) {
-                swap_chain.non_sRGB_format = DXGI_FORMAT_R8G8B8A8_UNORM;
-            }
-            else if (swap_chain_desc.format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB) {
-                swap_chain.non_sRGB_format = DXGI_FORMAT_B8G8R8A8_UNORM;
-            }
-            else {
-                swap_chain.non_sRGB_format = swap_chain.format;
-            }
+            set_formats(swap_chain, swap_chain_desc.format);
 
             DXGI_SWAP_CHAIN_DESC d3d_swap_chain_desc = {  };
             d3d_swap_chain_desc.BufferCount = NUM_BACK_BUFFERS;
             d3d_swap_chain_desc.BufferDesc.Width = swap_chain.width;
             d3d_swap_chain_desc.BufferDesc.Height = swap_chain.height;
-            d3d_swap_chain_desc.BufferDesc.Format = swap_chain.format;
+            d3d_swap_chain_desc.BufferDesc.Format = swap_chain.non_sRGB_format;
             d3d_swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
             d3d_swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
             d3d_swap_chain_desc.SampleDesc.Count = 1;

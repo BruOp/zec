@@ -37,7 +37,7 @@ namespace zec
             VirtualFree(ptr, 0, MEM_RELEASE);
         }
 
-        inline void* copy(void* dest, void* src, size_t size)
+        inline void* copy(void* dest, const void* src, size_t size)
         {
             return memcpy(dest, src, size);
         }
