@@ -147,6 +147,9 @@ namespace zec
             return reinterpret_cast<const u32*>(indices)[idx];
     }
 
+    // Outputs d3d12 blob
+    void print_blob(ID3DBlob* blob);
+
     template <typename T, u64 N>
     u64 array_size(T(&)[N])
     {

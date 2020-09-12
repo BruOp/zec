@@ -43,4 +43,13 @@ namespace zec
         vsprintf_s(buffer, ARRAY_SIZE(buffer), format, args);
         return std::string(buffer);
     }
+
+    void print_blob(ID3DBlob* blob)
+    {
+        const char* blob_string = reinterpret_cast<char*>(blob->GetBufferPointer());
+        size_t len = std::strlen(blob_string);
+        std::wstring wc(len, L'#');
+        mbstowcs(&wc[0], blob_string, len);
+        debug_print(wc);
+    }
 }

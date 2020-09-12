@@ -38,13 +38,12 @@ namespace zec
         {
             ID3D12Resource* resource = nullptr;
             D3D12MA::Allocation* allocation = nullptr;
-            u32 srv = UINT32_MAX;
             D3D12_CPU_DESCRIPTOR_HANDLE uav = {};
             void* cpu_address = 0;
             u64 gpu_address = 0;
             u64 alignment = 0;
             u64 size = 0;
-            u32 dynamic = false;
+            u32 srv = UINT32_MAX;
             u32 cpu_accessible = false;
         };
 
@@ -57,5 +56,8 @@ namespace zec
             u32 num_vertex_buffers = 0;
             u32 index_count = 0;
         };
+
+        void init(Buffer& buffer, const BufferDesc& desc, D3D12MA::Allocator* allocator);
+        void update_buffer(Buffer& buffer, const void* data, const u64 data_size, const u64 frame_idx);
     }
 }

@@ -271,6 +271,11 @@ namespace zec
             swap_chain.output->Release();
         }
 
+        for (size_t i = 0; i < root_signatures.size; ++i) {
+            ID3D12RootSignature* root_signature = root_signatures[i];
+            dx12::dx_destroy(&root_signature);
+        }
+
         dx12::destroy(rtv_descriptor_heap);
         dx12::destroy(dsv_descriptor_heap);
         dx12::destroy(srv_descriptor_heap);
@@ -321,16 +326,37 @@ namespace zec
             DXCall(cmd_list->Reset(cmd_allocators[current_frame_idx], nullptr));
 
             // Reset Heaps
-
-            // Process resources queued for destruction
-            destruction_queue.process_queue();
-
-            // Process shader resource views queued for creation
         }
+
+        // Process resources queued for destruction
+        destruction_queue.process_queue();
+
+        // TODO: Provide interface for creating barriers like this
+        dx12::RenderTexture& render_target = swap_chain.back_buffers[current_frame_idx];
+
+        D3D12_RESOURCE_BARRIER barrier{  };
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = render_target.resource;
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        cmd_list->ResourceBarrier(1, &barrier);
     }
 
     void Renderer::end_frame()
     {
+        dx12::RenderTexture& render_target = swap_chain.back_buffers[current_frame_idx];
+
+        D3D12_RESOURCE_BARRIER barrier{  };
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = render_target.resource;
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        cmd_list->ResourceBarrier(1, &barrier);
+
         DXCall(cmd_list->Close());
 
         // endframe uploads
@@ -378,76 +404,15 @@ namespace zec
         BufferHandle handle = { buffers.create_back() };
         dx12::Buffer& buffer = buffers.get(handle);
 
-        buffer.size = desc.byte_size;
-        // Create Buffer
-        {
-            D3D12_HEAP_TYPE heap_type = D3D12_HEAP_TYPE_DEFAULT;
-            D3D12_RESOURCE_STATES initial_resource_state = D3D12_RESOURCE_STATE_COMMON;
+        dx12::init(buffer, desc, allocator);
 
-            u16 vertex_or_index = BufferUsage::VERTEX | BufferUsage::INDEX;
-            // There are three different sizes to keep track of here:
-            // desc.bytes_size  => the minimum size (in bytes) that we desire our buffer to occupy
-            // buffer.size      => the above size that's been potentially grown to match alignment requirements
-            // alloc_size       => If the buffer is used "dynamically" then we actually allocate enough memory
-            //                     to update different regions of the buffer for different frames
-            //                     (so RENDER_LATENCY * buffer.size)
-            size_t alloc_size = buffer.size;
-
-            if (desc.usage & vertex_or_index) {
-                // ASSERT it's only one or the other
-                ASSERT((desc.usage & vertex_or_index) != vertex_or_index);
-                ASSERT(desc.data != nullptr);
+        if (desc.usage & BufferUsage::DYNAMIC && desc.data != nullptr) {
+            for (size_t i = 0; i < RENDER_LATENCY; i++) {
+                dx12::update_buffer(buffer, desc.data, desc.byte_size, i);
             }
-
-            if (desc.usage & BufferUsage::VERTEX) {
-                buffer.size = align_to(buffer.size, dx12::VERTEX_BUFFER_ALIGNMENT);
-            }
-            else if (desc.usage & BufferUsage::INDEX) {
-                buffer.size = align_to(buffer.size, dx12::INDEX_BUFFER_ALIGNMENT);
-            }
-            else if (desc.usage & BufferUsage::CONSTANT) {
-                buffer.size = align_to(buffer.size, dx12::CONSTANT_BUFFER_ALIGNMENT);
-            }
-
-            if (desc.usage & BufferUsage::DYNAMIC) {
-                heap_type = D3D12_HEAP_TYPE_UPLOAD;
-                initial_resource_state = D3D12_RESOURCE_STATE_GENERIC_READ;
-                alloc_size = RENDER_LATENCY * buffer.size;
-            }
-
-            D3D12_RESOURCE_DESC resource_desc = CD3DX12_RESOURCE_DESC::Buffer(desc.byte_size);
-            D3D12MA::ALLOCATION_DESC alloc_desc = {};
-            alloc_desc.HeapType = heap_type;
-
-            DXCall(allocator->CreateResource(
-                &alloc_desc,
-                &resource_desc,
-                initial_resource_state,
-                NULL,
-                &buffer.allocation,
-                IID_PPV_ARGS(&buffer.resource)
-            ));
-
-            buffer.gpu_address = buffer.resource->GetGPUVirtualAddress();
-
-            if (desc.usage & BufferUsage::DYNAMIC) {
-                buffer.cpu_accessible = true;
-                buffer.resource->Map(0, &CD3DX12_RANGE(0, 0), &buffer.cpu_address);
-            }
-
-            if (desc.usage & BufferUsage::DYNAMIC && desc.data != nullptr) {
-                for (size_t i = 0; i < RENDER_LATENCY; i++) {
-                    // Copy the data now and insert resource barriers?
-                    memory::copy(
-                        reinterpret_cast<u8*>(buffer.cpu_address) + (i * buffer.size),
-                        desc.data,
-                        desc.byte_size
-                    );
-                }
-            }
-            else if (desc.data != nullptr) {
-                upload_manager.queue_upload(desc, buffer.resource);
-            }
+        }
+        else if (desc.data != nullptr) {
+            upload_manager.queue_upload(desc, buffer.resource);
         }
 
         return handle;
@@ -500,6 +465,130 @@ namespace zec
 
         // TODO: Support blend weights, indices
         return { u32(meshes.push_back(mesh)) };
+    }
+
+    ResourceLayoutHandle Renderer::create_resource_layout(const ResourceLayoutDesc& desc)
+    {
+        D3D12_ROOT_SIGNATURE_DESC root_signature_desc{};
+        D3D12_ROOT_PARAMETER root_parameters[ResourceLayoutDesc::MAX_ENTRIES];
+
+        u32 cbv_count = 0;
+        u32 srv_count = 0;
+        u32 uav_count = 0;
+        u32 unbounded_table_count = 0;
+
+        for (size_t parameter_idx = 0; parameter_idx < ARRAY_SIZE(desc.entries); parameter_idx++) {
+            const auto& entry = desc.entries[parameter_idx];
+
+            if (entry.type == ResourceLayoutEntryType::INVALID) {
+                root_signature_desc.NumParameters = parameter_idx;
+                break;
+            }
+            D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_idx];
+            parameter.ShaderVisibility = dx12::to_d3d_visibility(entry.visibility);
+            if (entry.type == ResourceLayoutEntryType::CONSTANT_BUFFER) {
+                parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+                parameter.Descriptor = D3D12_ROOT_DESCRIPTOR{ cbv_count++ };
+            }
+            else if (entry.type == ResourceLayoutEntryType::CONSTANT) {
+                parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+                parameter.Constants = D3D12_ROOT_CONSTANTS{ 1, cbv_count++ };
+            }
+            else if (entry.type == ResourceLayoutEntryType::TABLE) {
+                D3D12_ROOT_DESCRIPTOR_TABLE table = {};
+                D3D12_DESCRIPTOR_RANGE d3d_ranges[ARRAY_SIZE(entry.ranges)] = {};
+
+                ASSERT(entry.ranges[0].usage != ResourceLayoutRangeUsage::UNUSED);
+
+                // Check if the table has a single range with an unbounded counter, add that parameter and continue
+                if (entry.ranges[0].count == ResourceLayoutRangeDesc::UNBOUNDED_COUNT) {
+                    constexpr u32 unbounded_table_size = 4096;
+                    d3d_ranges[0].BaseShaderRegister = 0;
+                    d3d_ranges[0].NumDescriptors = unbounded_table_size;
+                    d3d_ranges[0].RangeType = entry.ranges[0].usage == ResourceLayoutRangeUsage::READ ? D3D12_DESCRIPTOR_RANGE_TYPE_SRV : D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+                    d3d_ranges[0].RegisterSpace = unbounded_table_count++;
+
+                    table.pDescriptorRanges = d3d_ranges;
+                    table.NumDescriptorRanges = 1;
+                    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    parameter.DescriptorTable = table;
+                    continue;
+                }
+
+                // For bounded tables, we loop through and add ranges for each table entry
+                for (size_t range_idx = 0; range_idx < ARRAY_SIZE(entry.ranges); range_idx++) {
+                    const auto& range = entry.ranges[range_idx];
+                    if (range.usage == ResourceLayoutRangeUsage::UNUSED) {
+                        break;
+                    }
+
+                    if (range.usage == ResourceLayoutRangeUsage::READ) {
+                        // SRV
+                        d3d_ranges[range_idx] = CD3DX12_DESCRIPTOR_RANGE(
+                            D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+                            range.count,
+                            srv_count
+                        );
+                        srv_count += range.count;
+                    }
+                    else {
+                        // UAV
+                        d3d_ranges[range_idx] = CD3DX12_DESCRIPTOR_RANGE(
+                            D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
+                            range.count,
+                            uav_count
+                        );
+                        uav_count += range.count;
+                    }
+                    table.NumDescriptorRanges = range_idx + 1;
+                }
+                table.pDescriptorRanges = d3d_ranges;
+                parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                parameter.DescriptorTable = table;
+            }
+        }
+
+        root_signature_desc.pParameters = root_parameters;
+        root_signature_desc.NumStaticSamplers = 0; // TODO: Handle samplers lol
+        root_signature_desc.pStaticSamplers = nullptr;
+        root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+        ID3D12RootSignature* root_signature = nullptr;
+
+        ID3DBlob* signature;
+        ID3DBlob* error;
+        DXCall(D3D12SerializeRootSignature(&root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
+        DXCall(device_context.device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root_signature)));
+
+        if (error != nullptr) {
+            print_blob(error);
+            error->Release();
+            throw std::runtime_error("Failed to create root signature");
+        }
+        signature != nullptr && signature->Release();
+
+        return { static_cast<u32>(root_signatures.push_back(root_signature)) };
+    }
+
+    void Renderer::update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size)
+    {
+        dx12::Buffer& buffer = buffers[buffer_id];
+        dx12::update_buffer(buffer, data, byte_size, current_frame_idx);
+    }
+
+    void Renderer::set_active_resource_layout(const ResourceLayoutHandle resource_layout_id)
+    {
+        ID3D12RootSignature* root_signature = root_signatures[resource_layout_id.idx];
+        cmd_list->SetGraphicsRootSignature(root_signature);
+    }
+
+    void Renderer::draw_mesh(const MeshHandle mesh_id)
+    {
+        const dx12::Mesh& mesh = meshes[mesh_id.idx];
+        cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        cmd_list->IASetIndexBuffer(&mesh.index_buffer_view);
+        cmd_list->IASetVertexBuffers(0, mesh.num_vertex_buffers, mesh.buffer_views);
+        cmd_list->DrawIndexedInstanced(mesh.index_count, 1, 0, 0, 0);
     }
 
     void Renderer::reset()

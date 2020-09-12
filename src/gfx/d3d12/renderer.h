@@ -1,5 +1,6 @@
 #pragma once
 #include "pch.h"
+#include "core/map.h"
 #include "wrappers.h"
 #include "resources.h"
 #include "resource_managers.h"
@@ -29,6 +30,14 @@ namespace zec
         // Resource creation
         BufferHandle create_buffer(BufferDesc buffer_desc);
         MeshHandle create_mesh(MeshDesc mesh_desc);
+        ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
+
+        // Resource updates
+        void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size);
+
+        // Resource Binding
+        void set_active_resource_layout(const ResourceLayoutHandle resource_layout_id);
+        void draw_mesh(const MeshHandle mesh_id);
 
         u64 current_frame_idx = 0;
         // Total number of CPU frames completed (means that we've recorded and submitted commands for the frame)
@@ -55,10 +64,14 @@ namespace zec
         dx12::DescriptorHeap dsv_descriptor_heap = {};
         dx12::DescriptorHeap srv_descriptor_heap = {};
 
+        Array<ID3D12RootSignature*> root_signatures = {};
+
         dx12::Fence frame_fence = { };
 
         dx12::ResourceList<dx12::Buffer, BufferHandle> buffers = { &destruction_queue };
-        Array<dx12::Mesh> meshes;
+        Array<dx12::Mesh> meshes = {};
+
+        //SmallMap<dx12::RenderTexture> render_textures = {};
 
     private:
         void reset();

@@ -21,11 +21,11 @@ public:
 
     float clear_color[4] = { 0.5f, 0.5f, 0.5f, 1.0f };
 
-    ID3D12RootSignature* root_signature = nullptr;
     ID3D12PipelineState* pso = nullptr;
 
     MeshHandle cube_mesh = {};
     BufferHandle cb_handle = {};
+    ResourceLayoutHandle resource_layout = {};
     DrawData mesh_transform = {};
 
 protected:
@@ -34,27 +34,11 @@ protected:
 
         // Create a root signature consisting of a descriptor table with a single CBV.
         {
-            D3D12_ROOT_PARAMETER root_parameters[] = {
-                { }
+            ResourceLayoutDesc layout_desc{
+                { ResourceLayoutEntryType::CONSTANT_BUFFER, ShaderVisibility::VERTEX },
             };
-            root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-            root_parameters[0].Descriptor = D3D12_ROOT_DESCRIPTOR{ 0, 0 };
-            root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
-
-            D3D12_ROOT_SIGNATURE_DESC root_signature_desc{};
-            root_signature_desc.NumParameters = 1;
-            root_signature_desc.pParameters = root_parameters;
-            root_signature_desc.NumStaticSamplers = 0;
-            root_signature_desc.pStaticSamplers = nullptr;
-            root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-
-            ID3DBlob* signature;
-            ID3DBlob* error;
-            DXCall(D3D12SerializeRootSignature(&root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
-            DXCall(renderer.device_context.device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root_signature)));
-            signature != nullptr && signature->Release();
-            error != nullptr && error->Release();
+            resource_layout = renderer.create_resource_layout(layout_desc);
         }
 
         ID3DBlob* vertex_shader = nullptr;
@@ -85,11 +69,7 @@ protected:
 
             result = D3DCompileFromFile(L"shaders/basic.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compile_flags, 0, &pixel_shader, &error);
             if (error) {
-                const char* error_string = (char*)error->GetBufferPointer();
-                size_t len = std::strlen(error_string);
-                std::wstring wc(len, L'#');
-                mbstowcs(&wc[0], error_string, len);
-                debug_print(wc);
+                print_blob(error);
             }
             DXCall(result);
 
@@ -130,7 +110,7 @@ protected:
             // Create a pipeline state object description, then create the object
             D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
             psoDesc.InputLayout = { input_element_desc, _countof(input_element_desc) };
-            psoDesc.pRootSignature = root_signature;
+            psoDesc.pRootSignature = renderer.root_signatures[resource_layout.idx];
             psoDesc.VS.BytecodeLength = vertex_shader->GetBufferSize();
             psoDesc.VS.pShaderBytecode = vertex_shader->GetBufferPointer();
             psoDesc.PS.BytecodeLength = pixel_shader->GetBufferSize();
@@ -243,18 +223,16 @@ protected:
     void shutdown() override final
     {
         pso->Release();
-        root_signature->Release();
     }
 
     void update(const zec::TimeData& time_data) override final
     {
         clear_color[2] = 0.5f * sinf(float(time_data.elapsed_seconds_f)) + 0.5f;
 
-        quaternion q = from_axis_angle(vec3{ 0.0f, 1.0f, -1.0f }, 0.25f * time_data.delta_seconds_f);
+        quaternion q = from_axis_angle(vec3{ 0.0f, 1.0f, -1.0f }, time_data.delta_seconds_f);
         rotate(mesh_transform.model_view_transform, q);
 
-        dx12::Buffer& cb = renderer.buffers[cb_handle];
-        memory::copy(cb.cpu_address, &mesh_transform, sizeof(mesh_transform));
+        renderer.update_buffer(cb_handle, &mesh_transform, sizeof(mesh_transform));
     }
 
     void render() override final
@@ -263,42 +241,18 @@ protected:
         D3D12_RECT scissor_rect{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
         dx12::RenderTexture& render_target = renderer.swap_chain.back_buffers[renderer.current_frame_idx];
 
-        // TODO: Provide interface for creating barriers like this
-        D3D12_RESOURCE_BARRIER barrier{  };
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.Transition.pResource = render_target.resource;
-        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-
-        renderer.cmd_list->ResourceBarrier(1, &barrier);
-
         // TODO: Provide handles for referencing render targets
         // TODO: Provide interface for clearing a render target
         renderer.cmd_list->ClearRenderTargetView(render_target.rtv, clear_color, 0, nullptr);
 
-        dx12::Mesh& mesh = renderer.meshes[cube_mesh.idx];
         dx12::Buffer& constant_buffer = renderer.buffers[cb_handle];
-        renderer.cmd_list->SetGraphicsRootSignature(root_signature);
-        renderer.cmd_list->SetGraphicsRootConstantBufferView(0, constant_buffer.gpu_address);
+        renderer.set_active_resource_layout(resource_layout);
+        renderer.cmd_list->SetGraphicsRootConstantBufferView(0, constant_buffer.gpu_address + (constant_buffer.size * renderer.current_frame_idx));
         renderer.cmd_list->RSSetViewports(1, &viewport);
         renderer.cmd_list->RSSetScissorRects(1, &scissor_rect);
         renderer.cmd_list->OMSetRenderTargets(1, &render_target.rtv, false, nullptr);
         renderer.cmd_list->SetPipelineState(pso);
-        renderer.cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        renderer.cmd_list->IASetIndexBuffer(&mesh.index_buffer_view);
-        renderer.cmd_list->IASetVertexBuffers(0, mesh.num_vertex_buffers, mesh.buffer_views);
-        renderer.cmd_list->DrawIndexedInstanced(mesh.index_count, 1, 0, 0, 0);
-
-        D3D12_RESOURCE_BARRIER present_barrier{  };
-        present_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        present_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        present_barrier.Transition.pResource = render_target.resource;
-        present_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        present_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-        present_barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        renderer.cmd_list->ResourceBarrier(1, &present_barrier);
+        renderer.draw_mesh(cube_mesh);
     }
 
     void before_reset() override final

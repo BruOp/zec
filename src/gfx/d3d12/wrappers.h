@@ -18,6 +18,18 @@ namespace zec
             *ptr = nullptr;
         }
 
+        inline D3D12_SHADER_VISIBILITY to_d3d_visibility(ShaderVisibility visibility)
+        {
+            switch (visibility) {
+            case zec::ShaderVisibility::PIXEL:
+                return D3D12_SHADER_VISIBILITY_PIXEL;
+            case zec::ShaderVisibility::VERTEX:
+                return D3D12_SHADER_VISIBILITY_VERTEX;
+            default:
+                return D3D12_SHADER_VISIBILITY_ALL;
+            }
+        }
+
         // ---------- Device Context----------
 
         struct DeviceContext

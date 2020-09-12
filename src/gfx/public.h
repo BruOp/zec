@@ -63,6 +63,29 @@ namespace zec
         // TODO: STRUCTURED?
     };
 
+    enum struct AccessType : u8
+    {
+        UNUSED = 0,
+        READ,
+        WRITE,
+    };
+
+    enum struct ResourceBindingType : u8
+    {
+        INVALID = 0,
+        CONSTANT_BUFFER,
+        BUFFER,
+        TEXTURE,
+        SINGLE_CONSTANT,
+    };
+
+    enum struct ShaderVisibility : u8
+    {
+        PIXEL = 0,
+        ALL,
+        VERTEX,
+    };
+
     // ---------- Creation Descriptors ---------- 
     struct RendererDesc
     {
@@ -105,8 +128,45 @@ namespace zec
         BufferDesc vertex_buffer_descs[MAX_NUM_MESH_VERTEX_BUFFERS];
     };
 
+    enum struct ResourceLayoutEntryType : u8
+    {
+        INVALID = 0,
+        CONSTANT,
+        CONSTANT_BUFFER,
+        TABLE
+    };
+
+    enum struct ResourceLayoutRangeUsage : u8
+    {
+        UNUSED = 0,
+        READ = 1,
+        WRITE = 2,
+        READ_WRITE = READ & WRITE,
+    };
+
+    struct ResourceLayoutRangeDesc
+    {
+        static constexpr u32 UNBOUNDED_COUNT = 0;
+        ResourceLayoutRangeUsage usage;
+        u32 count;
+    };
+
+    struct ResourceLayoutEntryDesc
+    {
+        ResourceLayoutEntryType type; // Table, Constant or Constant Buffer
+        ShaderVisibility visibility;
+        ResourceLayoutRangeDesc ranges[16];
+    };
+
+    struct ResourceLayoutDesc
+    {
+        static constexpr u64 MAX_ENTRIES = 16;
+        ResourceLayoutEntryDesc entries[MAX_ENTRIES];
+    };
+
     // ---------- Handles ----------
     RESOURCE_HANDLE(BufferHandle);
     RESOURCE_HANDLE(MeshHandle);
+    RESOURCE_HANDLE(ResourceLayoutHandle);
 
 }
