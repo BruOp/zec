@@ -21,11 +21,10 @@ public:
 
     float clear_color[4] = { 0.5f, 0.5f, 0.5f, 1.0f };
 
-    ID3D12PipelineState* pso = nullptr;
-
     MeshHandle cube_mesh = {};
     BufferHandle cb_handle = {};
     ResourceLayoutHandle resource_layout = {};
+    PipelineStateHandle pso_handle = {};
     DrawData mesh_transform = {};
 
 protected:
@@ -41,91 +40,22 @@ protected:
             resource_layout = renderer.create_resource_layout(layout_desc);
         }
 
-        ID3DBlob* vertex_shader = nullptr;
-        ID3DBlob* pixel_shader = nullptr;
-
-    #ifdef _DEBUG
-        // Enable better shader debugging with the graphics debugging tools.
-        UINT compile_flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-    #else
-        UINT compile_flags = 0;
-    #endif // _DEBUG
-
         // Create the Pipeline State Object
         {
             // Compile the shader
-            // Todo: Provide interface for compiling shaders
-            ID3DBlob* error = nullptr;
+            PipelineStateObjectDesc pipeline_desc = {};
+            pipeline_desc.input_assembly_desc = { {
+                { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
+                { MESH_ATTRIBUTE_COLOR, 0, BufferFormat::UNORM8_4, 1 }
+            } };
+            pipeline_desc.shader_file_path = L"shaders/basic.hlsl";
+            pipeline_desc.rtv_formats[0] = BufferFormat::R8G8B8A8_UNORM_SRGB;
+            pipeline_desc.resource_layout = resource_layout;
+            pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CCW;
+            pipeline_desc.depth_stencil_state.depth_write = FALSE;
+            pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
-            HRESULT result = D3DCompileFromFile(L"shaders/basic.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compile_flags, 0, &vertex_shader, &error);
-            if (error) {
-                const char* error_string = (char*)error->GetBufferPointer();
-                size_t len = std::strlen(error_string);
-                std::wstring wc(len, L'#');
-                mbstowcs(&wc[0], error_string, len);
-                debug_print(wc);
-            }
-            DXCall(result);
-
-            result = D3DCompileFromFile(L"shaders/basic.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compile_flags, 0, &pixel_shader, &error);
-            if (error) {
-                print_blob(error);
-            }
-            DXCall(result);
-
-            // Create the vertex input layout
-            D3D12_INPUT_ELEMENT_DESC input_element_desc[] =
-            {
-                { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-                { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 1, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-            };
-
-            D3D12_RASTERIZER_DESC rasterizer_desc = { };
-            rasterizer_desc.FillMode = D3D12_FILL_MODE_SOLID;
-            rasterizer_desc.CullMode = D3D12_CULL_MODE_BACK;
-            rasterizer_desc.FrontCounterClockwise = TRUE;
-            rasterizer_desc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
-            rasterizer_desc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
-            rasterizer_desc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-            rasterizer_desc.DepthClipEnable = TRUE;
-            rasterizer_desc.MultisampleEnable = FALSE;
-            rasterizer_desc.AntialiasedLineEnable = FALSE;
-            rasterizer_desc.ForcedSampleCount = 0;
-            rasterizer_desc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-
-            D3D12_BLEND_DESC blend_desc = { };
-            blend_desc.AlphaToCoverageEnable = FALSE;
-            blend_desc.IndependentBlendEnable = FALSE;
-            const D3D12_RENDER_TARGET_BLEND_DESC default_render_target_blend_desc =
-            {
-                FALSE,FALSE,
-                D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD,
-                D3D12_BLEND_ONE, D3D12_BLEND_ZERO, D3D12_BLEND_OP_ADD,
-                D3D12_LOGIC_OP_NOOP,
-                D3D12_COLOR_WRITE_ENABLE_ALL,
-            };
-            for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
-                blend_desc.RenderTarget[i] = default_render_target_blend_desc;
-
-            // Create a pipeline state object description, then create the object
-            D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-            psoDesc.InputLayout = { input_element_desc, _countof(input_element_desc) };
-            psoDesc.pRootSignature = renderer.root_signatures[resource_layout.idx];
-            psoDesc.VS.BytecodeLength = vertex_shader->GetBufferSize();
-            psoDesc.VS.pShaderBytecode = vertex_shader->GetBufferPointer();
-            psoDesc.PS.BytecodeLength = pixel_shader->GetBufferSize();
-            psoDesc.PS.pShaderBytecode = pixel_shader->GetBufferPointer();
-            psoDesc.RasterizerState = rasterizer_desc;
-            psoDesc.BlendState = blend_desc;
-            psoDesc.DepthStencilState.DepthEnable = FALSE;
-            psoDesc.DepthStencilState.StencilEnable = FALSE;
-            psoDesc.SampleMask = UINT_MAX;
-            psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-            psoDesc.NumRenderTargets = 1;
-            psoDesc.RTVFormats[0] = renderer.swap_chain.format;
-            psoDesc.SampleDesc.Count = 1;
-
-            renderer.device_context.device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso));
+            pso_handle = renderer.create_pipeline_state_object(pipeline_desc);
         }
 
         renderer.begin_upload();
@@ -172,21 +102,21 @@ protected:
             };
 
             MeshDesc mesh_desc{};
-            mesh_desc.index_buffer_desc.usage = BufferUsage::INDEX;
+            mesh_desc.index_buffer_desc.usage = BUFFER_USAGE_INDEX;
             mesh_desc.index_buffer_desc.type = BufferType::DEFAULT;
             mesh_desc.index_buffer_desc.byte_size = sizeof(cube_indices);
             mesh_desc.index_buffer_desc.stride = sizeof(cube_indices[0]);
             mesh_desc.index_buffer_desc.data = (void*)cube_indices;
 
             mesh_desc.vertex_buffer_descs[0] = {
-                    BufferUsage::VERTEX,
+                    BUFFER_USAGE_VERTEX,
                     BufferType::DEFAULT,
                     sizeof(cube_positions),
                     3 * sizeof(cube_positions[0]),
                     (void*)(cube_positions)
             };
             mesh_desc.vertex_buffer_descs[1] = {
-               BufferUsage::VERTEX,
+               BUFFER_USAGE_VERTEX,
                BufferType::DEFAULT,
                sizeof(cube_colors),
                sizeof(cube_colors[0]),
@@ -214,16 +144,14 @@ protected:
             cb_desc.data = &mesh_transform;
             cb_desc.stride = 0;
             cb_desc.type = BufferType::DEFAULT;
-            cb_desc.usage = BufferUsage::CONSTANT | BufferUsage::DYNAMIC;
+            cb_desc.usage = BUFFER_USAGE_CONSTANT | BUFFER_USAGE_DYNAMIC;
 
             cb_handle = renderer.create_buffer(cb_desc);
         }
     }
 
     void shutdown() override final
-    {
-        pso->Release();
-    }
+    { }
 
     void update(const zec::TimeData& time_data) override final
     {
@@ -245,13 +173,13 @@ protected:
         // TODO: Provide interface for clearing a render target
         renderer.cmd_list->ClearRenderTargetView(render_target.rtv, clear_color, 0, nullptr);
 
-        dx12::Buffer& constant_buffer = renderer.buffers[cb_handle];
+
         renderer.set_active_resource_layout(resource_layout);
-        renderer.cmd_list->SetGraphicsRootConstantBufferView(0, constant_buffer.gpu_address + (constant_buffer.size * renderer.current_frame_idx));
+        renderer.set_pipeline_state(pso_handle);
+        renderer.bind_constant_buffer(cb_handle, 0);
         renderer.cmd_list->RSSetViewports(1, &viewport);
         renderer.cmd_list->RSSetScissorRects(1, &scissor_rect);
         renderer.cmd_list->OMSetRenderTargets(1, &render_target.rtv, false, nullptr);
-        renderer.cmd_list->SetPipelineState(pso);
         renderer.draw_mesh(cube_mesh);
     }
 

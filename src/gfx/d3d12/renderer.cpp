@@ -3,6 +3,7 @@
 #include "d3dx12/d3dx12.h"
 #include "gfx/public.h"
 #include "gfx/constants.h"
+#include "pipeline_state_object.h"
 
 #if _DEBUG
 #define USE_DEBUG_DEVICE 1
@@ -276,6 +277,11 @@ namespace zec
             dx12::dx_destroy(&root_signature);
         }
 
+        for (size_t i = 0; i < pipelines.size; ++i) {
+            ID3D12PipelineState* pipeline = pipelines[i];
+            dx12::dx_destroy(&pipeline);
+        }
+
         dx12::destroy(rtv_descriptor_heap);
         dx12::destroy(dsv_descriptor_heap);
         dx12::destroy(srv_descriptor_heap);
@@ -399,14 +405,14 @@ namespace zec
     BufferHandle Renderer::create_buffer(BufferDesc desc)
     {
         ASSERT(desc.byte_size != 0);
-        ASSERT(desc.usage != BufferUsage::UNUSED);
+        ASSERT(desc.usage != BUFFER_USAGE_UNUSED);
 
         BufferHandle handle = { buffers.create_back() };
         dx12::Buffer& buffer = buffers.get(handle);
 
         dx12::init(buffer, desc, allocator);
 
-        if (desc.usage & BufferUsage::DYNAMIC && desc.data != nullptr) {
+        if (desc.usage & BUFFER_USAGE_DYNAMIC && desc.data != nullptr) {
             for (size_t i = 0; i < RENDER_LATENCY; i++) {
                 dx12::update_buffer(buffer, desc.data, desc.byte_size, i);
             }
@@ -423,7 +429,7 @@ namespace zec
         dx12::Mesh mesh{};
         // Index buffer creation
         {
-            ASSERT(mesh_desc.index_buffer_desc.usage == BufferUsage::INDEX);
+            ASSERT(mesh_desc.index_buffer_desc.usage == BUFFER_USAGE_INDEX);
             mesh.index_buffer_handle = create_buffer(mesh_desc.index_buffer_desc);
 
             const dx12::Buffer& index_buffer = buffers[mesh.index_buffer_handle];
@@ -447,10 +453,10 @@ namespace zec
 
         for (size_t i = 0; i < ARRAY_SIZE(mesh_desc.vertex_buffer_descs); i++) {
             const BufferDesc& attr_desc = mesh_desc.vertex_buffer_descs[i];
-            if (attr_desc.usage == BufferUsage::UNUSED) break;
+            if (attr_desc.usage == BUFFER_USAGE_UNUSED) break;
 
             // TODO: Is this actually needed?
-            ASSERT(attr_desc.usage == BufferUsage::VERTEX);
+            ASSERT(attr_desc.usage == BUFFER_USAGE_VERTEX);
             ASSERT(attr_desc.type == BufferType::DEFAULT);
 
             mesh.vertex_buffer_handles[i] = create_buffer(attr_desc);
@@ -570,6 +576,14 @@ namespace zec
         return { static_cast<u32>(root_signatures.push_back(root_signature)) };
     }
 
+    PipelineStateHandle Renderer::create_pipeline_state_object(const PipelineStateObjectDesc& desc)
+    {
+        ASSERT(is_valid(desc.resource_layout));
+        ID3D12RootSignature* root_signature = root_signatures[desc.resource_layout.idx];
+        ID3D12PipelineState* pso = dx12::create_pipeline_state_object(desc, device_context.device, root_signature);
+        return { u32(pipelines.push_back(pso)) };
+    }
+
     void Renderer::update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size)
     {
         dx12::Buffer& buffer = buffers[buffer_id];
@@ -580,6 +594,24 @@ namespace zec
     {
         ID3D12RootSignature* root_signature = root_signatures[resource_layout_id.idx];
         cmd_list->SetGraphicsRootSignature(root_signature);
+    }
+
+    void Renderer::set_pipeline_state(const PipelineStateHandle pso_handle)
+    {
+        ID3D12PipelineState* pso = pipelines[pso_handle.idx];
+        cmd_list->SetPipelineState(pso);
+    }
+
+    void Renderer::bind_constant_buffer(const BufferHandle& buffer_handle, u32 binding_slot)
+    {
+        const dx12::Buffer& buffer = buffers[buffer_handle];
+        if (buffer.cpu_accessible) {
+            cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer.gpu_address + (buffer.size * current_frame_idx));
+        }
+        else {
+            cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer.gpu_address);
+
+        }
     }
 
     void Renderer::draw_mesh(const MeshHandle mesh_id)

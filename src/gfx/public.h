@@ -14,27 +14,34 @@ namespace zec
 #define INVALID_HANDLE \
     { zec::k_invalid_handle }
 
+
+    // ---------- Handles ----------
+    RESOURCE_HANDLE(BufferHandle);
+    RESOURCE_HANDLE(MeshHandle);
+    RESOURCE_HANDLE(ResourceLayoutHandle);
+    RESOURCE_HANDLE(PipelineStateHandle);
+
     // ---------- Enums ----------
     enum BufferUsage : u16
     {
-        UNUSED = 0,
-        VERTEX = (1 << 0),
-        INDEX = (1 << 1),
-        CONSTANT = (1 << 2),
-        SHADER_READABLE = (1 << 3),
-        //COMPUTE_WRITABLE = (1 << 4),
-        DYNAMIC = (1 << 5),
+        BUFFER_USAGE_UNUSED = 0,
+        BUFFER_USAGE_VERTEX = (1 << 0),
+        BUFFER_USAGE_INDEX = (1 << 1),
+        BUFFER_USAGE_CONSTANT = (1 << 2),
+        BUFFER_USAGE_SHADER_READABLE = (1 << 3),
+        //BUFFER_USAGE_COMPUTE_WRITABLE = (1 << 4),
+        BUFFER_USAGE_DYNAMIC = (1 << 5),
     };
 
     enum MeshAttribute : u16
     {
-        INVALID = 0,
-        POSITION = (1 << 0),
-        NORMAL = (1 << 1),
-        TEXCOORD = (1 << 2),
-        COLOR = (1 << 3),
-        BLENDINDICES = (1 << 4),
-        BLENDWEIGHTS = (1 << 5)
+        MESH_ATTRIBUTE_INVALID = 0,
+        MESH_ATTRIBUTE_POSITION = (1 << 0),
+        MESH_ATTRIBUTE_NORMAL = (1 << 1),
+        MESH_ATTRIBUTE_TEXCOORD = (1 << 2),
+        MESH_ATTRIBUTE_COLOR = (1 << 3),
+        MESH_ATTRIBUTE_BLENDINDICES = (1 << 4),
+        MESH_ATTRIBUTE_BLENDWEIGHTS = (1 << 5)
     };
 
     enum struct BufferType : u16
@@ -58,25 +65,22 @@ namespace zec
         UNORM8_4,
         UINT16_4,
         UNORM16_4,
+        HALF_4,
         FLOAT_4,
 
+        // SRGB values
+        UNORM8_4_SRGB,
+
+        // Aliases
+        R8G8B8A8_UINT = UINT8_4,
+        R8G8B8A8_UNORM = UNORM8_4,
+        R16G16B16A16_UINT = UINT16_4,
+        R16G16B16A16_UNORM = UNORM16_4,
+        R16G16B16A16_FLOAT = HALF_4,
+        R32G32B32A32_FLOAT = FLOAT_4,
+
+        R8G8B8A8_UNORM_SRGB = UNORM8_4_SRGB,
         // TODO: STRUCTURED?
-    };
-
-    enum struct AccessType : u8
-    {
-        UNUSED = 0,
-        READ,
-        WRITE,
-    };
-
-    enum struct ResourceBindingType : u8
-    {
-        INVALID = 0,
-        CONSTANT_BUFFER,
-        BUFFER,
-        TEXTURE,
-        SINGLE_CONSTANT,
     };
 
     enum struct ShaderVisibility : u8
@@ -84,6 +88,118 @@ namespace zec
         PIXEL = 0,
         ALL,
         VERTEX,
+    };
+
+    enum struct ResourceLayoutEntryType : u8
+    {
+        INVALID = 0,
+        CONSTANT,
+        CONSTANT_BUFFER,
+        TABLE
+    };
+
+    enum struct ResourceLayoutRangeUsage : u8
+    {
+        UNUSED = 0,
+        READ = 1 << 0,
+        WRITE = 1 << 1,
+        READ_WRITE = READ & WRITE,
+    };
+
+    enum struct ComparisonFunc : u8
+    {
+        OFF = 0,
+        NEVER,
+        LESS,
+        LESS_OR_EQUAL,
+        EQUAL,
+        GREATER_OR_EQUAL,
+        GREATER,
+        ALWAYS,
+    };
+
+    enum struct StencilOp : u8
+    {
+        KEEP = 0,
+        ZERO,
+        REPLACE,
+        INCR_SAT,
+        DECR_SAT,
+        INVERT,
+        INCR,
+        DECR
+    };
+
+    enum struct FillMode : u8
+    {
+        WIREFRAME,
+        SOLID
+    };
+
+    enum struct CullMode : u8
+    {
+        NONE,
+        FRONT_CW,
+        FRONT_CCW,
+        BACK_CW,
+        BACK_CCW
+    };
+
+    enum RasterizerFlags : u8
+    {
+        DEPTH_CLIP_ENABLED = 1 << 0,
+        MULTISAMPLE = 1 << 1,
+        ANTIALIASED_LINES = 1 << 2,
+    };
+
+    enum struct BlendMode : u8
+    {
+        OPAQUE,
+        MASKED,
+        BLENDED
+    };
+
+    enum struct Blend : u8
+    {
+        ZERO = 0,
+        ONE,
+        SRC_COLOR,
+        INV_SRC_COLOR,
+        SRC_ALPHA,
+        INV_SRC_ALPHA,
+        DEST_ALPHA,
+        INV_DEST_ALPHA,
+        DEST_COLOR,
+        INV_DEST_COLOR,
+        SRC_ALPHA_SAT,
+        BLEND_FACTOR,
+        INV_BLEND_FACTOR,
+        SRC1_COLOR,
+        INV_SRC1_COLOR,
+        SRC1_ALPHA,
+        INV_SRC1_ALPHA,
+    };
+
+    enum struct BlendOp : u8
+    {
+        // Add source 1 and source 2.
+        ADD = 0,
+        // Subtract source 1 from source 2.
+        SUBTRACT,
+        // Subtract source 2 from source 1.
+        REV_SUBTRACT,
+        // Find the minimum of source 1 and source 2.
+        MIN,
+        // Find the maximum of source 1 and source 2.
+        MAX
+    };
+
+    enum PipelineStage : u8
+    {
+        PIPELINE_STAGE_INVALID = 0,
+        PIPELINE_STAGE_VERTEX = 1 << 0,
+        PIPELINE_STAGE_PIXEL = 1 << 1,
+        PIPELINE_STAGE_COMPUTE = 1 << 2
     };
 
     // ---------- Creation Descriptors ---------- 
@@ -98,7 +214,7 @@ namespace zec
 
     struct BufferDesc
     {
-        u16 usage = BufferUsage::UNUSED;
+        u16 usage = BUFFER_USAGE_UNUSED;
         BufferType type = BufferType::DEFAULT;
         u32 byte_size = 0;
         u32 stride = 0;
@@ -109,7 +225,7 @@ namespace zec
     {
         struct InputElementDesc
         {
-            MeshAttribute attribute_type = MeshAttribute::INVALID;
+            MeshAttribute attribute_type = MESH_ATTRIBUTE_INVALID;
             u32 semantic_index = 0;
             BufferFormat format = BufferFormat::INVALID;
             u32 input_slot = 0;
@@ -126,22 +242,6 @@ namespace zec
     {
         BufferDesc index_buffer_desc;
         BufferDesc vertex_buffer_descs[MAX_NUM_MESH_VERTEX_BUFFERS];
-    };
-
-    enum struct ResourceLayoutEntryType : u8
-    {
-        INVALID = 0,
-        CONSTANT,
-        CONSTANT_BUFFER,
-        TABLE
-    };
-
-    enum struct ResourceLayoutRangeUsage : u8
-    {
-        UNUSED = 0,
-        READ = 1,
-        WRITE = 2,
-        READ_WRITE = READ & WRITE,
     };
 
     struct ResourceLayoutRangeDesc
@@ -164,9 +264,85 @@ namespace zec
         ResourceLayoutEntryDesc entries[MAX_ENTRIES];
     };
 
-    // ---------- Handles ----------
-    RESOURCE_HANDLE(BufferHandle);
-    RESOURCE_HANDLE(MeshHandle);
-    RESOURCE_HANDLE(ResourceLayoutHandle);
+    struct StencilFuncDesc
+    {
+        // The stencil operation to perform when stencil testing fails.
+        StencilOp on_stencil_fail = StencilOp::KEEP;
+        // The stencil operation to perform when stencil testing passes and depth testing fails.
+        StencilOp on_stencil_pass_depth_fail = StencilOp::KEEP;
+        // The stencil operation to perform when stencil testing and depth testing both pass.
+        StencilOp on_stencil_pass_depth_pass = StencilOp::KEEP;
+        // How to compare the existing stencil value vs the value output by the func
+        ComparisonFunc comparison_func = ComparisonFunc::NEVER;
+    };
 
+    struct DepthStencilDesc
+    {
+        ComparisonFunc depth_cull_mode = ComparisonFunc::OFF;
+        bool depth_write = false;
+        bool stencil_enabled = false;
+        u8 stencil_write_mask = 0xFF;
+        u8 stencil_read_mask = 0xFF;
+        StencilFuncDesc stencil_back_face;
+        StencilFuncDesc stencil_front_face;
+    };
+
+    struct RasterStateDesc
+    {
+        FillMode fill_mode = FillMode::SOLID;
+        CullMode cull_mode = CullMode::BACK_CCW;
+        int32_t depth_bias = 0;
+        float depth_bias_clamp = 0.0f;
+        float slope_scaled_depth_bias = 0.0f;
+        u8 flags = RasterizerFlags::DEPTH_CLIP_ENABLED;
+    };
+
+    struct RenderTargetBlendDesc
+    {
+        BlendMode blend_mode = BlendMode::OPAQUE;
+        // RGB value from pixel shader output
+        Blend    src_blend = Blend::ONE;
+        // RGB Value stored in render target
+        Blend    dst_blend = Blend::ZERO;
+        // Describes how the two RGB values are combined
+        BlendOp blend_op = BlendOp::ADD;
+        // Alpha value from pixel shader output
+        Blend    src_blend_alpha = Blend::ONE;
+        // Alpha value stored in render target
+        Blend    dst_blend_alpha = Blend::ZERO;
+        // Describes how the two alpha values are combined
+        BlendOp blend_op_alpha = BlendOp::ADD;
+        // A write mask -- can be used to mask the values after the
+        // blending operation before they are stored in the render target
+        // NOT IMPLEMENTED
+        //u8 renderTargetWriteMask = 0x0F;
+    };
+
+    struct BlendStateDesc
+    {
+        bool alpha_to_coverage_enable = false;
+        bool independent_blend_enable = false;
+        RenderTargetBlendDesc render_target_blend_descs[8] = { };
+    };
+
+    /// Can be used to create either a computer shader pipeline or a graphics pipeline
+    /// 
+    /// To create a Graphics pipeline, you probably just need to define the input assembly
+    /// and set used_stages to PIXEL and/or VERTEX
+    /// 
+    /// To create a Compute pipeline, the used_stages must equel COMPUTE
+    /// 
+    /// In both cases, the shader file path and the resource layout handle must be set
+    /// to appropriate values
+    struct PipelineStateObjectDesc
+    {
+        ResourceLayoutHandle resource_layout = INVALID_HANDLE;
+        InputAssemblyDesc input_assembly_desc = {};
+        DepthStencilDesc depth_stencil_state = {};
+        RasterStateDesc raster_state_desc = {};
+        BlendStateDesc blend_state = {};
+        BufferFormat rtv_formats[8] = {};
+        u8 used_stages = PIPELINE_STAGE_INVALID;
+        std::wstring shader_file_path = L"";
+    };
 }
