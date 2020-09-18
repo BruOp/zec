@@ -16,6 +16,7 @@
 
 namespace zec
 {
+    class InputManager;
 
     class Window
     {
@@ -40,7 +41,7 @@ namespace zec
         //HWND get_hwnd() const;
         //HMENU get_menu() const;
         //HINSTANCE get_hinstance() const;
-        void message_loop();
+        void message_loop(InputManager* input_manager = nullptr);
 
         boolean is_alive() const;
         boolean is_minimized() const;

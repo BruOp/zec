@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "window.h"
 #include "timer.h"
+#include "input_manager.h"
 
 #include "gfx/gfx.h"
 
@@ -35,6 +36,8 @@ namespace zec
         TimeData time_data = {};
         std::wstring app_name;
         Renderer renderer;
+
+        InputManager input_manager;
 
     private:
 

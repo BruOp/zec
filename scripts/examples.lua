@@ -5,7 +5,6 @@ function exampleProject(...)
     kind "WindowedApp"
 
     files {
-      path.join(EXAMPLES_DIR, "**.cpp"),
       path.join(EXAMPLES_DIR, name, "**.cpp"),
       path.join(EXAMPLES_DIR, name, "**.h")
     }
@@ -26,7 +25,8 @@ function exampleProject(...)
     }
 
     defines {
-      "_SECURE_SCL=0"
+      "_SECURE_SCL=0",
+      -- "_ITERATOR_DEBUG_LEVEL=0"
     }
 
     links {

@@ -42,6 +42,7 @@ workspace "zec"
     "_SCL_SECURE_NO_WARNINGS",
     "_CRT_SECURE_NO_WARNINGS",
     "_CRT_SECURE_NO_DEPRECATE",
+    -- "_ITERATOR_DEBUG_LEVEL=0"
   }
   linkoptions {
     "/ignore:4221", -- LNK4221: This object file does not define any previously undefined public symbols, so it will not be used by any link operation that consumes this library
@@ -90,6 +91,9 @@ project("zec_lib")
     "d3d12",
     "dxguid",
     "D3DCompiler",
+    "../external/lib/gainputstatic-d",
+    "Xinput9_1_0",
+    "ws2_32"
   }
 
   configuration {}
@@ -98,5 +102,6 @@ project("zec_lib")
 
 group "examples"
 exampleProject(
-    "01-hello-world"
+    "01-hello-world",
+    "02-normal-mapping"
 )

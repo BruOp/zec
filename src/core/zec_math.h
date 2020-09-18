@@ -18,6 +18,7 @@ namespace zec
     constexpr float k_half_pi = M_PI_2;
     constexpr float k_quarter_pi = M_PI_4;
     constexpr float k_inv_pi = M_1_PI;
+    constexpr float k_2_pi = M_PI * 2.0f;
 
     inline float deg_to_rad(const float degrees)
     {
@@ -53,10 +54,19 @@ namespace zec
         }
     };
 
+    extern vec3 k_up;
 
     inline vec3 operator+(const vec3& v1, const vec3& v2)
     {
         return { v1.x + v2.x, v1.y + v2.y, v1.z + v2.z };
+    }
+    inline vec3 operator-(const vec3& v1)
+    {
+        return { -v1.x, -v1.y, -v1.z };
+    }
+    inline vec3 operator-(const vec3& v1, const vec3& v2)
+    {
+        return { v1.x - v2.x, v1.y - v2.y, v1.z - v2.z };
     }
     inline vec3 operator*(const vec3& v1, const float s)
     {
@@ -72,6 +82,21 @@ namespace zec
         return { v1.x * inv_s, v1.y * inv_s, v1.z * inv_s };
     }
 
+    inline vec3& operator+=(vec3& v1, const vec3& v2)
+    {
+        v1.x += v2.x;
+        v1.y += v2.y;
+        v1.z += v2.z;
+        return v1;
+    }
+    inline vec3& operator*=(vec3& v1, const float s)
+    {
+        v1.x *= s;
+        v1.y *= s;
+        v1.z *= s;
+        return v1;
+    }
+
     inline float length_squared(vec3 v)
     {
         return v.x * v.x + v.y * v.y + v.z * v.z;
@@ -85,6 +110,9 @@ namespace zec
         return v / length(v);
     }
 
+    float dot(const vec3& a, const vec3& b);
+    vec3 cross(const vec3& a, const vec3& b);
+
     // ---------- vec4 ----------
 
     struct vec4
@@ -94,9 +122,12 @@ namespace zec
             float data[4] = {};
             struct { float x, y, z, w; };
             struct { float r, g, b, a; };
-            vec3 xyz;
-            vec3 rgb;
+            struct { vec3 xyz; float w; };
+            struct { vec3 rgb; float a; };
         };
+        vec4() : data{ 0.0f, 0.0f, 0.0f, 0.0f } { };
+        vec4(const float x, const float y, const float z, const float w) : x(x), y(y), z(z), w(w) { };
+        vec4(vec3 xyz, const float w = 1.0f) : xyz(xyz), w(w) { };
 
         inline float& operator[](const size_t idx)
         {
@@ -137,6 +168,49 @@ namespace zec
         return v / length(v);
     }
 
+    // 
+
+    struct mat3
+    {
+        union
+        {
+            vec3 rows[3] = {};
+            float data[3][3];
+        };
+
+        mat3() : rows{ {}, {}, {} } { };
+        mat3(const vec3& r1, const vec3& r2, const vec3& r3)
+        {
+            memory::copy(&rows[0], &r1, sizeof(r1));
+            memory::copy(&rows[1], &r2, sizeof(r1));
+            memory::copy(&rows[2], &r3, sizeof(r1));
+        }
+        mat3(const vec3 in_rows[3])
+        {
+            memory::copy(data, in_rows, sizeof(data));
+        }
+
+        inline vec3 column(const size_t col_idx) const
+        {
+            return { rows[0][col_idx], rows[1][col_idx], rows[2][col_idx] };
+        }
+
+
+        inline float* operator[](const size_t index)
+        {
+            return data[index];
+        }
+
+        inline const float* operator[](const size_t index) const
+        {
+            return data[index];
+        }
+    };
+
+    mat3 transpose(const mat3& m);
+
+    vec3 operator*(const mat3& m, const vec3& v);
+
     // ---------- mat44 ----------
 
     struct mat44
@@ -159,6 +233,21 @@ namespace zec
         {
             memory::copy(data, in_rows, sizeof(data));
         }
+        mat44(const mat3& rotation, const vec3& translation)
+        {
+            memory::copy(&rows[0], rotation[0], sizeof(rotation[0]));
+            memory::copy(&rows[1], rotation[1], sizeof(rotation[0]));
+            memory::copy(&rows[2], rotation[2], sizeof(rotation[0]));
+            rows[3] = { 0.0f, 0.0f, 0.0f, 1.0f };
+            data[0][3] = translation.x;
+            data[1][3] = translation.y;
+            data[2][3] = translation.z;
+        }
+
+        inline vec4 column(const size_t col_idx) const
+        {
+            return { rows[0][col_idx], rows[1][col_idx], rows[2][col_idx], rows[3][col_idx] };
+        }
 
 
         inline float* operator[](const size_t index)
@@ -173,6 +262,9 @@ namespace zec
     };
 
     mat44 operator*(const mat44& m1, const mat44& m2);
+    mat44& operator/=(mat44& m, const float s);
+
+    vec4 operator*(const mat44& m, const vec4& v);
 
     inline mat44 identity_mat44()
     {
@@ -183,6 +275,18 @@ namespace zec
             { 0.0f, 0.0f, 0.0f, 1.0f }
         };
     };
+
+    vec3 get_right(const mat44& m);
+    vec3 get_up(const mat44& m);
+    vec3 get_dir(const mat44& m);
+
+    mat44 look_at(vec3 pos, vec3 origin, vec3 up);
+
+    mat44 invert(const mat44& m);
+
+    mat44 transpose(const mat44& m);
+
+    mat3 to_mat3(const mat44& m);
 
     // ---------- quaternion ----------
 

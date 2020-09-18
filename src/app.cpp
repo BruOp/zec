@@ -14,7 +14,9 @@ namespace zec
             WS_OVERLAPPEDWINDOW,
             WS_EX_APPWINDOW,
             width,
-            height }
+            height
+    },
+        input_manager{ }
     {
     }
 
@@ -29,12 +31,13 @@ namespace zec
         after_reset_internal();
 
         while (window.is_alive()) {
+            window.message_loop(&input_manager);
+
             if (!window.is_minimized()) {
                 update_internal();
                 render_internal();
             }
 
-            window.message_loop();
         }
 
         shutdown_internal();
@@ -55,13 +58,14 @@ namespace zec
         window.show(true);
 
         RendererDesc renderer_desc{ };
-        renderer_desc.width = 1600;
-        renderer_desc.height = 900;
+        renderer_desc.width = width;
+        renderer_desc.height = height;
         renderer_desc.fullscreen = false;
         renderer_desc.vsync = true;
         renderer_desc.window = window.hwnd;
         renderer.init(renderer_desc);
 
+        input_manager.init(width, height);
         init();
     }
 
@@ -73,6 +77,7 @@ namespace zec
 
     void App::update_internal()
     {
+        input_manager.update();
         update_time_data(time_data);
 
         update(time_data);

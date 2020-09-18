@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "window.h"
+#include "input_manager.h"
 
 namespace zec
 {
@@ -33,13 +34,16 @@ namespace zec
         destroy();
     }
 
-    void Window::message_loop()
+    void Window::message_loop(InputManager* input_manager)
     {
         MSG msg;
 
         while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
             ::TranslateMessage(&msg);
             ::DispatchMessage(&msg);
+            if (input_manager != nullptr) {
+                input_manager->handle_window_message(msg);
+            }
         }
     }
 
