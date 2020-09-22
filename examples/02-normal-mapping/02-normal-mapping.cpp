@@ -109,21 +109,21 @@ protected:
             };
 
             MeshDesc mesh_desc{};
-            mesh_desc.index_buffer_desc.usage = BUFFER_USAGE_INDEX;
+            mesh_desc.index_buffer_desc.usage = RESOURCE_USAGE_INDEX;
             mesh_desc.index_buffer_desc.type = BufferType::DEFAULT;
             mesh_desc.index_buffer_desc.byte_size = sizeof(cube_indices);
             mesh_desc.index_buffer_desc.stride = sizeof(cube_indices[0]);
             mesh_desc.index_buffer_desc.data = (void*)cube_indices;
 
             mesh_desc.vertex_buffer_descs[0] = {
-                    BUFFER_USAGE_VERTEX,
+                    RESOURCE_USAGE_VERTEX,
                     BufferType::DEFAULT,
                     sizeof(cube_positions),
                     3 * sizeof(cube_positions[0]),
                     (void*)(cube_positions)
             };
             mesh_desc.vertex_buffer_descs[1] = {
-               BUFFER_USAGE_VERTEX,
+               RESOURCE_USAGE_VERTEX,
                BufferType::DEFAULT,
                sizeof(cube_colors),
                sizeof(cube_colors[0]),
@@ -152,7 +152,7 @@ protected:
             cb_desc.data = &mesh_transform;
             cb_desc.stride = 0;
             cb_desc.type = BufferType::DEFAULT;
-            cb_desc.usage = BUFFER_USAGE_CONSTANT | BUFFER_USAGE_DYNAMIC;
+            cb_desc.usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC;
 
             cb_handle = renderer.create_buffer(cb_desc);
         }

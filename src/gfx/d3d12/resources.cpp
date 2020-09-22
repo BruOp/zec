@@ -10,14 +10,14 @@ namespace zec
         void init(Buffer& buffer, const BufferDesc& desc, D3D12MA::Allocator* allocator)
         {
             ASSERT(desc.byte_size != 0);
-            ASSERT(desc.usage != u16(BUFFER_USAGE_UNUSED));
+            ASSERT(desc.usage != u16(RESOURCE_USAGE_UNUSED));
 
             buffer.size = desc.byte_size;
             // Create Buffer
             D3D12_HEAP_TYPE heap_type = D3D12_HEAP_TYPE_DEFAULT;
             D3D12_RESOURCE_STATES initial_resource_state = D3D12_RESOURCE_STATE_COMMON;
 
-            u16 vertex_or_index = u16(BUFFER_USAGE_VERTEX) | u16(BUFFER_USAGE_INDEX);
+            u16 vertex_or_index = u16(RESOURCE_USAGE_VERTEX) | u16(RESOURCE_USAGE_INDEX);
             // There are three different sizes to keep track of here:
             // desc.bytes_size  => the minimum size (in bytes) that we desire our buffer to occupy
             // buffer.size      => the above size that's been potentially grown to match alignment requirements
@@ -32,17 +32,17 @@ namespace zec
                 ASSERT(desc.data != nullptr);
             }
 
-            if (desc.usage & BUFFER_USAGE_VERTEX) {
+            if (desc.usage & RESOURCE_USAGE_VERTEX) {
                 buffer.size = align_to(buffer.size, dx12::VERTEX_BUFFER_ALIGNMENT);
             }
-            else if (desc.usage & BUFFER_USAGE_INDEX) {
+            else if (desc.usage & RESOURCE_USAGE_INDEX) {
                 buffer.size = align_to(buffer.size, dx12::INDEX_BUFFER_ALIGNMENT);
             }
-            else if (desc.usage & BUFFER_USAGE_CONSTANT) {
+            else if (desc.usage & RESOURCE_USAGE_CONSTANT) {
                 buffer.size = align_to(buffer.size, dx12::CONSTANT_BUFFER_ALIGNMENT);
             }
 
-            if (desc.usage & BUFFER_USAGE_DYNAMIC) {
+            if (desc.usage & RESOURCE_USAGE_DYNAMIC) {
                 heap_type = D3D12_HEAP_TYPE_UPLOAD;
                 initial_resource_state = D3D12_RESOURCE_STATE_GENERIC_READ;
                 alloc_size = RENDER_LATENCY * buffer.size;
@@ -63,7 +63,7 @@ namespace zec
 
             buffer.gpu_address = buffer.resource->GetGPUVirtualAddress();
 
-            if (desc.usage & BUFFER_USAGE_DYNAMIC) {
+            if (desc.usage & RESOURCE_USAGE_DYNAMIC) {
                 buffer.cpu_accessible = true;
                 buffer.resource->Map(0, &CD3DX12_RANGE(0, 0), &buffer.cpu_address);
             }

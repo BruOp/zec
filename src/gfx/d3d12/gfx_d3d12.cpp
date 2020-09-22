@@ -1,42 +1,141 @@
 #include "pch.h"
-#include "renderer.h"
-#include "d3dx12/d3dx12.h"
-#include "gfx/public.h"
-#include "gfx/constants.h"
-#include "pipeline_state_object.h"
+#include "gfx/gfx.h"
+#ifdef USE_D3D_RENDERER
+#include "gfx/public_resources.h"
+#include "dx_utils.h"
+#include "dx_helpers.h"
+#include "globals.h"
 
+#if _DEBUG
+#define USE_DEBUG_DEVICE 1
+#define BREAK_ON_DX_ERROR (USE_DEBUG_DEVICE && 1)
+#define USE_GPU_VALIDATION 1
+#else
+#define USE_DEBUG_DEVICE 0
+#define BREAK_ON_DX_ERROR 0
+#define USE_GPU_VALIDATION 0
+#endif
 
 
 namespace zec
 {
-    static void set_formats(dx12::SwapChain& swap_chain, const DXGI_FORMAT format)
+    using namespace dx12;
+
+    namespace dx12
     {
-        swap_chain.format = format;
-        if (format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) {
-            swap_chain.non_sRGB_format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        RenderTexture& get_current_back_buffer()
+        {
+            return g_swap_chain.back_buffers[g_current_frame_idx];
+        };
+
+        static void set_formats(SwapChain& swap_chain, const DXGI_FORMAT format)
+        {
+            swap_chain.format = format;
+            if (format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) {
+                swap_chain.non_sRGB_format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            }
+            else if (format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB) {
+                swap_chain.non_sRGB_format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            }
+            else {
+                swap_chain.non_sRGB_format = swap_chain.format;
+            }
         }
-        else if (format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB) {
-            swap_chain.non_sRGB_format = DXGI_FORMAT_B8G8R8A8_UNORM;
+
+        void recreate_swap_chain_rtv_descriptors(SwapChain& swap_chain)
+        {
+            // Re-create an RTV for each back buffer
+            for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
+                // RTV Descriptor heap only has one heap -> only one handle is issued
+                ASSERT(g_rtv_descriptor_heap.num_heaps == 1);
+                swap_chain.back_buffers[i].rtv = allocate_persistent_descriptor(g_rtv_descriptor_heap).handles[0];
+                DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&swap_chain.back_buffers[i].resource)));
+
+                D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = { };
+                rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+                rtvDesc.Format = swap_chain.format;
+                rtvDesc.Texture2D.MipSlice = 0;
+                rtvDesc.Texture2D.PlaneSlice = 0;
+                g_device->CreateRenderTargetView(swap_chain.back_buffers[i].resource, &rtvDesc, swap_chain.back_buffers[i].rtv);
+
+                swap_chain.back_buffers[i].resource->SetName(make_string(L"Back Buffer %llu", i).c_str());
+
+                // Copy properties from swap chain to backbuffer textures, in case we need em
+                swap_chain.back_buffers[i].width = swap_chain.width;
+                swap_chain.back_buffers[i].height = swap_chain.height;
+                swap_chain.back_buffers[i].depth = 1;
+                swap_chain.back_buffers[i].array_size = 1;
+                swap_chain.back_buffers[i].format = swap_chain.format;
+                swap_chain.back_buffers[i].num_mips = 1;
+
+            }
+            swap_chain.back_buffer_idx = swap_chain.swap_chain->GetCurrentBackBufferIndex();
         }
-        else {
-            swap_chain.non_sRGB_format = swap_chain.format;
+
+        void reset_swap_chain()
+        {
+            ASSERT(g_swap_chain.swap_chain != nullptr);
+
+            if (g_swap_chain.output == nullptr) {
+                g_swap_chain.fullscreen = false;
+            }
+
+            for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
+                g_swap_chain.back_buffers[i].resource->Release();
+                free_persistent_alloc(g_rtv_descriptor_heap, g_swap_chain.back_buffers[i].rtv);
+            }
+
+            set_formats(g_swap_chain, g_swap_chain.format);
+
+            if (g_swap_chain.fullscreen) {
+                prepare_full_screen_settings();
+            }
+            else {
+                g_swap_chain.refresh_rate.Numerator = 60;
+                g_swap_chain.refresh_rate.Denominator = 1;
+            }
+
+            DXCall(g_swap_chain.swap_chain->SetFullscreenState(g_swap_chain.fullscreen, g_swap_chain.output));
+            // TODO Backbuffers
+            for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
+                DXCall(g_swap_chain.swap_chain->ResizeBuffers(
+                    NUM_BACK_BUFFERS,
+                    g_swap_chain.width,
+                    g_swap_chain.height, g_swap_chain.non_sRGB_format,
+                    DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH |
+                    DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING |
+                    DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT));
+            }
+
+            if (g_swap_chain.fullscreen) {
+                DXGI_MODE_DESC mode;
+                mode.Format = g_swap_chain.non_sRGB_format;
+                mode.Width = g_swap_chain.width;
+                mode.Height = g_swap_chain.height;
+                mode.RefreshRate.Numerator = 0;
+                mode.RefreshRate.Denominator = 0;
+                mode.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+                mode.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+                DXCall(g_swap_chain.swap_chain->ResizeTarget(&mode));
+            }
+
+            recreate_swap_chain_rtv_descriptors(g_swap_chain);
+        }
+
+        void reset()
+        {
+            reset_swap_chain();
+            g_destruction_queue.process_queue();
         }
     }
 
-    Renderer::~Renderer()
-    {
-        ASSERT(device_context.device == nullptr);
-        ASSERT(device_context.adapter == nullptr);
-        ASSERT(device_context.factory == nullptr);
-    }
-
-    void Renderer::init(const RendererDesc& renderer_desc)
+    void init_renderer(const RendererDesc& renderer_desc)
     {
         // Factory, Adaptor and Device initialization
         {
-            ASSERT(device_context.adapter == nullptr);
-            ASSERT(device_context.factory == nullptr);
-            ASSERT(device_context.device == nullptr);
+            ASSERT(g_adapter == nullptr);
+            ASSERT(g_factory == nullptr);
+            ASSERT(g_device == nullptr);
             constexpr int ADAPTER_NUMBER = 0;
 
         #ifdef USE_DEBUG_DEVICE
@@ -55,19 +154,19 @@ namespace zec
             debug_ptr->Release();
         #endif // DEBUG
 
-            DXCall(CreateDXGIFactory2(factory_flags, IID_PPV_ARGS(&device_context.factory)));
+            DXCall(CreateDXGIFactory2(factory_flags, IID_PPV_ARGS(&g_factory)));
 
-            device_context.factory->EnumAdapters1(ADAPTER_NUMBER, &device_context.adapter);
+            g_factory->EnumAdapters1(ADAPTER_NUMBER, &g_adapter);
 
-            if (device_context.adapter == nullptr) {
+            if (g_adapter == nullptr) {
                 throw Exception(L"Unabled to located DXGI 1.4 adapter that supports D3D12.");
             }
 
             DXGI_ADAPTER_DESC1 desc{  };
-            device_context.adapter->GetDesc1(&desc);
+            g_adapter->GetDesc1(&desc);
             write_log("Creating DX12 device on adapter '%ls'", desc.Description);
 
-            DXCall(D3D12CreateDevice(device_context.adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device_context.device)));
+            DXCall(D3D12CreateDevice(g_adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&g_device)));
 
             D3D_FEATURE_LEVEL feature_levels_arr[4] = {
                 D3D_FEATURE_LEVEL_11_0,
@@ -78,15 +177,15 @@ namespace zec
             D3D12_FEATURE_DATA_FEATURE_LEVELS feature_levels = { };
             feature_levels.NumFeatureLevels = ARRAY_SIZE(feature_levels_arr);
             feature_levels.pFeatureLevelsRequested = feature_levels_arr;
-            DXCall(device_context.device->CheckFeatureSupport(
+            DXCall(g_device->CheckFeatureSupport(
                 D3D12_FEATURE_FEATURE_LEVELS,
                 &feature_levels,
                 sizeof(feature_levels)
             ));
-            device_context.supported_feature_level = feature_levels.MaxSupportedFeatureLevel;
+            g_supported_feature_level = feature_levels.MaxSupportedFeatureLevel;
 
             D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_12_0;
-            if (device_context.supported_feature_level < min_feature_level) {
+            if (g_supported_feature_level < min_feature_level) {
                 std::wstring majorLevel = to_string<int>(min_feature_level >> 12);
                 std::wstring minorLevel = to_string<int>((min_feature_level >> 8) & 0xF);
                 throw Exception(L"The device doesn't support the minimum feature level required to run this sample (DX" + majorLevel + L"." + minorLevel + L")");
@@ -94,7 +193,7 @@ namespace zec
 
         #ifdef USE_DEBUG_DEVICE
             ID3D12InfoQueue* infoQueue;
-            DXCall(device_context.device->QueryInterface(IID_PPV_ARGS(&infoQueue)));
+            DXCall(g_device->QueryInterface(IID_PPV_ARGS(&infoQueue)));
 
             D3D12_MESSAGE_ID disabledMessages[] =
             {
@@ -118,10 +217,10 @@ namespace zec
         // Initialize Memory Allocator
         {
             D3D12MA::ALLOCATOR_DESC allocatorDesc = {};
-            allocatorDesc.pDevice = device_context.device;
-            allocatorDesc.pAdapter = device_context.adapter;
+            allocatorDesc.pDevice = g_device;
+            allocatorDesc.pAdapter = g_adapter;
 
-            DXCall(D3D12MA::CreateAllocator(&allocatorDesc, &allocator));
+            DXCall(D3D12MA::CreateAllocator(&allocatorDesc, &g_allocator));
         }
 
         // Initialize command allocators and command list
@@ -129,17 +228,17 @@ namespace zec
             // We need N allocators for N frames, since we cannot reset them and reclaim the associated memory
             // until the GPU is finished executing against them. So we have to use fences
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
-                DXCall(device_context.device->CreateCommandAllocator(
-                    D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&cmd_allocators[i])
+                DXCall(g_device->CreateCommandAllocator(
+                    D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_cmd_allocators[i])
                 ));
             }
 
             // Command lists, however, can be reset as soon as we've submitted them.
-            DXCall(device_context.device->CreateCommandList(
-                0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmd_allocators[0], nullptr, IID_PPV_ARGS(&cmd_list)
+            DXCall(g_device->CreateCommandList(
+                0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_cmd_allocators[0], nullptr, IID_PPV_ARGS(&g_cmd_list)
             ));
-            DXCall(cmd_list->Close());
-            cmd_list->SetName(L"Graphics command list");
+            DXCall(g_cmd_list->Close());
+            g_cmd_list->SetName(L"Graphics command list");
 
             // Initialize graphics queue
             {
@@ -147,8 +246,8 @@ namespace zec
                 queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
                 queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 
-                DXCall(device_context.device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&gfx_queue)));
-                gfx_queue->SetName(L"Graphics queue");
+                DXCall(g_device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&g_gfx_queue)));
+                g_gfx_queue->SetName(L"Graphics queue");
             }
 
             // Initialize graphics queue
@@ -157,45 +256,45 @@ namespace zec
                 queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
                 queue_desc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
 
-                DXCall(device_context.device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&copy_queue)));
-                copy_queue->SetName(L"Copy Queue");
+                DXCall(g_device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&g_copy_queue)));
+                g_copy_queue->SetName(L"Copy Queue");
             }
 
             // Set current frame index and reset command allocator and list appropriately
-            ID3D12CommandAllocator* current_cmd_allocator = cmd_allocators[0];
+            ID3D12CommandAllocator* current_cmd_allocator = g_cmd_allocators[0];
             DXCall(current_cmd_allocator->Reset());
-            DXCall(cmd_list->Reset(current_cmd_allocator, nullptr));
+            DXCall(g_cmd_list->Reset(current_cmd_allocator, nullptr));
         }
 
         // RTV Descriptor Heap initialization
-        dx12::DescriptorHeapDesc rtv_descriptor_heap_desc{ };
+        DescriptorHeapDesc rtv_descriptor_heap_desc{ };
         rtv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtv_descriptor_heap_desc.num_persistent = 256;
         rtv_descriptor_heap_desc.num_temporary = 0;
         rtv_descriptor_heap_desc.is_shader_visible = false;
-        dx12::init(rtv_descriptor_heap, rtv_descriptor_heap_desc, device_context);
+        init(g_rtv_descriptor_heap, rtv_descriptor_heap_desc, g_device);
 
         // Descriptor Heap for depth texture views
-        dx12::DescriptorHeapDesc dsv_descriptor_heap_desc{ };
+        DescriptorHeapDesc dsv_descriptor_heap_desc{ };
         dsv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         dsv_descriptor_heap_desc.num_persistent = 256;
         dsv_descriptor_heap_desc.num_temporary = 0;
         dsv_descriptor_heap_desc.is_shader_visible = false;
-        dx12::init(dsv_descriptor_heap, dsv_descriptor_heap_desc, device_context);
+        init(g_dsv_descriptor_heap, dsv_descriptor_heap_desc, g_device);
 
         // Descriptor Heap for SRV, CBV and UAV resources
-        dx12::DescriptorHeapDesc srv_descriptor_heap_desc{ };
+        DescriptorHeapDesc srv_descriptor_heap_desc{ };
         srv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         srv_descriptor_heap_desc.num_persistent = 1024;
         srv_descriptor_heap_desc.num_temporary = 1024;
         srv_descriptor_heap_desc.is_shader_visible = true;
-        dx12::init(srv_descriptor_heap, srv_descriptor_heap_desc, device_context);
+        init(g_srv_descriptor_heap, srv_descriptor_heap_desc, g_device);
 
         // Swapchain initializaiton
         {
-            ASSERT(swap_chain.swap_chain == nullptr);
+            ASSERT(g_swap_chain.swap_chain == nullptr);
 
-            dx12::SwapChainDesc swap_chain_desc{ };
+            SwapChainDesc swap_chain_desc{ };
             swap_chain_desc.width = renderer_desc.width;
             swap_chain_desc.height = renderer_desc.height;
             swap_chain_desc.fullscreen = renderer_desc.fullscreen;
@@ -203,20 +302,20 @@ namespace zec
             swap_chain_desc.output_window = renderer_desc.window;
             swap_chain_desc.format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 
-            device_context.adapter->EnumOutputs(0, &swap_chain.output);
+            g_adapter->EnumOutputs(0, &g_swap_chain.output);
 
-            swap_chain.width = swap_chain_desc.width;
-            swap_chain.height = swap_chain_desc.height;
-            swap_chain.fullscreen = swap_chain_desc.fullscreen;
-            swap_chain.vsync = swap_chain_desc.vsync;
+            g_swap_chain.width = swap_chain_desc.width;
+            g_swap_chain.height = swap_chain_desc.height;
+            g_swap_chain.fullscreen = swap_chain_desc.fullscreen;
+            g_swap_chain.vsync = swap_chain_desc.vsync;
 
-            set_formats(swap_chain, swap_chain_desc.format);
+            set_formats(g_swap_chain, swap_chain_desc.format);
 
             DXGI_SWAP_CHAIN_DESC d3d_swap_chain_desc = {  };
             d3d_swap_chain_desc.BufferCount = NUM_BACK_BUFFERS;
-            d3d_swap_chain_desc.BufferDesc.Width = swap_chain.width;
-            d3d_swap_chain_desc.BufferDesc.Height = swap_chain.height;
-            d3d_swap_chain_desc.BufferDesc.Format = swap_chain.non_sRGB_format;
+            d3d_swap_chain_desc.BufferDesc.Width = g_swap_chain.width;
+            d3d_swap_chain_desc.BufferDesc.Height = g_swap_chain.height;
+            d3d_swap_chain_desc.BufferDesc.Format = g_swap_chain.non_sRGB_format;
             d3d_swap_chain_desc.ResourceUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
             d3d_swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
             d3d_swap_chain_desc.SampleDesc.Count = 1;
@@ -227,109 +326,102 @@ namespace zec
                 DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
 
             IDXGISwapChain* d3d_swap_chain = nullptr;
-            DXCall(device_context.factory->CreateSwapChain(gfx_queue, &d3d_swap_chain_desc, &d3d_swap_chain));
-            DXCall(d3d_swap_chain->QueryInterface(IID_PPV_ARGS(&swap_chain.swap_chain)));
+            DXCall(g_factory->CreateSwapChain(g_gfx_queue, &d3d_swap_chain_desc, &d3d_swap_chain));
+            DXCall(d3d_swap_chain->QueryInterface(IID_PPV_ARGS(&g_swap_chain.swap_chain)));
             d3d_swap_chain->Release();
 
-            swap_chain.back_buffer_idx = swap_chain.swap_chain->GetCurrentBackBufferIndex();
-            swap_chain.waitable_object = swap_chain.swap_chain->GetFrameLatencyWaitableObject();
+            g_swap_chain.back_buffer_idx = g_swap_chain.swap_chain->GetCurrentBackBufferIndex();
+            g_swap_chain.waitable_object = g_swap_chain.swap_chain->GetFrameLatencyWaitableObject();
 
-            recreate_swap_chain_rtv_descriptors();
+            recreate_swap_chain_rtv_descriptors(g_swap_chain);
         }
-        fence_manager.init(device_context.device, &destruction_queue);
-        frame_fence = fence_manager.create_fence(0);
+        g_fence_manager.init(g_device, &g_destruction_queue);
+        g_frame_fence = g_fence_manager.create_fence(0);
 
-        upload_manager.init({
-            device_context.device,
-            allocator,
-            copy_queue,
-            &fence_manager });
+        g_upload_manager.init({
+            g_device,
+            g_allocator,
+            g_copy_queue,
+            &g_fence_manager });
     }
 
-    void Renderer::destroy()
+    void destroy_renderer()
     {
         write_log("Destroying renderer");
-        wait(frame_fence, current_cpu_frame);
+        wait(g_frame_fence, g_current_cpu_frame);
 
         // Swap Chain Destruction
         {
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
                 // Do not need to destroy the resource ourselves, since it's managed by the swap chain (??)
-                swap_chain.back_buffers[i].resource->Release();
-                free_persistent_alloc(rtv_descriptor_heap, swap_chain.back_buffers[i].rtv);
+                g_swap_chain.back_buffers[i].resource->Release();
+                free_persistent_alloc(g_rtv_descriptor_heap, g_swap_chain.back_buffers[i].rtv);
             }
 
-            swap_chain.swap_chain->Release();
-            swap_chain.output->Release();
+            g_swap_chain.swap_chain->Release();
+            g_swap_chain.output->Release();
         }
 
-        for (size_t i = 0; i < root_signatures.size; ++i) {
-            ID3D12RootSignature* root_signature = root_signatures[i];
-            dx12::dx_destroy(&root_signature);
-        }
+        g_root_signatures.destroy();
+        g_pipelines.destroy();
 
-        for (size_t i = 0; i < pipelines.size; ++i) {
-            ID3D12PipelineState* pipeline = pipelines[i];
-            dx12::dx_destroy(&pipeline);
-        }
+        destroy(g_rtv_descriptor_heap);
+        destroy(g_dsv_descriptor_heap);
+        destroy(g_srv_descriptor_heap);
+        g_upload_manager.destroy();
+        g_buffers.destroy();
+        g_fence_manager.destroy();
 
-        dx12::destroy(rtv_descriptor_heap);
-        dx12::destroy(dsv_descriptor_heap);
-        dx12::destroy(srv_descriptor_heap);
-        upload_manager.destroy();
-        buffers.destroy();
-        fence_manager.destroy();
-
-        dx12::dx_destroy(&cmd_list);
+        dx_destroy(&g_cmd_list);
         for (u64 i = 0; i < RENDER_LATENCY; i++) {
-            cmd_allocators[i]->Release();
+            g_cmd_allocators[i]->Release();
         }
-        dx12::dx_destroy(&gfx_queue);
-        dx12::dx_destroy(&copy_queue);
+        dx_destroy(&g_gfx_queue);
+        dx_destroy(&g_copy_queue);
 
-        destruction_queue.destroy();
-        dx12::dx_destroy(&allocator);
+        g_destruction_queue.destroy();
+        dx_destroy(&g_allocator);
 
-        dx12::dx_destroy(&device_context.device);
-        dx12::dx_destroy(&device_context.adapter);
-        dx12::dx_destroy(&device_context.factory);
+        dx_destroy(&g_device);
+        dx_destroy(&g_adapter);
+        dx_destroy(&g_factory);
     }
 
-    void Renderer::begin_upload()
+    void begin_upload()
     {
-        upload_manager.begin_upload();
+        g_upload_manager.begin_upload();
     }
 
-    void Renderer::end_upload()
+    void end_upload()
     {
-        upload_manager.end_upload();
-        gfx_queue->Wait(upload_manager.fence.d3d_fence, upload_manager.current_fence_value);
+        g_upload_manager.end_upload();
+        g_gfx_queue->Wait(g_upload_manager.fence.d3d_fence, g_upload_manager.current_fence_value);
     }
 
-    void Renderer::begin_frame()
+    void begin_frame()
     {
-        if (current_cpu_frame != 0) {
+        if (g_current_cpu_frame != 0) {
             // Wait for the GPU to catch up so we can freely reset our frame's command allocator
-            const u64 gpu_lag = current_cpu_frame - current_gpu_frame;
+            const u64 gpu_lag = g_current_cpu_frame - g_current_gpu_frame;
             ASSERT(gpu_lag <= RENDER_LATENCY);
             if (gpu_lag == RENDER_LATENCY) {
-                wait(frame_fence, current_gpu_frame + 1);
-                ++current_gpu_frame;
+                wait(g_frame_fence, g_current_gpu_frame + 1);
+                ++g_current_gpu_frame;
             }
 
-            current_frame_idx = swap_chain.swap_chain->GetCurrentBackBufferIndex();
+            g_current_frame_idx = g_swap_chain.swap_chain->GetCurrentBackBufferIndex();
 
-            DXCall(cmd_allocators[current_frame_idx]->Reset());
-            DXCall(cmd_list->Reset(cmd_allocators[current_frame_idx], nullptr));
+            DXCall(g_cmd_allocators[g_current_frame_idx]->Reset());
+            DXCall(g_cmd_list->Reset(g_cmd_allocators[g_current_frame_idx], nullptr));
 
             // Reset Heaps
         }
 
         // Process resources queued for destruction
-        destruction_queue.process_queue();
+        g_destruction_queue.process_queue();
 
         // TODO: Provide interface for creating barriers like this
-        dx12::RenderTexture& render_target = swap_chain.back_buffers[current_frame_idx];
+        RenderTexture& render_target = get_current_back_buffer();
 
         D3D12_RESOURCE_BARRIER barrier{  };
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -338,12 +430,12 @@ namespace zec
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        cmd_list->ResourceBarrier(1, &barrier);
+        g_cmd_list->ResourceBarrier(1, &barrier);
     }
 
-    void Renderer::end_frame()
+    void end_frame()
     {
-        dx12::RenderTexture& render_target = swap_chain.back_buffers[current_frame_idx];
+        RenderTexture& render_target = get_current_back_buffer();
 
         D3D12_RESOURCE_BARRIER barrier{  };
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -352,78 +444,83 @@ namespace zec
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        cmd_list->ResourceBarrier(1, &barrier);
+        g_cmd_list->ResourceBarrier(1, &barrier);
 
-        DXCall(cmd_list->Close());
+        DXCall(g_cmd_list->Close());
 
         // endframe uploads
 
-        ID3D12CommandList* command_lists[] = { cmd_list };
-        gfx_queue->ExecuteCommandLists(ARRAY_SIZE(command_lists), command_lists);
+        ID3D12CommandList* command_lists[] = { g_cmd_list };
+        g_gfx_queue->ExecuteCommandLists(ARRAY_SIZE(command_lists), command_lists);
 
         // Present the frame.
-        if (swap_chain.swap_chain != nullptr) {
-            u32 sync_intervals = swap_chain.vsync ? 1 : 0;
-            DXCall(swap_chain.swap_chain->Present(sync_intervals, swap_chain.vsync ? 0 : DXGI_PRESENT_ALLOW_TEARING));
+        if (g_swap_chain.swap_chain != nullptr) {
+            u32 sync_intervals = g_swap_chain.vsync ? 1 : 0;
+            DXCall(g_swap_chain.swap_chain->Present(sync_intervals, g_swap_chain.vsync ? 0 : DXGI_PRESENT_ALLOW_TEARING));
         }
 
         // Increment our cpu frame couter to indicate submission
-        ++current_cpu_frame;
-        signal(frame_fence, gfx_queue, current_cpu_frame);
+        ++g_current_cpu_frame;
+        signal(g_frame_fence, g_gfx_queue, g_current_cpu_frame);
     }
 
-    void Renderer::prepare_full_screen_settings()
+    RenderTargetHandle get_current_backbuffer_handle()
     {
-        ASSERT(swap_chain.output != nullptr);
+        return { g_current_cpu_frame };
+    }
+
+    void prepare_full_screen_settings()
+    {
+        ASSERT(g_swap_chain.output != nullptr);
 
         DXGI_MODE_DESC desired_mode{};
-        desired_mode.Format = swap_chain.non_sRGB_format;
-        desired_mode.Width = swap_chain.width;
-        desired_mode.Height = swap_chain.height;
+        desired_mode.Format = g_swap_chain.non_sRGB_format;
+        desired_mode.Width = g_swap_chain.width;
+        desired_mode.Height = g_swap_chain.height;
         desired_mode.RefreshRate.Numerator = 0;
         desired_mode.RefreshRate.Denominator = 0;
         desired_mode.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
         desired_mode.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
 
         DXGI_MODE_DESC closest_match{};
-        DXCall(swap_chain.output->FindClosestMatchingMode(&desired_mode, &closest_match, device_context.device));
+        DXCall(g_swap_chain.output->FindClosestMatchingMode(&desired_mode, &closest_match, g_device));
 
-        swap_chain.width = closest_match.Width;
-        swap_chain.height = closest_match.Height;
-        swap_chain.refresh_rate = closest_match.RefreshRate;
+        g_swap_chain.width = closest_match.Width;
+        g_swap_chain.height = closest_match.Height;
+        g_swap_chain.refresh_rate = closest_match.RefreshRate;
     }
 
-    BufferHandle Renderer::create_buffer(BufferDesc desc)
+    BufferHandle create_buffer(BufferDesc desc)
     {
         ASSERT(desc.byte_size != 0);
         ASSERT(desc.usage != RESOURCE_USAGE_UNUSED);
 
-        BufferHandle handle = { buffers.create_back() };
-        dx12::Buffer& buffer = buffers.get(handle);
+        BufferHandle handle = { g_buffers.create_back() };
+        Buffer& buffer = g_buffers.get(handle);
 
-        dx12::init(buffer, desc, allocator);
+        init(buffer, desc, g_allocator);
 
         if (desc.usage & RESOURCE_USAGE_DYNAMIC && desc.data != nullptr) {
             for (size_t i = 0; i < RENDER_LATENCY; i++) {
-                dx12::update_buffer(buffer, desc.data, desc.byte_size, i);
+                update_buffer(buffer, desc.data, desc.byte_size, i);
             }
         }
         else if (desc.data != nullptr) {
-            upload_manager.queue_upload(desc, buffer.resource);
+            g_upload_manager.queue_upload(desc, buffer.resource);
         }
 
         return handle;
     }
 
-    MeshHandle Renderer::create_mesh(MeshDesc mesh_desc)
+    MeshHandle create_mesh(MeshDesc mesh_desc)
     {
-        dx12::Mesh mesh{};
+        Mesh mesh{};
         // Index buffer creation
         {
             ASSERT(mesh_desc.index_buffer_desc.usage == RESOURCE_USAGE_INDEX);
             mesh.index_buffer_handle = create_buffer(mesh_desc.index_buffer_desc);
 
-            const dx12::Buffer& index_buffer = buffers[mesh.index_buffer_handle];
+            const Buffer& index_buffer = g_buffers[mesh.index_buffer_handle];
             mesh.index_buffer_view.BufferLocation = index_buffer.gpu_address;
             ASSERT(index_buffer.size < u64(UINT32_MAX));
             mesh.index_buffer_view.SizeInBytes = u32(index_buffer.size);
@@ -451,7 +548,7 @@ namespace zec
             ASSERT(attr_desc.type == BufferType::DEFAULT);
 
             mesh.vertex_buffer_handles[i] = create_buffer(attr_desc);
-            const dx12::Buffer& buffer = buffers[mesh.vertex_buffer_handles[i]];
+            const Buffer& buffer = g_buffers[mesh.vertex_buffer_handles[i]];
 
             D3D12_VERTEX_BUFFER_VIEW& view = mesh.buffer_views[i];
             view.BufferLocation = buffer.gpu_address;
@@ -461,12 +558,12 @@ namespace zec
         }
 
         // TODO: Support blend weights, indices
-        return { u32(meshes.push_back(mesh)) };
+        return { u32(g_meshes.push_back(mesh)) };
     }
 
-    TextureHandle Renderer::create_texture(TextureDesc desc)
+    TextureHandle create_texture(TextureDesc desc)
     {
-        dx12::Texture texture{
+        Texture texture{
             .resource = nullptr,
             .allocation = nullptr,
             .srv = UINT32_MAX,
@@ -475,13 +572,13 @@ namespace zec
             .height = desc.height,
             .num_mips = desc.num_mips,
             .array_size = desc.array_size,
-            .format = get_d3d_format(desc.format),
+            .format = to_d3d_format(desc.format),
             .is_cubemap = desc.is_cubemap
         };
 
     }
 
-    ResourceLayoutHandle Renderer::create_resource_layout(const ResourceLayoutDesc& desc)
+    ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc)
     {
         D3D12_ROOT_SIGNATURE_DESC root_signature_desc{};
         D3D12_ROOT_PARAMETER root_parameters[ResourceLayoutDesc::MAX_ENTRIES];
@@ -499,7 +596,7 @@ namespace zec
                 break;
             }
             D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_idx];
-            parameter.ShaderVisibility = dx12::to_d3d_visibility(entry.visibility);
+            parameter.ShaderVisibility = to_d3d_visibility(entry.visibility);
             if (entry.type == ResourceLayoutEntryType::CONSTANT_BUFFER) {
                 parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
                 parameter.Descriptor = D3D12_ROOT_DESCRIPTOR{ cbv_count++ };
@@ -572,7 +669,7 @@ namespace zec
         ID3DBlob* signature;
         ID3DBlob* error;
         DXCall(D3D12SerializeRootSignature(&root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
-        DXCall(device_context.device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root_signature)));
+        DXCall(g_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root_signature)));
 
         if (error != nullptr) {
             print_blob(error);
@@ -581,102 +678,70 @@ namespace zec
         }
         signature != nullptr && signature->Release();
 
-        return { static_cast<u32>(root_signatures.push_back(root_signature)) };
+        return g_root_signatures.push_back(root_signature);
     }
 
-    void Renderer::update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size)
+    void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size)
     {
-        dx12::Buffer& buffer = buffers[buffer_id];
-        dx12::update_buffer(buffer, data, byte_size, current_frame_idx);
+        Buffer& buffer = g_buffers[buffer_id];
+        update_buffer(buffer, data, byte_size, g_current_frame_idx);
     }
 
-    void Renderer::set_active_resource_layout(const ResourceLayoutHandle resource_layout_id)
+    void set_active_resource_layout(const ResourceLayoutHandle resource_layout_id)
     {
-        ID3D12RootSignature* root_signature = root_signatures[resource_layout_id.idx];
-        cmd_list->SetGraphicsRootSignature(root_signature);
+        ID3D12RootSignature* root_signature = g_root_signatures[resource_layout_id];
+        g_cmd_list->SetGraphicsRootSignature(root_signature);
     }
 
-    void Renderer::set_pipeline_state(const PipelineStateHandle pso_handle)
+    void set_pipeline_state(const PipelineStateHandle pso_handle)
     {
-        ID3D12PipelineState* pso = pipelines[pso_handle.idx];
-        cmd_list->SetPipelineState(pso);
+        ID3D12PipelineState* pso = g_pipelines[pso_handle];
+        g_cmd_list->SetPipelineState(pso);
     }
 
-    void Renderer::bind_constant_buffer(const BufferHandle& buffer_handle, u32 binding_slot)
+    void bind_constant_buffer(const BufferHandle& buffer_handle, u32 binding_slot)
     {
-        const dx12::Buffer& buffer = buffers[buffer_handle];
+        const Buffer& buffer = g_buffers[buffer_handle];
         if (buffer.cpu_accessible) {
-            cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer.gpu_address + (buffer.size * current_frame_idx));
+            g_cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer.gpu_address + (buffer.size * g_current_frame_idx));
         }
         else {
-            cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer.gpu_address);
+            g_cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer.gpu_address);
 
         }
     }
 
-    void Renderer::draw_mesh(const MeshHandle mesh_id)
+    void draw_mesh(const MeshHandle mesh_id)
     {
-        const dx12::Mesh& mesh = meshes[mesh_id.idx];
-        cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        cmd_list->IASetIndexBuffer(&mesh.index_buffer_view);
-        cmd_list->IASetVertexBuffers(0, mesh.num_vertex_buffers, mesh.buffer_views);
-        cmd_list->DrawIndexedInstanced(mesh.index_count, 1, 0, 0, 0);
+        const Mesh& mesh = g_meshes[mesh_id.idx];
+        g_cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        g_cmd_list->IASetIndexBuffer(&mesh.index_buffer_view);
+        g_cmd_list->IASetVertexBuffers(0, mesh.num_vertex_buffers, mesh.buffer_views);
+        g_cmd_list->DrawIndexedInstanced(mesh.index_count, 1, 0, 0, 0);
     }
 
-    void Renderer::reset()
+    void clear_render_target(const RenderTargetHandle render_target, const vec4 clear_color)
     {
-        reset_swap_chain();
-        destruction_queue.process_queue();
+        RenderTexture& rt = g_render_targets[render_target];
     }
 
-    void Renderer::reset_swap_chain()
+    void set_viewports(const Viewport* viewports, const u32 num_viewports)
     {
-        ASSERT(swap_chain.swap_chain != nullptr);
-
-        if (swap_chain.output == nullptr) {
-            swap_chain.fullscreen = false;
-        }
-
-        for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
-            swap_chain.back_buffers[i].resource->Release();
-            free_persistent_alloc(rtv_descriptor_heap, swap_chain.back_buffers[i].rtv);
-        }
-
-        set_formats(swap_chain, swap_chain.format);
-
-        if (swap_chain.fullscreen) {
-            prepare_full_screen_settings();
-        }
-        else {
-            swap_chain.refresh_rate.Numerator = 60;
-            swap_chain.refresh_rate.Denominator = 1;
-        }
-
-        DXCall(swap_chain.swap_chain->SetFullscreenState(swap_chain.fullscreen, swap_chain.output));
-        // TODO Backbuffers
-        for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
-            DXCall(swap_chain.swap_chain->ResizeBuffers(
-                NUM_BACK_BUFFERS,
-                swap_chain.width,
-                swap_chain.height, swap_chain.non_sRGB_format,
-                DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH |
-                DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING |
-                DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT));
-        }
-
-        if (swap_chain.fullscreen) {
-            DXGI_MODE_DESC mode;
-            mode.Format = swap_chain.non_sRGB_format;
-            mode.Width = swap_chain.width;
-            mode.Height = swap_chain.height;
-            mode.RefreshRate.Numerator = 0;
-            mode.RefreshRate.Denominator = 0;
-            mode.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-            mode.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-            DXCall(swap_chain.swap_chain->ResizeTarget(&mode));
-        }
-
-        recreate_swap_chain_rtv_descriptors();
+        g_cmd_list->RSSetViewports(num_viewports, reinterpret_cast<const D3D12_VIEWPORT*>(viewports));
     }
 
+    void set_scissors(const Scissor* scissor, const u32 num_scissors)
+    {
+
+    }
+
+    void set_render_targets(RenderTargetHandle* render_targets, const u32 num_render_targets)
+    {
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
+        for (size_t i = 0; i < num_render_targets; i++) {
+            rtvs[i] = g_render_targets[render_targets[i].idx].rtv;
+        }
+        g_cmd_list->OMSetRenderTargets()
+    }
 }
+#endif // USE_D3D_RENDERER

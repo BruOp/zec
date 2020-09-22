@@ -2,7 +2,7 @@
 #include "pch.h"
 #include "utils/utils.h"
 #include "renderer.h"
-#include "gfx/public.h"
+#include "gfx/public_resources.h"
 
 namespace zec
 {

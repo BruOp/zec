@@ -30,6 +30,7 @@ namespace zec
         // Resource creation
         BufferHandle create_buffer(BufferDesc buffer_desc);
         MeshHandle create_mesh(MeshDesc mesh_desc);
+        TextureHandle create_texture(TextureDesc texture_desc);
 
         ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
         PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
@@ -75,6 +76,7 @@ namespace zec
 
         dx12::ResourceList<dx12::Buffer, BufferHandle> buffers = { &destruction_queue };
         Array<dx12::Mesh> meshes = {};
+        Array<dx12::Texture> textures = {};
 
         //SmallMap<dx12::RenderTexture> render_textures = {};
 

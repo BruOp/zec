@@ -35,7 +35,6 @@ namespace zec
 
         TimeData time_data = {};
         std::wstring app_name;
-        Renderer renderer;
 
         InputManager input_manager;
 

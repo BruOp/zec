@@ -14,23 +14,24 @@ namespace zec
 #define INVALID_HANDLE \
     { zec::k_invalid_handle }
 
-
     // ---------- Handles ----------
     RESOURCE_HANDLE(BufferHandle);
+    RESOURCE_HANDLE(TextureHandle);
     RESOURCE_HANDLE(MeshHandle);
     RESOURCE_HANDLE(ResourceLayoutHandle);
     RESOURCE_HANDLE(PipelineStateHandle);
+    RESOURCE_HANDLE(RenderTargetHandle);
 
     // ---------- Enums ----------
-    enum BufferUsage : u16
+    enum ResourceUsage : u16
     {
-        BUFFER_USAGE_UNUSED = 0,
-        BUFFER_USAGE_VERTEX = (1 << 0),
-        BUFFER_USAGE_INDEX = (1 << 1),
-        BUFFER_USAGE_CONSTANT = (1 << 2),
-        BUFFER_USAGE_SHADER_READABLE = (1 << 3),
-        //BUFFER_USAGE_COMPUTE_WRITABLE = (1 << 4),
-        BUFFER_USAGE_DYNAMIC = (1 << 5),
+        RESOURCE_USAGE_UNUSED = 0,
+        RESOURCE_USAGE_VERTEX = (1 << 0),
+        RESOURCE_USAGE_INDEX = (1 << 1),
+        RESOURCE_USAGE_CONSTANT = (1 << 2),
+        RESOURCE_USAGE_SHADER_READABLE = (1 << 3),
+        RESOURCE_USAGE_COMPUTE_WRITABLE = (1 << 4),
+        RESOURCE_USAGE_DYNAMIC = (1 << 5),
     };
 
     enum MeshAttribute : u16
@@ -214,7 +215,7 @@ namespace zec
 
     struct BufferDesc
     {
-        u16 usage = BUFFER_USAGE_UNUSED;
+        u16 usage = RESOURCE_USAGE_UNUSED;
         BufferType type = BufferType::DEFAULT;
         u32 byte_size = 0;
         u32 stride = 0;
@@ -242,6 +243,18 @@ namespace zec
     {
         BufferDesc index_buffer_desc;
         BufferDesc vertex_buffer_descs[MAX_NUM_MESH_VERTEX_BUFFERS];
+    };
+
+    struct TextureDesc
+    {
+        u32 width = 0;
+        u32 height = 0;
+        u32 depth = 0;
+        u32 num_mips = 0;
+        u32 array_size = 0;
+        u32 is_cubemap = 0;
+        BufferFormat format;
+        u16 usage = 0;
     };
 
     struct ResourceLayoutRangeDesc
@@ -344,5 +357,25 @@ namespace zec
         BufferFormat rtv_formats[8] = {};
         u8 used_stages = PIPELINE_STAGE_INVALID;
         std::wstring shader_file_path = L"";
+    };
+
+    // ---------- Other Descriptions ----------
+
+    struct Viewport
+    {
+        float left = 0;
+        float top = 0;
+        float width = 0;
+        float height = 0;
+        float min_depth = 0;
+        float max_depth = 1;
+    };
+
+    struct Scissor
+    {
+        float left = 0;
+        float top = 0;
+        float width = 0;
+        float height = 0;
     };
 }

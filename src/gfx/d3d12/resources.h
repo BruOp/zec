@@ -1,6 +1,6 @@
 #pragma once
 #include "pch.h"
-#include "gfx/public.h"
+#include "gfx/public_resources.h"
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 
 namespace zec
