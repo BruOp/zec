@@ -1,9 +1,9 @@
 #pragma once
 #include "pch.h"
-#include "gfx/public.h"
+#include "D3D12MemAlloc/D3D12MemAlloc.h"
+#include "gfx/public_resources.h"
 #include "wrappers.h"
 #include "utils/utils.h"
-#include "D3D12MemAlloc/D3D12MemAlloc.h"
 
 namespace zec
 {
@@ -22,7 +22,7 @@ namespace zec
             UNCOPIABLE(ResourceDestructionQueue);
             UNMOVABLE(ResourceDestructionQueue);
 
-            inline void queue_for_destruction(IUnknown* resource, D3D12MA::Allocation* allocation = nullptr)
+            void queue_for_destruction(IUnknown* resource, D3D12MA::Allocation* allocation = nullptr)
             {
                 if (resource == nullptr) {
                     return;
@@ -73,7 +73,7 @@ namespace zec
                 ASSERT(resources.size == 0);
             }
 
-            inline ResourceHandle create_back()
+            ResourceHandle create_back()
             {
                 const size_t idx = resources.create_back();
                 ASSERT(idx < u64(UINT32_MAX));
@@ -89,33 +89,78 @@ namespace zec
             }
 
             // TODO: Support deleting using a free list or something
-            inline void destroy_resource(const ResourceHandle handle)
+            void destroy_resource(const ResourceHandle handle)
             {
                 Resource& resource = resources.get(handle.idx);
                 destruction_queue->queue_for_destruction(resource.resource, resource.allocation);
                 resource = {};
             }
 
-            inline Resource& get(const ResourceHandle handle)
+            Resource& get(const ResourceHandle handle)
             {
                 return resources[handle.idx];
             }
-            inline const Resource& get(const ResourceHandle handle) const
+            const Resource& get(const ResourceHandle handle) const
             {
                 return resources[handle.idx];
             }
-            inline Resource& operator[](const ResourceHandle handle)
+            Resource& operator[](const ResourceHandle handle)
             {
                 return resources[handle.idx];
             }
-            inline const Resource& operator[](const ResourceHandle handle) const
+            const Resource& operator[](const ResourceHandle handle) const
             {
                 return resources[handle.idx];
             }
 
             ResourceDestructionQueue* destruction_queue = nullptr;
             Array<Resource> resources;
+        };
 
+        class RenderTargetManager
+        {
+        public:
+            RenderTargetManager(ResourceDestructionQueue* destruction_queue) :
+                destruction_queue{ destruction_queue },
+                render_targets{ NUM_BACK_BUFFERS }
+            { }
+            ~RenderTargetManager()
+            {
+                ASSERT(render_targets.size == 0);
+            }
+
+            void destroy()
+            {
+                // We skip the first N=NUM_BACK_BUFFERS entries that are reserved for the backbuffer, they are deleted elsewhere
+                for (size_t i = NUM_BACK_BUFFERS; i < render_targets.size; i++) {
+                    destruction_queue->queue_for_destruction(render_targets[i].resource, render_targets[i].allocation);
+                }
+                render_targets.empty();
+            }
+
+            RenderTarget& get_backbuffer(const u64 current_frame_index)
+            {
+                ASSERT(render_targets.size >= NUM_BACK_BUFFERS);
+                return render_targets[current_frame_index];
+            }
+
+            // We use this to store our backbuffers in the first N entries
+            void set_backbuffer(RenderTarget back_buffer, const u64 current_frame_index)
+            {
+                render_targets[current_frame_index] = back_buffer;
+            }
+
+            RenderTarget& operator[](RenderTargetHandle handle)
+            {
+                return render_targets[handle.idx];
+            }
+            const RenderTarget& operator[](RenderTargetHandle handle) const
+            {
+                return render_targets[handle.idx];
+            }
+        private:
+            ResourceDestructionQueue* destruction_queue;
+            Array<RenderTarget> render_targets = {};
         };
     }
 }

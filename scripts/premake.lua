@@ -3,12 +3,11 @@ TESTS_DIR = (path.getabsolute("..") .. "/tests/")
 RUNTIME_DIR = (path.getabsolute("..") .. "/runtime/")
 EXAMPLES_DIR = (ZEC_DIR .. "examples/")
 EXTERNAL_DIR = (ZEC_DIR .. "external/include/")
-
+EXTERNAL_LIB_DIR  = (ZEC_DIR .. "external/lib/")
 -- $(SolutionDir).build\$(Platform)\$(Configuration)\
 local BUILD_DIR = path.join(ZEC_DIR, ".build")
 
 include("./examples.lua")
-
 --
 -- Solution
 --
@@ -22,12 +21,13 @@ workspace "zec"
   location "../.build/"
 
   filter { "configurations:Debug" }
-    symbols "On"
+  symbols "On"
   filter { "configurations:Release" }
   optimize "On"
   -- Reset the filter for other settings
   filter { }
 
+  libdirs { EXTERNAL_LIB_DIR }
   targetdir ("../.build/bin/%{prj.name}/%{cfg.longname}")
   objdir ("../.build/obj/%{prj.name}/%{cfg.longname}")
 
@@ -42,7 +42,7 @@ workspace "zec"
     "_SCL_SECURE_NO_WARNINGS",
     "_CRT_SECURE_NO_WARNINGS",
     "_CRT_SECURE_NO_DEPRECATE",
-    -- "_ITERATOR_DEBUG_LEVEL=0"
+    "USE_D3D_RENDERER"
   }
   linkoptions {
     "/ignore:4221", -- LNK4221: This object file does not define any previously undefined public symbols, so it will not be used by any link operation that consumes this library
@@ -78,6 +78,8 @@ project("zec_lib")
     "FatalWarnings"
   }
 
+  debugenvs { "PATH=%PATH%;../external/lib/;" }
+  
   includedirs {
     ZEC_SRC_DIR,
     EXTERNAL_DIR,
@@ -91,7 +93,7 @@ project("zec_lib")
     "d3d12",
     "dxguid",
     "D3DCompiler",
-    "../external/lib/gainputstatic-d",
+    "gainput-d",
     "Xinput9_1_0",
     "ws2_32"
   }

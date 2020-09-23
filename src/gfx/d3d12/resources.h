@@ -1,6 +1,6 @@
 #pragma once
 #include "pch.h"
-#include "gfx/public.h"
+#include "gfx/public_resources.h"
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 
 namespace zec
@@ -26,9 +26,9 @@ namespace zec
             u32 is_cubemap = 0;
         };
 
-        struct RenderTexture : public Texture
+        struct RenderTarget : public Texture
         {
-            D3D12_CPU_DESCRIPTOR_HANDLE rtv;
+            D3D12_CPU_DESCRIPTOR_HANDLE rtv = {};
 
             u32 mssa_samples = 0;
             u32 msaa_quality = 0;

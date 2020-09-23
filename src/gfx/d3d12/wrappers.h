@@ -1,45 +1,14 @@
-
 #pragma once
 #include "pch.h"
 #include "core/array.h"
 #include "gfx/constants.h"
-#include "gfx/public.h"
-#include "./resources.h"
+#include "gfx/public_resources.h"
+#include "resources.h"
 
 namespace zec
 {
     namespace dx12
     {
-        // ---------- Helper functions ----------
-        template<typename DXPtr>
-        void dx_destroy(DXPtr** ptr)
-        {
-            (*ptr)->Release();
-            *ptr = nullptr;
-        }
-
-        inline D3D12_SHADER_VISIBILITY to_d3d_visibility(ShaderVisibility visibility)
-        {
-            switch (visibility) {
-            case zec::ShaderVisibility::PIXEL:
-                return D3D12_SHADER_VISIBILITY_PIXEL;
-            case zec::ShaderVisibility::VERTEX:
-                return D3D12_SHADER_VISIBILITY_VERTEX;
-            default:
-                return D3D12_SHADER_VISIBILITY_ALL;
-            }
-        }
-
-        // ---------- Device Context----------
-
-        struct DeviceContext
-        {
-            IDXGIFactory4* factory;
-            IDXGIAdapter1* adapter;
-            ID3D12Device* device;
-            D3D_FEATURE_LEVEL supported_feature_level;
-        };
-
         // ---------- Descriptor Heap Wrapper ----------
         struct PersistentDescriptorAlloc
         {
@@ -74,7 +43,7 @@ namespace zec
             D3D12_GPU_DESCRIPTOR_HANDLE gpu_start[RENDER_LATENCY] = { };
         };
 
-        void init(DescriptorHeap& descriptor_heap, const DescriptorHeapDesc& desc, DeviceContext& device_context);
+        void init(DescriptorHeap& descriptor_heap, const DescriptorHeapDesc& desc, ID3D12Device* device);
         void destroy(DescriptorHeap& descriptor_heap);
 
         PersistentDescriptorAlloc allocate_persistent_descriptor(DescriptorHeap& descriptor_heap);
@@ -100,11 +69,11 @@ namespace zec
 
             IDXGISwapChain4* swap_chain = nullptr;
             u32 back_buffer_idx = 0;
-            RenderTexture back_buffers[NUM_BACK_BUFFERS] = { };
+            RenderTarget back_buffers[NUM_BACK_BUFFERS] = { };
 
             HANDLE waitable_object = INVALID_HANDLE_VALUE;
 
-            // TODO: What is this
+            // Used for enumerating output modes?
             IDXGIOutput* output = nullptr;
 
             DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;

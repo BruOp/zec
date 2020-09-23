@@ -10,12 +10,10 @@
 #pragma once
 
 #include "pch.h"
-#include "DXErr.h"
 #include "assert.h"
 
 namespace zec
 {
-
     // Error string functions
     inline std::wstring GetWin32ErrorString(DWORD errorCode)
     {
@@ -46,27 +44,6 @@ namespace zec
 
         std::string message = "Win32 Error: ";
         message += errorString;
-        return message;
-    }
-
-    inline std::wstring GetDXErrorString(HRESULT hr)
-    {
-        const u32 errStringSize = 1024;
-        wchar errorString[errStringSize];
-        DXGetErrorDescriptionW(hr, errorString, errStringSize);
-
-        std::wstring message = L"DirectX Error: ";
-        message += errorString;
-        return message;
-    }
-
-    inline std::string GetDXErrorStringAnsi(HRESULT hr)
-    {
-        std::wstring errorString = GetDXErrorString(hr);
-
-        std::string message;
-        for (u64 i = 0; i < errorString.length(); ++i)
-            message.append(1, static_cast<char>(errorString[i]));
         return message;
     }
 
@@ -137,43 +114,10 @@ namespace zec
         DWORD errorCode; // The Win32 error code
     };
 
-    // Exception thrown when a DirectX Function fails
-    class DXException : public Exception
-    {
-
-    public:
-        // Obtains a string for the specified HRESULT error code
-        DXException(HRESULT hresult) : errorCode(hresult)
-        {
-            message = GetDXErrorString(hresult);
-        }
-
-        DXException(HRESULT hresult, LPCWSTR errorMsg) : errorCode(hresult)
-        {
-            message = L"DirectX Error: ";
-            message += errorMsg;
-        }
-
-        // Retrieve the error code
-        HRESULT GetErrorCode() const throw()
-        {
-            return errorCode;
-        }
-
-    protected:
-        HRESULT errorCode; // The DX error code
-    };
 
     // Error-handling functions
 
 #if USE_ASSERTS
-
-#define DXCall(x)                                                  \
-  do                                                               \
-  {                                                                \
-    HRESULT hr_ = x;                                               \
-    ASSERT_MSG(SUCCEEDED(hr_), GetDXErrorStringAnsi(hr_).c_str()); \
-  } while (0)
 
 #define Win32Call(x)                                                        \
   do                                                                        \
@@ -184,13 +128,6 @@ namespace zec
 
 #else
 
-  // Throws a DXException on failing HRESULT
-    inline void DXCall(HRESULT hr)
-    {
-        if (FAILED(hr))
-            throw DXException(hr);
-    }
-
     // Throws a Win32Exception on failing return value
     inline void Win32Call(BOOL retVal)
     {
@@ -198,6 +135,6 @@ namespace zec
             throw Win32Exception(GetLastError());
     }
 
-#endif
+#endif // USE_ASSERTS
 
 } // namespace zec

@@ -2,7 +2,6 @@
 #include "core/zec_math.h"
 #include "utils/exceptions.h"
 
-// TODO: Remove this once no longer using DXCall directly
 using namespace zec;
 
 struct DrawData
@@ -19,7 +18,7 @@ class HelloWorldApp : public zec::App
 public:
     HelloWorldApp() : App{ L"Hello World!" } { }
 
-    float clear_color[4] = { 0.5f, 0.5f, 0.5f, 1.0f };
+    vec4 clear_color = { 0.5f, 0.5f, 0.5f, 1.0f };
 
     MeshHandle cube_mesh = {};
     BufferHandle cb_handle = {};
@@ -37,7 +36,7 @@ protected:
                 { ResourceLayoutEntryType::CONSTANT_BUFFER, ShaderVisibility::VERTEX },
             };
 
-            resource_layout = renderer.create_resource_layout(layout_desc);
+            resource_layout = create_resource_layout(layout_desc);
         }
 
         // Create the Pipeline State Object
@@ -55,10 +54,10 @@ protected:
             pipeline_desc.depth_stencil_state.depth_write = FALSE;
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
-            pso_handle = renderer.create_pipeline_state_object(pipeline_desc);
+            pso_handle = create_pipeline_state_object(pipeline_desc);
         }
 
-        renderer.begin_upload();
+        begin_upload();
 
         // Create the vertex buffer.
         {
@@ -102,31 +101,31 @@ protected:
             };
 
             MeshDesc mesh_desc{};
-            mesh_desc.index_buffer_desc.usage = BUFFER_USAGE_INDEX;
+            mesh_desc.index_buffer_desc.usage = RESOURCE_USAGE_INDEX;
             mesh_desc.index_buffer_desc.type = BufferType::DEFAULT;
             mesh_desc.index_buffer_desc.byte_size = sizeof(cube_indices);
             mesh_desc.index_buffer_desc.stride = sizeof(cube_indices[0]);
             mesh_desc.index_buffer_desc.data = (void*)cube_indices;
 
             mesh_desc.vertex_buffer_descs[0] = {
-                    BUFFER_USAGE_VERTEX,
+                    RESOURCE_USAGE_VERTEX,
                     BufferType::DEFAULT,
                     sizeof(cube_positions),
                     3 * sizeof(cube_positions[0]),
                     (void*)(cube_positions)
             };
             mesh_desc.vertex_buffer_descs[1] = {
-               BUFFER_USAGE_VERTEX,
+               RESOURCE_USAGE_VERTEX,
                BufferType::DEFAULT,
                sizeof(cube_colors),
                sizeof(cube_colors[0]),
                (void*)(cube_colors)
             };
 
-            cube_mesh = renderer.create_mesh(mesh_desc);
+            cube_mesh = create_mesh(mesh_desc);
         }
 
-        renderer.end_upload();
+        end_upload();
 
         mesh_transform.model_view_transform = identity_mat44();
         set_translation(mesh_transform.model_view_transform, vec3{ 0.0f, 0.0f, -2.0f });
@@ -144,9 +143,9 @@ protected:
             cb_desc.data = &mesh_transform;
             cb_desc.stride = 0;
             cb_desc.type = BufferType::DEFAULT;
-            cb_desc.usage = BUFFER_USAGE_CONSTANT | BUFFER_USAGE_DYNAMIC;
+            cb_desc.usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC;
 
-            cb_handle = renderer.create_buffer(cb_desc);
+            cb_handle = create_buffer(cb_desc);
         }
     }
 
@@ -160,27 +159,25 @@ protected:
         quaternion q = from_axis_angle(vec3{ 0.0f, 1.0f, -1.0f }, time_data.delta_seconds_f);
         rotate(mesh_transform.model_view_transform, q);
 
-        renderer.update_buffer(cb_handle, &mesh_transform, sizeof(mesh_transform));
+        update_buffer(cb_handle, &mesh_transform, sizeof(mesh_transform));
     }
 
     void render() override final
     {
-        D3D12_VIEWPORT viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
-        D3D12_RECT scissor_rect{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
-        dx12::RenderTexture& render_target = renderer.swap_chain.back_buffers[renderer.current_frame_idx];
+        Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
+        Scissor scissor{ 0, 0, width, height };
 
-        // TODO: Provide handles for referencing render targets
-        // TODO: Provide interface for clearing a render target
-        renderer.cmd_list->ClearRenderTargetView(render_target.rtv, clear_color, 0, nullptr);
+        RenderTargetHandle render_target = get_current_backbuffer_handle();
+        clear_render_target(render_target, clear_color);
 
+        set_active_resource_layout(resource_layout);
+        set_pipeline_state(pso_handle);
+        bind_constant_buffer(cb_handle, 0);
+        set_viewports(&viewport, 1);
+        set_scissors(&scissor, 1);
 
-        renderer.set_active_resource_layout(resource_layout);
-        renderer.set_pipeline_state(pso_handle);
-        renderer.bind_constant_buffer(cb_handle, 0);
-        renderer.cmd_list->RSSetViewports(1, &viewport);
-        renderer.cmd_list->RSSetScissorRects(1, &scissor_rect);
-        renderer.cmd_list->OMSetRenderTargets(1, &render_target.rtv, false, nullptr);
-        renderer.draw_mesh(cube_mesh);
+        set_render_targets(&render_target, 1);
+        draw_mesh(cube_mesh);
     }
 
     void before_reset() override final

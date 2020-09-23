@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "wrappers.h"
-#include "utils/utils.h"
-#include "renderer.h"
+#include "dx_utils.h"
+#include "globals.h"
 
 namespace zec
 {
@@ -38,7 +38,7 @@ namespace zec
             return static_cast<u32>((handle.ptr - heap.gpu_start[heap.heap_idx].ptr) / descriptor_size);
         }
 
-        void init(DescriptorHeap& descriptor_heap, const DescriptorHeapDesc& desc, DeviceContext& device_context)
+        void init(DescriptorHeap& descriptor_heap, const DescriptorHeapDesc& desc, ID3D12Device* device)
         {
             u32 total_num_descriptors = desc.num_persistent + desc.num_temporary;
             ASSERT(total_num_descriptors > 0);
@@ -71,7 +71,7 @@ namespace zec
             }
 
             for (size_t i = 0; i < descriptor_heap.num_heaps; i++) {
-                DXCall(device_context.device->CreateDescriptorHeap(
+                DXCall(device->CreateDescriptorHeap(
                     &heap_desc, IID_PPV_ARGS(&descriptor_heap.heaps[i])
                 ));
                 descriptor_heap.cpu_start[i] = descriptor_heap.heaps[i]->GetCPUDescriptorHandleForHeapStart();
@@ -80,7 +80,7 @@ namespace zec
                 }
             }
 
-            descriptor_heap.descriptor_size = device_context.device->GetDescriptorHandleIncrementSize(descriptor_heap.heap_type);
+            descriptor_heap.descriptor_size = device->GetDescriptorHandleIncrementSize(descriptor_heap.heap_type);
         }
 
         void destroy(DescriptorHeap& descriptor_heap)

@@ -13,6 +13,7 @@ function exampleProject(...)
       path.join(EXAMPLES_DIR, name, "**.bin.h")
     }
 
+    debugenvs { "PATH=%PATH%;%{EXTERNAL_LIB_DIR};" }
     debugdir(RUNTIME_DIR)
 
     includedirs {
@@ -30,6 +31,7 @@ function exampleProject(...)
     }
 
     links {
+      "gainput-d",
       "zec_lib"
     }
 
