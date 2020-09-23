@@ -7,9 +7,9 @@ namespace zec
 {
     struct Camera
     {
-        mat44 view;
-        mat44 invView;
-        mat44 projection;
+        mat4 view;
+        mat4 invView;
+        mat4 projection;
     };
 
     class ICameraController

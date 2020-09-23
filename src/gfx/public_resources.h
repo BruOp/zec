@@ -260,21 +260,21 @@ namespace zec
     struct ResourceLayoutRangeDesc
     {
         static constexpr u32 UNBOUNDED_COUNT = 0;
-        ResourceLayoutRangeUsage usage;
-        u32 count;
+        ResourceLayoutRangeUsage usage = ResourceLayoutRangeUsage::UNUSED;
+        u32 count = 0;
     };
 
     struct ResourceLayoutEntryDesc
     {
-        ResourceLayoutEntryType type; // Table, Constant or Constant Buffer
-        ShaderVisibility visibility;
-        ResourceLayoutRangeDesc ranges[16];
+        ResourceLayoutEntryType type = ResourceLayoutEntryType::INVALID; // Table, Constant or Constant Buffer
+        ShaderVisibility visibility = ShaderVisibility::ALL;
+        ResourceLayoutRangeDesc ranges[16] = {};
     };
 
     struct ResourceLayoutDesc
     {
         static constexpr u64 MAX_ENTRIES = 16;
-        ResourceLayoutEntryDesc entries[MAX_ENTRIES];
+        ResourceLayoutEntryDesc entries[MAX_ENTRIES] = {};
     };
 
     struct StencilFuncDesc

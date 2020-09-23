@@ -56,7 +56,6 @@ namespace zec
     {
         ASSERT(is_valid(desc.resource_layout));
 
-        ASSERT(is_valid(desc.resource_layout));
         ID3D12RootSignature* root_signature = g_root_signatures[desc.resource_layout];
         ID3D12PipelineState* pipeline = nullptr;
 

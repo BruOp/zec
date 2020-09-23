@@ -16,7 +16,7 @@ workspace "zec"
   configurations {"Debug", "Release"}
   platforms {"x64"}
   startproject "zec_lib"
-  cppdialect "C++17"
+  cppdialect "C++latest"
   premake.vstudio.toolset = "v142"
   location "../.build/"
 

@@ -5,12 +5,12 @@ namespace zec
 {
     vec3 k_up = { 0.0f, 1.0f, 0.0f };
 
-    mat44 perspective_projection(const float aspect_ratio, const float fov, const float z_near, const float z_far)
+    mat4 perspective_projection(const float aspect_ratio, const float fov, const float z_near, const float z_far)
     {
         const float h = 1.0f / tanf(0.5f * fov);
         const float w = h / aspect_ratio;
 
-        return mat44{
+        return mat4{
             { w, 0.0f, 0.0f, 0.0f },
             { 0.0f, h, 0.0f, 0.0f },
             { 0.0f, 0.0f, -(z_far) / (z_near - z_far) - 1, -(z_near * z_far) / (z_near - z_far) },
@@ -18,7 +18,7 @@ namespace zec
         };
     };
 
-    mat44 quat_to_mat(const quaternion& q)
+    mat4 quat_to_mat(const quaternion& q)
     {
         quaternion nq = normalize(q);
         float qx2 = nq.x * nq.x;
@@ -76,7 +76,7 @@ namespace zec
         return res;
     }
 
-    mat44 operator*(const mat44& m1, const mat44& m2)
+    mat4 operator*(const mat4& m1, const mat4& m2)
     {
         const vec4& src_a0 = m1.rows[0];
         const vec4& src_a1 = m1.rows[1];
@@ -88,7 +88,7 @@ namespace zec
         const vec4& src_b2 = m2.rows[2];
         const vec4& src_b3 = m2.rows[3];
 
-        return mat44{
+        return mat4{
             src_a0 * src_b0[0] + src_a1 * src_b0[1] + src_a2 * src_b0[2] + src_a3 * src_b0[3],
             src_a0 * src_b1[0] + src_a1 * src_b1[1] + src_a2 * src_b1[2] + src_a3 * src_b1[3],
             src_a0 * src_b2[0] + src_a1 * src_b2[1] + src_a2 * src_b2[2] + src_a3 * src_b2[3],
@@ -96,7 +96,7 @@ namespace zec
         };
     }
 
-    mat44& operator/=(mat44& m, const float s)
+    mat4& operator/=(mat4& m, const float s)
     {
         for (size_t i = 0; i < 4; i++) {
             for (size_t j = 0; j < 4; j++) {
@@ -106,7 +106,7 @@ namespace zec
         return m;
     }
 
-    vec4 operator*(const mat44& m, const vec4& v)
+    vec4 operator*(const mat4& m, const vec4& v)
     {
         vec4 res{};
         for (size_t i = 0; i < 4; i++) {
@@ -117,22 +117,27 @@ namespace zec
         return res;
     }
 
-    vec3 get_right(const mat44& m)
+    vec3 get_right(const mat4& m)
     {
         return { m[0][0], m[0][1], m[0][2] };
     }
 
-    vec3 get_up(const mat44& m)
+    vec3 get_up(const mat4& m)
     {
         return { m[1][0], m[1][1], m[1][2] };
     }
 
-    vec3 get_dir(const mat44& m)
+    vec3 get_dir(const mat4& m)
     {
         return { m[2][0], m[2][1], m[2][2] };
     }
 
-    mat44 look_at(vec3 pos, vec3 target, vec3 world_up)
+    vec3 get_translation(const mat4& m)
+    {
+        return { m[0][3], m[1][3], m[2][3] };
+    }
+
+    mat4 look_at(vec3 pos, vec3 target, vec3 world_up)
     {
         vec3 dir = normalize(pos - target);
         vec3 right = normalize(cross(world_up, dir));
@@ -146,7 +151,7 @@ namespace zec
         };
     }
 
-    mat44 invert(const mat44& m)
+    mat4 invert(const mat4& m)
     {
         // Code based on inversion code in GLM
         float s00 = m[2][2] * m[3][3] - m[3][2] * m[2][3];
@@ -168,7 +173,7 @@ namespace zec
         float s16 = m[1][0] * m[2][2] - m[2][0] * m[1][2];
         float s17 = m[1][0] * m[2][1] - m[2][0] * m[1][1];
 
-        mat44 inv{};
+        mat4 inv{};
         inv[0][0] = +(m[1][1] * s00 - m[1][2] * s01 + m[1][3] * s02);
         inv[0][1] = -(m[1][0] * s00 - m[1][2] * s03 + m[1][3] * s04);
         inv[0][2] = +(m[1][0] * s01 - m[1][1] * s03 + m[1][3] * s05);
@@ -198,7 +203,7 @@ namespace zec
         return inv;
     }
 
-    mat44 transpose(const mat44& m)
+    mat4 transpose(const mat4& m)
     {
         return {
             m.column(0),
@@ -207,7 +212,7 @@ namespace zec
             m.column(3)
         };
     }
-    mat3 to_mat3(const mat44& m)
+    mat3 to_mat3(const mat4& m)
     {
         return {
             vec3{ m[0][0], m[0][1], m[0][2] },

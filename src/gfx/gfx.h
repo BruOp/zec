@@ -23,6 +23,9 @@ namespace zec
     ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
     PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
 
+    // Resource loading
+    TextureHandle load_texture_from_file(const char* file_path, const ResourceUsage usage);
+
     // Resource updates
     void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size);
 
@@ -32,7 +35,11 @@ namespace zec
     void bind_constant_buffer(const BufferHandle& buffer_handle, u32 binding_slot);
 
     void draw_mesh(const MeshHandle mesh_id);
-    void clear_render_target(const RenderTargetHandle render_target, const vec4 clear_color);
+    void clear_render_target(const RenderTargetHandle render_target, const float* clear_color);
+    inline void clear_render_target(const RenderTargetHandle render_target, const vec4 clear_color)
+    {
+        clear_render_target(render_target, clear_color.data);
+    };
     void set_viewports(const Viewport* viewport, const u32 num_viewports);
     void set_scissors(const Scissor* scissor, const u32 num_scissors);
     void set_render_targets(RenderTargetHandle* render_targets, const u32 num_render_targets);

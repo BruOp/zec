@@ -6,14 +6,27 @@
 // TODO: Remove this once no longer using DXCall directly
 using namespace zec;
 
-struct DrawData
+struct ViewConstantData
 {
-    mat44 model_view_transform;
-    mat44 projection_matrix;
+    mat4 view;
+    mat4 projection;
+    mat4 VP;
+    vec3 camera_position;
+    float time;
+    float padding[12];
+};
+
+static_assert(sizeof(ViewConstantData) == 256);
+
+struct DrawConstantData
+{
+    mat4 model;
+    mat4 inv_model;
     float padding[32];
 };
 
-static_assert(sizeof(DrawData) == 256);
+static_assert(sizeof(DrawConstantData) == 256);
+
 
 class NormalMappingApp : public zec::App
 {
@@ -25,10 +38,14 @@ public:
     Camera camera = {};
     OrbitCameraController camera_controller = OrbitCameraController{ input_manager };
     MeshHandle cube_mesh = {};
-    BufferHandle cb_handle = {};
+    BufferHandle view_cb_handle = {};
+    BufferHandle draw_cb_handle = {};
+    TextureHandle albedo_map = {};
+    TextureHandle normal_map = {};
     ResourceLayoutHandle resource_layout = {};
     PipelineStateHandle pso_handle = {};
-    DrawData mesh_transform = {};
+    ViewConstantData view_constant_data = {};
+    DrawConstantData draw_constant_data = {};
 
 protected:
     void init() override final
@@ -40,32 +57,41 @@ protected:
         camera_controller.radius = 2.0f;
         // Create a root signature consisting of a descriptor table with a single CBV.
         {
-            ResourceLayoutDesc layout_desc{
+            ResourceLayoutDesc layout_desc{ {
                 { ResourceLayoutEntryType::CONSTANT_BUFFER, ShaderVisibility::VERTEX },
-            };
+                { ResourceLayoutEntryType::CONSTANT_BUFFER, ShaderVisibility::VERTEX },
+                // Our texture descriptors 
+                {
+                    ResourceLayoutEntryType::TABLE,
+                    ShaderVisibility::PIXEL,
+                    {
+                        {.usage = ResourceLayoutRangeUsage::READ, .count = 2}
+                    }
+                }
+            } };
 
-            resource_layout = renderer.create_resource_layout(layout_desc);
+            resource_layout = create_resource_layout(layout_desc);
         }
 
         // Create the Pipeline State Object
         {
-            // Compile the shader
             PipelineStateObjectDesc pipeline_desc = {};
             pipeline_desc.input_assembly_desc = { {
                 { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
-                { MESH_ATTRIBUTE_COLOR, 0, BufferFormat::UNORM8_4, 1 }
+                { MESH_ATTRIBUTE_NORMAL, 0, BufferFormat::UNORM8_4, 1 },
+                { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::UNORM8_4, 2 },
             } };
-            pipeline_desc.shader_file_path = L"shaders/basic.hlsl";
+            pipeline_desc.shader_file_path = L"shaders/normal_mapping.hlsl";
             pipeline_desc.rtv_formats[0] = BufferFormat::R8G8B8A8_UNORM_SRGB;
             pipeline_desc.resource_layout = resource_layout;
             pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CCW;
             pipeline_desc.depth_stencil_state.depth_write = FALSE;
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
-            pso_handle = renderer.create_pipeline_state_object(pipeline_desc);
+            pso_handle = create_pipeline_state_object(pipeline_desc);
         }
 
-        renderer.begin_upload();
+        begin_upload();
 
         // Create the vertex buffer.
         {
@@ -82,15 +108,58 @@ protected:
                 -0.5f, -0.5f, -0.5f,
             };
 
-            constexpr u32 cube_colors[] = {
-                    0xff00ff00, // +Y (top face)
-                    0xff00ffff,
-                    0xffffffff,
-                    0xffffff00,
-                    0xffff0000, // -Y (bottom face)
-                    0xffff00ff,
-                    0xff0000ff,
-                    0xff000000,
+            constexpr float cube_normals[] = {
+                0.0f, 1.0f, 0.0f, // +Y (Top face)
+                0.0f, 1.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                1.0f, 0.0f, 0.0f, // +X (Right face)
+                1.0f, 0.0f, 0.0f,
+                1.0f, 0.0f, 0.0f,
+                1.0f, 0.0f, 0.0f,
+                -1.0f, 0.0f, 0.0f, // -X (Left face)
+                -1.0f, 0.0f, 0.0f,
+                -1.0f, 0.0f, 0.0f,
+                -1.0f, 0.0f, 0.0f,
+                0.0f, 0.0f, -1.0f, // -Z (Back face)
+                0.0f, 0.0f, -1.0f,
+                0.0f, 0.0f, -1.0f,
+                0.0f, 0.0f, -1.0f,
+                0.0f, 0.0f, 1.0f, // +Z (Front face)
+                0.0f, 0.0f, 1.0f,
+                0.0f, 0.0f, 1.0f,
+                0.0f, 0.0f, 1.0f,
+                0.0f, -1.0f, 0.0f, // -Y (Bottom face)
+                0.0f, -1.0f, 0.0f,
+                0.0f, -1.0f, 0.0f,
+                0.0f, -1.0f, 0.0f,
+            };
+
+            constexpr float cube_uvs[] = {
+                0.0f, 0.0f, // +Y (Top face)
+                1.0f, 0.0f,
+                1.0f, 1.0f,
+                0.0f, 1.0f,
+                0.0f, 0.0f, // +X (Right face)
+                1.0f, 0.0f,
+                1.0f, 1.0f,
+                0.0f, 1.0f,
+                0.0f, 0.0f, // -Y (Left face)
+                1.0f, 0.0f,
+                1.0f, 1.0f,
+                0.0f, 1.0f,
+                0.0f, 0.0f, // -Z (Back face)
+                1.0f, 0.0f,
+                1.0f, 1.0f,
+                0.0f, 1.0f,
+                0.0f, 0.0f, // +Z (Front face)
+                1.0f, 0.0f,
+                1.0f, 1.0f,
+                0.0f, 1.0f,
+                0.0f, 0.0f, // -Y (Bottom face)
+                1.0f, 0.0f,
+                1.0f, 1.0f,
+                0.0f, 1.0f,
             };
 
             constexpr u16 cube_indices[] = {
@@ -116,45 +185,62 @@ protected:
             mesh_desc.index_buffer_desc.data = (void*)cube_indices;
 
             mesh_desc.vertex_buffer_descs[0] = {
-                    RESOURCE_USAGE_VERTEX,
-                    BufferType::DEFAULT,
-                    sizeof(cube_positions),
-                    3 * sizeof(cube_positions[0]),
-                    (void*)(cube_positions)
+                    .usage = RESOURCE_USAGE_VERTEX,
+                    .type = BufferType::DEFAULT,
+                    .byte_size = sizeof(cube_positions),
+                    .stride = 3 * sizeof(cube_positions[0]),
+                    .data = (void*)(cube_positions)
             };
             mesh_desc.vertex_buffer_descs[1] = {
-               RESOURCE_USAGE_VERTEX,
-               BufferType::DEFAULT,
-               sizeof(cube_colors),
-               sizeof(cube_colors[0]),
-               (void*)(cube_colors)
+               .usage = RESOURCE_USAGE_VERTEX,
+               .type = BufferType::DEFAULT,
+               .byte_size = sizeof(cube_normals),
+               .stride = 3 * sizeof(cube_normals[0]),
+               .data = (void*)(cube_normals)
+            };
+            mesh_desc.vertex_buffer_descs[2] = {
+               .usage = RESOURCE_USAGE_VERTEX,
+               .type = BufferType::DEFAULT,
+               .byte_size = sizeof(cube_uvs),
+               .stride = 2 * sizeof(cube_uvs[0]),
+               .data = (void*)(cube_uvs)
             };
 
-            cube_mesh = renderer.create_mesh(mesh_desc);
+            cube_mesh = create_mesh(mesh_desc);
         }
 
-        renderer.end_upload();
+        // Texture creation
+        {
+            TextureDesc texture_desc{
+                .usage = RESOURCE_USAGE_SHADER_READABLE,
+            };
+            albedo_map = load_texture_from_file("textures/stone01.dds", texture_desc);
+            normal_map = load_texture_from_file("textures/bump01.dds", texture_desc);
+        }
 
-        mesh_transform.model_view_transform = identity_mat44();
-        set_translation(mesh_transform.model_view_transform, vec3{ 0.0f, 0.0f, -2.0f });
+        end_upload();
 
-        mesh_transform.projection_matrix = perspective_projection(
+        camera.projection = perspective_projection(
             float(width) / float(height),
             deg_to_rad(65.0f),
             0.1f, // near
             100.0f // far
         );
 
-        // Create constant buffer
+        // Create constant buffers
         {
-            BufferDesc cb_desc = {};
-            cb_desc.byte_size = sizeof(DrawData);
-            cb_desc.data = &mesh_transform;
-            cb_desc.stride = 0;
-            cb_desc.type = BufferType::DEFAULT;
-            cb_desc.usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC;
+            BufferDesc cb_desc = {
+                .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
+                .type = BufferType::DEFAULT,
+                .byte_size = sizeof(ViewConstantData),
+                .stride = 0,
+                .data = nullptr,
+            };
 
-            cb_handle = renderer.create_buffer(cb_desc);
+            view_cb_handle = create_buffer(cb_desc);
+
+            // Same size and usage etc, so we can use the same desc
+            draw_cb_handle = create_buffer(cb_desc);
         }
     }
 
@@ -164,29 +250,35 @@ protected:
     void update(const zec::TimeData& time_data) override final
     {
         camera_controller.update(time_data.delta_seconds_f);
+        view_constant_data.view = camera.view;
+        view_constant_data.projection = camera.projection;
+        view_constant_data.VP = camera.projection * camera.view;
+        view_constant_data.camera_position = get_translation(camera.view);
+        view_constant_data.time = time_data.delta_seconds_f;
+        update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
 
-        mesh_transform.model_view_transform = camera.view;
-        renderer.update_buffer(cb_handle, &mesh_transform, sizeof(mesh_transform));
+        draw_constant_data.model = identity_mat4();
+        draw_constant_data.inv_model = identity_mat4();
+        update_buffer(draw_cb_handle, &draw_constant_data, sizeof(draw_constant_data));
     }
 
     void render() override final
     {
-        D3D12_VIEWPORT viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
-        D3D12_RECT scissor_rect{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
-        dx12::RenderTarget& render_target = renderer.swap_chain.back_buffers[renderer.current_frame_idx];
+        Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
+        Scissor scissor{ 0, 0, width, height };
 
-        // TODO: Provide handles for referencing render targets
-        // TODO: Provide interface for clearing a render target
-        renderer.cmd_list->ClearRenderTargetView(render_target.rtv, clear_color, 0, nullptr);
+        RenderTargetHandle render_target = get_current_backbuffer_handle();
+        clear_render_target(render_target, clear_color);
 
+        set_active_resource_layout(resource_layout);
+        set_pipeline_state(pso_handle);
+        bind_constant_buffer(view_cb_handle, 0);
+        bind_constant_buffer(draw_cb_handle, 1);
+        set_viewports(&viewport, 1);
+        set_scissors(&scissor, 1);
 
-        renderer.set_active_resource_layout(resource_layout);
-        renderer.set_pipeline_state(pso_handle);
-        renderer.bind_constant_buffer(cb_handle, 0);
-        renderer.cmd_list->RSSetViewports(1, &viewport);
-        renderer.cmd_list->RSSetScissorRects(1, &scissor_rect);
-        renderer.cmd_list->OMSetRenderTargets(1, &render_target.rtv, false, nullptr);
-        renderer.draw_mesh(cube_mesh);
+        set_render_targets(&render_target, 1);
+        draw_mesh(cube_mesh);
     }
 
     void before_reset() override final

@@ -213,7 +213,7 @@ namespace zec
 
     // ---------- mat44 ----------
 
-    struct mat44
+    struct mat4
     {
         union
         {
@@ -221,19 +221,19 @@ namespace zec
             float data[4][4];
         };
 
-        mat44() : rows{ {}, {}, {}, {} } { };
-        mat44(const vec4& r1, const vec4& r2, const vec4& r3, const vec4& r4)
+        mat4() : rows{ {}, {}, {}, {} } { };
+        mat4(const vec4& r1, const vec4& r2, const vec4& r3, const vec4& r4)
         {
             memory::copy(&rows[0], &r1, sizeof(r1));
             memory::copy(&rows[1], &r2, sizeof(r1));
             memory::copy(&rows[2], &r3, sizeof(r1));
             memory::copy(&rows[3], &r4, sizeof(r1));
         }
-        mat44(const vec4 in_rows[4])
+        mat4(const vec4 in_rows[4])
         {
             memory::copy(data, in_rows, sizeof(data));
         }
-        mat44(const mat3& rotation, const vec3& translation)
+        mat4(const mat3& rotation, const vec3& translation)
         {
             memory::copy(&rows[0], rotation[0], sizeof(rotation[0]));
             memory::copy(&rows[1], rotation[1], sizeof(rotation[0]));
@@ -261,14 +261,14 @@ namespace zec
         }
     };
 
-    mat44 operator*(const mat44& m1, const mat44& m2);
-    mat44& operator/=(mat44& m, const float s);
+    mat4 operator*(const mat4& m1, const mat4& m2);
+    mat4& operator/=(mat4& m, const float s);
 
-    vec4 operator*(const mat44& m, const vec4& v);
+    vec4 operator*(const mat4& m, const vec4& v);
 
-    inline mat44 identity_mat44()
+    inline mat4 identity_mat4()
     {
-        return mat44{
+        return mat4{
             { 1.0f, 0.0f, 0.0f, 0.0f },
             { 0.0f, 1.0f, 0.0f, 0.0f },
             { 0.0f, 0.0f, 1.0f, 0.0f },
@@ -276,17 +276,18 @@ namespace zec
         };
     };
 
-    vec3 get_right(const mat44& m);
-    vec3 get_up(const mat44& m);
-    vec3 get_dir(const mat44& m);
+    vec3 get_right(const mat4& m);
+    vec3 get_up(const mat4& m);
+    vec3 get_dir(const mat4& m);
+    vec3 get_translation(const mat4& m);
 
-    mat44 look_at(vec3 pos, vec3 origin, vec3 up);
+    mat4 look_at(vec3 pos, vec3 origin, vec3 up);
 
-    mat44 invert(const mat44& m);
+    mat4 invert(const mat4& m);
 
-    mat44 transpose(const mat44& m);
+    mat4 transpose(const mat4& m);
 
-    mat3 to_mat3(const mat44& m);
+    mat3 to_mat3(const mat4& m);
 
     // ---------- quaternion ----------
 
@@ -345,16 +346,16 @@ namespace zec
         return v / length(v);
     }
 
-    mat44 quat_to_mat(const quaternion& q);
+    mat4 quat_to_mat(const quaternion& q);
 
     // ---------- Transformation helpers ----------
 
-    inline void rotate(mat44& mat, const quaternion& q)
+    inline void rotate(mat4& mat, const quaternion& q)
     {
         mat = quat_to_mat(q) * mat;
     }
 
-    inline void set_translation(mat44& mat, const vec3& translation)
+    inline void set_translation(mat4& mat, const vec3& translation)
     {
         mat[0][3] = translation.x;
         mat[1][3] = translation.y;
@@ -363,5 +364,5 @@ namespace zec
     //mat44 orthogonal_projection(float left, float right, float near, float far, float top, float bottom)
 
     // Aspect ratio is in radians, please
-    mat44 perspective_projection(const float aspect_ratio, const float fov, const float z_near, const float z_far);
+    mat4 perspective_projection(const float aspect_ratio, const float fov, const float z_near, const float z_far);
 }

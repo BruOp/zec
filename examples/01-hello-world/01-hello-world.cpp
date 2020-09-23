@@ -6,8 +6,8 @@ using namespace zec;
 
 struct DrawData
 {
-    mat44 model_view_transform;
-    mat44 projection_matrix;
+    mat4 model_view_transform;
+    mat4 projection_matrix;
     float padding[32];
 };
 
@@ -127,7 +127,7 @@ protected:
 
         end_upload();
 
-        mesh_transform.model_view_transform = identity_mat44();
+        mesh_transform.model_view_transform = identity_mat4();
         set_translation(mesh_transform.model_view_transform, vec3{ 0.0f, 0.0f, -2.0f });
         mesh_transform.projection_matrix = perspective_projection(
             float(width) / float(height),

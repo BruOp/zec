@@ -14,13 +14,13 @@ namespace zec
         CAMERA_ZOOM_OUT
     };
 
-    void set_camera_view(Camera& camera, const mat44& view)
+    void set_camera_view(Camera& camera, const mat4& view)
     {
         camera.view = view;
         mat3 invView = to_mat3(camera.view);
         invView = transpose(invView);
         vec3 inverse_translation = -(invView * get_right(camera.view));
-        camera.invView = mat44{ invView, inverse_translation };
+        camera.invView = mat4{ invView, inverse_translation };
     }
 
     void OrbitCameraController::init()
