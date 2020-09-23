@@ -145,7 +145,7 @@ namespace zec
             }
 
             // We use this to store our backbuffers in the first N entries
-            void set_backbuffer_data(RenderTarget back_buffer, const u64 current_frame_index)
+            void set_backbuffer(RenderTarget back_buffer, const u64 current_frame_index)
             {
                 render_targets[current_frame_index] = back_buffer;
             }

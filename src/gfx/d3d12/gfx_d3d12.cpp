@@ -63,6 +63,13 @@ namespace zec
             g_swap_chain.refresh_rate = closest_match.RefreshRate;
         }
 
+        void store_back_buffers(SwapChain& swap_chain)
+        {
+            for (size_t i = 0; i < NUM_BACK_BUFFERS; i++) {
+                g_render_targets.set_backbuffer(g_swap_chain.back_buffers[i], i);
+            }
+        }
+
         void recreate_swap_chain_rtv_descriptors(SwapChain& swap_chain)
         {
             // Re-create an RTV for each back buffer
@@ -141,10 +148,7 @@ namespace zec
             }
 
             recreate_swap_chain_rtv_descriptors(g_swap_chain);
-
-            for (size_t i = 0; i < NUM_BACK_BUFFERS; i++) {
-                g_render_targets.set_backbuffer_data(g_swap_chain.back_buffers[i], i);
-            }
+            store_back_buffers(g_swap_chain);
         }
 
         void reset()
@@ -359,6 +363,7 @@ namespace zec
             g_swap_chain.waitable_object = g_swap_chain.swap_chain->GetFrameLatencyWaitableObject();
 
             recreate_swap_chain_rtv_descriptors(g_swap_chain);
+            store_back_buffers(g_swap_chain);
         }
         g_fence_manager.init(g_device, &g_destruction_queue);
         g_frame_fence = g_fence_manager.create_fence(0);
@@ -394,6 +399,7 @@ namespace zec
         destroy(g_dsv_descriptor_heap);
         destroy(g_srv_descriptor_heap);
         g_upload_manager.destroy();
+        g_render_targets.destroy();
         g_buffers.destroy();
         g_fence_manager.destroy();
 
@@ -730,6 +736,7 @@ namespace zec
     void clear_render_target(const RenderTargetHandle render_target, const vec4 clear_color)
     {
         RenderTarget& rt = g_render_targets[render_target];
+        g_cmd_list->ClearRenderTargetView(rt.rtv, clear_color.data, 0, nullptr);
     }
 
     void set_viewports(const Viewport* viewports, const u32 num_viewports)
@@ -739,7 +746,14 @@ namespace zec
 
     void set_scissors(const Scissor* scissors, const u32 num_scissors)
     {
-        g_cmd_list->RSSetScissorRects(num_scissors, reinterpret_cast<const D3D12_RECT*>(scissors));
+        D3D12_RECT rects[16];
+        for (size_t i = 0; i < num_scissors; i++) {
+            rects[i].left = LONG(scissors[i].left);
+            rects[i].right = LONG(scissors[i].right);
+            rects[i].top = LONG(scissors[i].top);
+            rects[i].bottom = LONG(scissors[i].bottom);
+        }
+        g_cmd_list->RSSetScissorRects(num_scissors, rects);
     }
 
     void set_render_targets(RenderTargetHandle* render_targets, const u32 num_render_targets)
