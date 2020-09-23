@@ -124,7 +124,7 @@ namespace zec
             }
 
             DXCall(g_swap_chain.swap_chain->SetFullscreenState(g_swap_chain.fullscreen, g_swap_chain.output));
-            // TODO Backbuffers
+
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
                 DXCall(g_swap_chain.swap_chain->ResizeBuffers(
                     NUM_BACK_BUFFERS,
@@ -451,7 +451,8 @@ namespace zec
         // Process resources queued for destruction
         g_destruction_queue.process_queue();
 
-        // TODO: Provide interface for creating barriers like this
+        // TODO: Provide interface for creating barriers? Maybe that needs to be handled as part of the render graph though
+
         RenderTarget& render_target = get_current_back_buffer();
 
         D3D12_RESOURCE_BARRIER barrier{  };

@@ -2,7 +2,6 @@
 #include "core/zec_math.h"
 #include "utils/exceptions.h"
 
-// TODO: Remove this once no longer using DXCall directly
 using namespace zec;
 
 struct DrawData
@@ -168,19 +167,15 @@ protected:
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         Scissor scissor{ 0, 0, width, height };
 
-        // TODO: Provide handles for referencing render targets
         RenderTargetHandle render_target = get_current_backbuffer_handle();
-        // TODO: Provide interface for clearing a render target
         clear_render_target(render_target, clear_color);
 
         set_active_resource_layout(resource_layout);
         set_pipeline_state(pso_handle);
         bind_constant_buffer(cb_handle, 0);
-        // TODO: Create interface for setting viewport and scissor
         set_viewports(&viewport, 1);
         set_scissors(&scissor, 1);
 
-        // TODO: Create interface for setting render target
         set_render_targets(&render_target, 1);
         draw_mesh(cube_mesh);
     }

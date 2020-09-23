@@ -73,7 +73,7 @@ namespace zec
 
             HANDLE waitable_object = INVALID_HANDLE_VALUE;
 
-            // TODO: What is this
+            // Used for enumerating output modes?
             IDXGIOutput* output = nullptr;
 
             DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;
