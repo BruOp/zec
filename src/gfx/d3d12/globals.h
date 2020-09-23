@@ -25,7 +25,7 @@ namespace zec
         extern ID3D12CommandQueue* g_copy_queue;
 
         extern ResourceDestructionQueue g_destruction_queue;
-        extern UploadManager g_upload_manager = { };
+        extern UploadManager g_upload_manager;
 
         extern SwapChain g_swap_chain;
         extern DescriptorHeap g_rtv_descriptor_heap;
@@ -34,7 +34,7 @@ namespace zec
 
         // Resources
         extern FenceManager g_fence_manager;
-        extern Fence g_frame_fence = { };
+        extern Fence g_frame_fence;
         extern u64 g_current_frame_idx;
         // Total number of CPU frames completed (means that we've recorded and submitted commands for the frame)
         extern u64 g_current_cpu_frame;
@@ -44,8 +44,9 @@ namespace zec
         extern DXPtrArray<ID3D12RootSignature, ResourceLayoutHandle> g_root_signatures;
         extern DXPtrArray<ID3D12PipelineState, PipelineStateHandle> g_pipelines;
 
-        extern ResourceList<Buffer, BufferHandle> g_buffers = { &g_destruction_queue };
-        extern ResourceList<Texture, TextureHandle> g_textures = { &g_destruction_queue };
+        extern ResourceList<Buffer, BufferHandle> g_buffers;
+        extern ResourceList<Texture, TextureHandle> g_textures;
+        extern RenderTargetManager g_render_targets;
         extern Array<Mesh> g_meshes;
     }
 }

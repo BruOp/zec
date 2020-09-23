@@ -26,9 +26,9 @@ namespace zec
             u32 is_cubemap = 0;
         };
 
-        struct RenderTexture : public Texture
+        struct RenderTarget : public Texture
         {
-            D3D12_CPU_DESCRIPTOR_HANDLE rtv;
+            D3D12_CPU_DESCRIPTOR_HANDLE rtv = {};
 
             u32 mssa_samples = 0;
             u32 msaa_quality = 0;

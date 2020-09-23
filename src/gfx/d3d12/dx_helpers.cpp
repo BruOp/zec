@@ -5,7 +5,7 @@ namespace zec
 {
     namespace dx12
     {
-        inline D3D12_SHADER_VISIBILITY to_d3d_visibility(ShaderVisibility visibility)
+        D3D12_SHADER_VISIBILITY to_d3d_visibility(ShaderVisibility visibility)
         {
             switch (visibility) {
             case zec::ShaderVisibility::PIXEL:

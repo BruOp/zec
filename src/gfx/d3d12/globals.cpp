@@ -39,6 +39,7 @@ namespace zec
 
         ResourceList<Buffer, BufferHandle> g_buffers = { &g_destruction_queue };
         ResourceList<Texture, TextureHandle> g_textures = { &g_destruction_queue };
+        RenderTargetManager g_render_targets = { &g_destruction_queue };
         Array<Mesh> g_meshes = {};
     }
 }

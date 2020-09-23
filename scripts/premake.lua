@@ -17,7 +17,7 @@ workspace "zec"
   configurations {"Debug", "Release"}
   platforms {"x64"}
   startproject "zec_lib"
-  cppdialect "C++latest"
+  cppdialect "C++17"
   premake.vstudio.toolset = "v142"
   location "../.build/"
 
@@ -42,7 +42,7 @@ workspace "zec"
     "_SCL_SECURE_NO_WARNINGS",
     "_CRT_SECURE_NO_WARNINGS",
     "_CRT_SECURE_NO_DEPRECATE",
-    -- "_ITERATOR_DEBUG_LEVEL=0"
+    "USE_D3D_RENDERER"
   }
   linkoptions {
     "/ignore:4221", -- LNK4221: This object file does not define any previously undefined public symbols, so it will not be used by any link operation that consumes this library

@@ -1,6 +1,6 @@
 #include "pch.h"
-#include "gfx/gfx.h"
 #ifdef USE_D3D_RENDERER
+#include "gfx/gfx.h"
 #include "gfx/public_resources.h"
 #include "dx_utils.h"
 #include "dx_helpers.h"
@@ -23,9 +23,9 @@ namespace zec
 
     namespace dx12
     {
-        RenderTexture& get_current_back_buffer()
+        RenderTarget& get_current_back_buffer()
         {
-            return g_swap_chain.back_buffers[g_current_frame_idx];
+            return g_render_targets.get_backbuffer(g_current_frame_idx);
         };
 
         static void set_formats(SwapChain& swap_chain, const DXGI_FORMAT format)
@@ -40,6 +40,27 @@ namespace zec
             else {
                 swap_chain.non_sRGB_format = swap_chain.format;
             }
+        }
+
+        void prepare_full_screen_settings()
+        {
+            ASSERT(g_swap_chain.output != nullptr);
+
+            DXGI_MODE_DESC desired_mode{};
+            desired_mode.Format = g_swap_chain.non_sRGB_format;
+            desired_mode.Width = g_swap_chain.width;
+            desired_mode.Height = g_swap_chain.height;
+            desired_mode.RefreshRate.Numerator = 0;
+            desired_mode.RefreshRate.Denominator = 0;
+            desired_mode.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+            desired_mode.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+
+            DXGI_MODE_DESC closest_match{};
+            DXCall(g_swap_chain.output->FindClosestMatchingMode(&desired_mode, &closest_match, g_device));
+
+            g_swap_chain.width = closest_match.Width;
+            g_swap_chain.height = closest_match.Height;
+            g_swap_chain.refresh_rate = closest_match.RefreshRate;
         }
 
         void recreate_swap_chain_rtv_descriptors(SwapChain& swap_chain)
@@ -120,6 +141,10 @@ namespace zec
             }
 
             recreate_swap_chain_rtv_descriptors(g_swap_chain);
+
+            for (size_t i = 0; i < NUM_BACK_BUFFERS; i++) {
+                g_render_targets.set_backbuffer_data(g_swap_chain.back_buffers[i], i);
+            }
         }
 
         void reset()
@@ -316,7 +341,7 @@ namespace zec
             d3d_swap_chain_desc.BufferDesc.Width = g_swap_chain.width;
             d3d_swap_chain_desc.BufferDesc.Height = g_swap_chain.height;
             d3d_swap_chain_desc.BufferDesc.Format = g_swap_chain.non_sRGB_format;
-            d3d_swap_chain_desc.ResourceUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+            d3d_swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
             d3d_swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
             d3d_swap_chain_desc.SampleDesc.Count = 1;
             d3d_swap_chain_desc.OutputWindow = swap_chain_desc.output_window;
@@ -421,7 +446,7 @@ namespace zec
         g_destruction_queue.process_queue();
 
         // TODO: Provide interface for creating barriers like this
-        RenderTexture& render_target = get_current_back_buffer();
+        RenderTarget& render_target = get_current_back_buffer();
 
         D3D12_RESOURCE_BARRIER barrier{  };
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -435,7 +460,7 @@ namespace zec
 
     void end_frame()
     {
-        RenderTexture& render_target = get_current_back_buffer();
+        RenderTarget& render_target = get_current_back_buffer();
 
         D3D12_RESOURCE_BARRIER barrier{  };
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -466,28 +491,7 @@ namespace zec
 
     RenderTargetHandle get_current_backbuffer_handle()
     {
-        return { g_current_cpu_frame };
-    }
-
-    void prepare_full_screen_settings()
-    {
-        ASSERT(g_swap_chain.output != nullptr);
-
-        DXGI_MODE_DESC desired_mode{};
-        desired_mode.Format = g_swap_chain.non_sRGB_format;
-        desired_mode.Width = g_swap_chain.width;
-        desired_mode.Height = g_swap_chain.height;
-        desired_mode.RefreshRate.Numerator = 0;
-        desired_mode.RefreshRate.Denominator = 0;
-        desired_mode.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-        desired_mode.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-
-        DXGI_MODE_DESC closest_match{};
-        DXCall(g_swap_chain.output->FindClosestMatchingMode(&desired_mode, &closest_match, g_device));
-
-        g_swap_chain.width = closest_match.Width;
-        g_swap_chain.height = closest_match.Height;
-        g_swap_chain.refresh_rate = closest_match.RefreshRate;
+        return { static_cast<u32>(g_current_frame_idx) };
     }
 
     BufferHandle create_buffer(BufferDesc desc)
@@ -511,6 +515,7 @@ namespace zec
 
         return handle;
     }
+
 
     MeshHandle create_mesh(MeshDesc mesh_desc)
     {
@@ -563,19 +568,21 @@ namespace zec
 
     TextureHandle create_texture(TextureDesc desc)
     {
-        Texture texture{
-            .resource = nullptr,
-            .allocation = nullptr,
-            .srv = UINT32_MAX,
-            .uav = {},
-            .width = desc.width,
-            .height = desc.height,
-            .num_mips = desc.num_mips,
-            .array_size = desc.array_size,
-            .format = to_d3d_format(desc.format),
-            .is_cubemap = desc.is_cubemap
+        TextureHandle handle = g_textures.create_back();
+        g_textures[handle] = {
+            nullptr,
+            nullptr,
+            UINT32_MAX,
+            {},
+            desc.width,
+            desc.height,
+            desc.depth,
+            desc.num_mips,
+            desc.array_size,
+            to_d3d_format(desc.format),
+            desc.is_cubemap
         };
-
+        return handle;
     }
 
     ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc)
@@ -722,7 +729,7 @@ namespace zec
 
     void clear_render_target(const RenderTargetHandle render_target, const vec4 clear_color)
     {
-        RenderTexture& rt = g_render_targets[render_target];
+        RenderTarget& rt = g_render_targets[render_target];
     }
 
     void set_viewports(const Viewport* viewports, const u32 num_viewports)
@@ -730,18 +737,18 @@ namespace zec
         g_cmd_list->RSSetViewports(num_viewports, reinterpret_cast<const D3D12_VIEWPORT*>(viewports));
     }
 
-    void set_scissors(const Scissor* scissor, const u32 num_scissors)
+    void set_scissors(const Scissor* scissors, const u32 num_scissors)
     {
-
+        g_cmd_list->RSSetScissorRects(num_scissors, reinterpret_cast<const D3D12_RECT*>(scissors));
     }
 
     void set_render_targets(RenderTargetHandle* render_targets, const u32 num_render_targets)
     {
         D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
         for (size_t i = 0; i < num_render_targets; i++) {
-            rtvs[i] = g_render_targets[render_targets[i].idx].rtv;
+            rtvs[i] = g_render_targets[render_targets[i]].rtv;
         }
-        g_cmd_list->OMSetRenderTargets()
+        g_cmd_list->OMSetRenderTargets(num_render_targets, rtvs, 0, nullptr);
     }
 }
 #endif // USE_D3D_RENDERER

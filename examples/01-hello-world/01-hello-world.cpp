@@ -166,7 +166,7 @@ protected:
     void render() override final
     {
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
-        Scissor scissor{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
+        Scissor scissor{ 0, 0, width, height };
 
         // TODO: Provide handles for referencing render targets
         RenderTargetHandle render_target = get_current_backbuffer_handle();

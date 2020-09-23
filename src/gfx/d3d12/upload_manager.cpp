@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "upload_manager.h"
+#include "dx_utils.h"
 
 namespace zec
 {

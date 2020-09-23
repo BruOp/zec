@@ -2,6 +2,7 @@
 #include "resources.h"
 #include "wrappers.h"
 #include "utils/utils.h"
+#include "dx_utils.h"
 
 namespace zec
 {

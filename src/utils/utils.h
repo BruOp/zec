@@ -12,8 +12,6 @@
 #include "pch.h"
 
 #include "exceptions.h"
-// #include "interface_pointers.h"
-// #include "zec_math.h"
 #include "assert.h"
 
 namespace zec

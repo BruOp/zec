@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "wrappers.h"
 #include "dx_utils.h"
-#include "renderer.h"
+#include "globals.h"
 
 namespace zec
 {

@@ -14,7 +14,6 @@
 
 namespace zec
 {
-
     // Error string functions
     inline std::wstring GetWin32ErrorString(DWORD errorCode)
     {
@@ -136,6 +135,6 @@ namespace zec
             throw Win32Exception(GetLastError());
     }
 
-#endif
+#endif // USE_ASSERTS
 
 } // namespace zec

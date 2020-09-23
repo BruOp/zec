@@ -173,7 +173,7 @@ protected:
     {
         D3D12_VIEWPORT viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         D3D12_RECT scissor_rect{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
-        dx12::RenderTexture& render_target = renderer.swap_chain.back_buffers[renderer.current_frame_idx];
+        dx12::RenderTarget& render_target = renderer.swap_chain.back_buffers[renderer.current_frame_idx];
 
         // TODO: Provide handles for referencing render targets
         // TODO: Provide interface for clearing a render target

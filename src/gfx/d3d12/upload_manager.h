@@ -1,7 +1,7 @@
 #pragma once
 #include "pch.h"
 #include "gfx/constants.h"
-#include "gfx/public.h"
+#include "gfx/public_resources.h"
 #include "wrappers.h"
 #include "resource_managers.h"
 

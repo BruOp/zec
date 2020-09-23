@@ -12,7 +12,7 @@ namespace zec
     inline bool is_valid(_name _handle) { return _handle.idx != zec::k_invalid_handle; };
 
 #define INVALID_HANDLE \
-    { zec::k_invalid_handle }
+    { zec::k_invalid_handle };
 
     // ---------- Handles ----------
     RESOURCE_HANDLE(BufferHandle);
@@ -373,9 +373,9 @@ namespace zec
 
     struct Scissor
     {
-        float left = 0;
-        float top = 0;
-        float width = 0;
-        float height = 0;
+        u64 left = 0;
+        u64 top = 0;
+        u64 right = 0;
+        u64 bottom = 0;
     };
 }

@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "resource_managers.h"
-#include "utils/exceptions.h"
+#include "dx_utils.h"
 
 namespace zec
 {

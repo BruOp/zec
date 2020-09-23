@@ -3,8 +3,6 @@
 #include "core/zec_math.h"
 #include "public_resources.h"
 
-#define USE_D3D_RENDERER
-
 namespace zec
 {
     void init_renderer(const RendererDesc& renderer_desc);

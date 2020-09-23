@@ -8,11 +8,7 @@ namespace zec
     namespace dx12
     {
         template<typename DXPtr>
-        inline void dx_destroy(DXPtr** ptr)
-        {
-            (*ptr)->Release();
-            *ptr = nullptr;
-        }
+        inline void dx_destroy(DXPtr** ptr);
 
         D3D12_SHADER_VISIBILITY to_d3d_visibility(ShaderVisibility visibility);
 
@@ -45,7 +41,7 @@ namespace zec
         {
         public:
             DXPtrArray() = default;
-            ~DXPtrArray() { destroy() };
+            ~DXPtrArray() { destroy(); };
 
             UNCOPIABLE(DXPtrArray);
             UNMOVABLE(DXPtrArray);
@@ -70,12 +66,20 @@ namespace zec
 
             inline ResourceHandle push_back(T* ptr)
             {
-                return { ptrs.push_back(ptr) };
+                ASSERT(ptrs.size < UINT32_MAX);
+                return { static_cast<u32>(ptrs.push_back(ptr)) };
             }
 
         private:
             Array<T*> ptrs;
 
         };
+
+        template<typename DXPtr>
+        void dx_destroy(DXPtr** ptr)
+        {
+            (*ptr)->Release();
+            *ptr = nullptr;
+        }
     }
 }

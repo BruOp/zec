@@ -1,10 +1,8 @@
-
 #pragma once
 #include "pch.h"
 #include "core/array.h"
 #include "gfx/constants.h"
 #include "gfx/public_resources.h"
-#include "globals.h"
 #include "resources.h"
 
 namespace zec
@@ -71,7 +69,7 @@ namespace zec
 
             IDXGISwapChain4* swap_chain = nullptr;
             u32 back_buffer_idx = 0;
-            RenderTexture back_buffers[NUM_BACK_BUFFERS] = { };
+            RenderTarget back_buffers[NUM_BACK_BUFFERS] = { };
 
             HANDLE waitable_object = INVALID_HANDLE_VALUE;
 

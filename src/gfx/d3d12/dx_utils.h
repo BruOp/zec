@@ -1,7 +1,7 @@
 #pragma once
 #include "pch.h"
-#include "DXErr.h"
 #include "utils/exceptions.h"
+#include "DXErr.h"
 
 namespace zec
 {
@@ -56,22 +56,21 @@ namespace zec
         };
 
     #if USE_ASSERTS
-
-    #define DXCall(x)                                                  \
-  do                                                               \
-  {                                                                \
-    HRESULT hr_ = x;                                               \
-    ASSERT_MSG(SUCCEEDED(hr_), zec::dx12::GetDXErrorStringAnsi(hr_).c_str()); \
-  } while (0)
-    #else
+    #ifndef DXCall
+    #define DXCall(x)   \
+        do {                                                                        \
+        HRESULT hr_ = x;                                                            \
+        ASSERT_MSG(SUCCEEDED(hr_), zec::dx12::GetDXErrorStringAnsi(hr_).c_str());   \
+        } while (0);
+    #endif // DXCall
+    #else // USE_ASSERTS
 
         // Throws a DXException on failing HRESULT
         inline void DXCall(HRESULT hr)
         {
-            if (FAILED(hr))
-                throw DXException(hr);
+            if (FAILED(hr)) { throw DXException(hr); }
         }
 
-    #endif
+    #endif // USE_ASSERTS
     }
 }
