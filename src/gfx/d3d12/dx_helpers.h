@@ -17,6 +17,7 @@ namespace zec
         D3D12_CULL_MODE to_d3d_cull_mode(const CullMode cull_mode);
 
         DXGI_FORMAT to_d3d_format(const BufferFormat format);
+        BufferFormat from_d3d_format(const DXGI_FORMAT format);
 
         D3D12_RASTERIZER_DESC to_d3d_rasterizer_desc(const RasterStateDesc& desc);
 

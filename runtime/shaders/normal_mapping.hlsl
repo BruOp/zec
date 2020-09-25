@@ -10,6 +10,8 @@
 //*********************************************************
 #pragma pack_matrix( row_major )
 
+Texture2D tex2D_table[] : register(t0);
+
 cbuffer view_constants_buffer : register(b0)
 {
     float4x4 view;
@@ -17,13 +19,13 @@ cbuffer view_constants_buffer : register(b0)
     float4x4 VP;
     float3 camera_pos;
     float time;
-}
+};
 
 cbuffer draw_constants_buffer : register(b1)
 {
     float4x4 model;
     float4x4 inv_model;
-}
+};
 
 
 

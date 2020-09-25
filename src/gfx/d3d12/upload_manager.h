@@ -17,6 +17,13 @@ namespace zec
             FenceManager* fence_manager = nullptr;
         };
 
+        struct TextureUploadDesc
+        {
+            u8* data;
+            D3D12_SUBRESOURCE_DATA* subresources;
+            u64 num_subresources;
+            bool is_cube_map;
+        };
 
         class UploadManager
         {
@@ -37,8 +44,10 @@ namespace zec
             void destroy();
 
             void begin_upload();
-            void queue_upload(const BufferDesc& buffer_desc, ID3D12Resource* destination_resource);
             void end_upload();
+
+            void queue_upload(const BufferDesc& buffer_desc, ID3D12Resource* destination_resource);
+            void queue_upload(const TextureUploadDesc& texture_upload_desc, ID3D12Resource* destination_resource);
 
             Fence fence = { };
             u64 current_fence_value = 0;

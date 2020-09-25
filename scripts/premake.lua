@@ -4,8 +4,8 @@ RUNTIME_DIR = (path.getabsolute("..") .. "/runtime/")
 EXAMPLES_DIR = (ZEC_DIR .. "examples/")
 EXTERNAL_DIR = (ZEC_DIR .. "external/include/")
 EXTERNAL_LIB_DIR  = (ZEC_DIR .. "external/lib/")
--- $(SolutionDir).build\$(Platform)\$(Configuration)\
-local BUILD_DIR = path.join(ZEC_DIR, ".build")
+
+local BUILD_DIR = (ZEC_DIR .. ".build/")
 
 include("./examples.lua")
 --
@@ -18,7 +18,7 @@ workspace "zec"
   startproject "zec_lib"
   cppdialect "C++latest"
   premake.vstudio.toolset = "v142"
-  location "../.build/"
+  location (BUILD_DIR)
 
   filter { "configurations:Debug" }
   symbols "On"
@@ -27,9 +27,13 @@ workspace "zec"
   -- Reset the filter for other settings
   filter { }
 
+  -- nuget {
+  --   "directxtk12_desktop_2017:2020.8.15.1"
+  -- }
+
   libdirs { EXTERNAL_LIB_DIR }
-  targetdir ("../.build/bin/%{prj.name}/%{cfg.longname}")
-  objdir ("../.build/obj/%{prj.name}/%{cfg.longname}")
+  targetdir (BUILD_DIR .. "bin/%{prj.name}/%{cfg.longname}")
+  objdir (BUILD_DIR .. "obj/%{prj.name}/%{cfg.longname}")
 
   floatingpoint "fast"
 

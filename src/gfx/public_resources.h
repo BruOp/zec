@@ -247,6 +247,8 @@ namespace zec
 
     struct TextureDesc
     {
+
+        void* data = nullptr;
         u32 width = 0;
         u32 height = 0;
         u32 depth = 0;
@@ -257,16 +259,29 @@ namespace zec
         u16 usage = 0;
     };
 
+    /// This is used for loading resources that have subresources (e.g. mip levels, or elements
+    /// of a texture array). For a texture array with mips, we can imagine it as a matrix instead,
+    /// where each row is a mip level of all the different array elements, while a column is a
+    /// single texture element with all of its mips.
+    // See https://docs.microsoft.com/en-us/windows/win32/direct3d12/subresources for more details
+    struct TextureSubResourceDesc
+    {
+        void* data = nullptr;
+        size_t row = 0;
+        size_t slice = 0;
+    };
+
     struct ResourceLayoutRangeDesc
     {
-        static constexpr u32 UNBOUNDED_COUNT = 0;
+        static constexpr u32 UNBOUNDED_COUNT = UINT32_MAX;
         ResourceLayoutRangeUsage usage = ResourceLayoutRangeUsage::UNUSED;
         u32 count = 0;
     };
 
     struct ResourceLayoutEntryDesc
     {
-        ResourceLayoutEntryType type = ResourceLayoutEntryType::INVALID; // Table, Constant or Constant Buffer
+        // Table, Constant or Constant Buffer
+        ResourceLayoutEntryType type = ResourceLayoutEntryType::INVALID;
         ShaderVisibility visibility = ShaderVisibility::ALL;
         ResourceLayoutRangeDesc ranges[16] = {};
     };

@@ -5,7 +5,8 @@
 #include "dx_utils.h"
 #include "dx_helpers.h"
 #include "globals.h"
-#include "DirectXTex/DirectXTex.h"
+#include <DDSTextureLoader.h>
+#include <WICTextureLoader.h>
 
 #if _DEBUG
 #define USE_DEBUG_DEVICE 1
@@ -401,6 +402,7 @@ namespace zec
         destroy(g_srv_descriptor_heap);
         g_upload_manager.destroy();
         g_render_targets.destroy();
+        g_textures.destroy();
         g_buffers.destroy();
         g_fence_manager.destroy();
 
@@ -593,6 +595,121 @@ namespace zec
         return handle;
     }
 
+    TextureHandle zec::load_texture_from_file(const char* file_path, const ResourceUsage usage)
+    {
+        TextureHandle texture_handle = g_textures.create_back();
+        Texture& texture = g_textures[texture_handle];
+        std::wstring path = ansi_to_wstring(file_path);
+
+        std::vector<D3D12_SUBRESOURCE_DATA> subresources{};
+        std::unique_ptr<u8[]> data = nullptr;
+        bool is_cube_map = false;
+
+        DXCall(DirectX::LoadDDSTextureFromFileEx(
+            g_device,
+            path.c_str(),
+            0,
+            D3D12_RESOURCE_FLAG_NONE,
+            DirectX::DDS_LOADER_DEFAULT,
+            &texture.resource,
+            data,
+            subresources,
+            nullptr,
+            &is_cube_map));
+
+        TextureUploadDesc desc{
+            .data = data.get(),
+            .subresources = subresources.data(),
+            .num_subresources = subresources.size(),
+            .is_cube_map = is_cube_map
+        };
+        g_upload_manager.queue_upload(desc, texture.resource);
+
+        return texture_handle;
+
+        //TextureDesc texture_desc
+        //{
+        //    .width = u32(meta_data.width),
+        //        .height = u32(meta_data.height),
+        //        .depth = u32(meta_data.depth),
+        //        .num_mips = u32(meta_data.mipLevels),
+        //        .array_size = u32(meta_data.arraySize),
+        //        .is_cubemap = u32(meta_data.IsCubemap()),
+        //        .format = from_d3d_format(meta_data.format),
+        //        .usage = usage,
+        //};
+
+        //texture.format = meta_data.format;
+
+        //const bool is3D = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
+        //D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
+
+        //if (usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
+        //    flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        //}
+
+        //D3D12_RESOURCE_DESC texture_desc = {
+        //    .Dimension = is3D ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+        //    .Alignment = 0,
+        //    .Width = meta_data.width,
+        //    .Height = meta_data.height,
+        //    .DepthOrArraySize = is3D ? u16(meta_data.depth) : u16(meta_data.arraySize),
+        //    .MipLevels = meta_data.mipLevels,
+        //    .Format = meta_data.format,
+        //    .SampleDesc = {
+        //        .Count = 1,
+        //        .Quality = 0,
+        //     },
+        //     .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
+        //     .Flags = flags
+        //};
+
+        //D3D12MA::ALLOCATION_DESC alloc_desc = {
+        //    .HeapType = D3D12_HEAP_TYPE_DEFAULT
+        //};
+
+        //DXCall(g_allocator->CreateResource(
+        //    &alloc_desc,
+        //    &texture_desc,
+        //    D3D12_RESOURCE_STATE_COMMON,
+        //    nullptr,
+        //    &texture.allocation,
+        //    IID_PPV_ARGS(&texture.resource)
+        //));
+        //texture.resource->SetName(path.c_str());
+
+        //if (usage & RESOURCE_USAGE_SHADER_READABLE) {
+
+        //    PersistentDescriptorAlloc srv_alloc = allocate_persistent_descriptor(g_srv_descriptor_heap);
+        //    texture.srv = srv_alloc.idx;
+
+        //    D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = { };
+
+        //    if (meta_data.IsCubemap()) {
+        //        ASSERT(meta_data.arraySize == 6);
+        //        srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+        //        srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        //        srv_desc.TextureCube.MostDetailedMip = 0;
+        //        srv_desc.TextureCube.MipLevels = meta_data.mipLevels;
+        //        srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
+        //    }
+
+        //    for (u32 i = 0; i < g_srv_descriptor_heap.num_heaps; ++i) {
+        //        g_device->CreateShaderResourceView(texture.resource, &srv_desc, srv_alloc.handles[i]);
+        //    }
+        //}
+
+        //g_upload_manager.queue_upload()
+
+        //    return texture_handle;
+    }
+
+    void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size)
+    {
+        Buffer& buffer = g_buffers[buffer_id];
+        update_buffer(buffer, data, byte_size, g_current_frame_idx);
+    }
+
     ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc)
     {
         D3D12_ROOT_SIGNATURE_DESC root_signature_desc{};
@@ -694,85 +811,6 @@ namespace zec
         signature != nullptr && signature->Release();
 
         return g_root_signatures.push_back(root_signature);
-    }
-
-    TextureHandle zec::load_texture_from_file(const char* file_path, const ResourceUsage usage)
-    {
-        TextureHandle texture_handle = g_textures.create_back();
-        Texture& texture = g_textures[texture_handle];
-        std::wstring path = ansi_to_wstring(file_path);
-
-        DirectX::ScratchImage image;
-        DXCall(DirectX::LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image));
-
-        const DirectX::TexMetadata& meta_data = image.GetMetadata();
-        texture.format = meta_data.format;
-
-        const bool is3D = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
-        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
-
-        if (usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
-            flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-        }
-
-        D3D12_RESOURCE_DESC texture_desc = {
-            .Dimension = is3D ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-            .Alignment = 0,
-            .Width = meta_data.width,
-            .Height = meta_data.height,
-            .DepthOrArraySize = is3D ? u16(meta_data.depth) : u16(meta_data.arraySize),
-            .MipLevels = meta_data.mipLevels,
-            .Format = meta_data.format,
-            .SampleDesc = {
-                .Count = 1,
-                .Quality = 0,
-             },
-             .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
-             .Flags = flags
-        };
-
-        D3D12MA::ALLOCATION_DESC alloc_desc = {
-            .HeapType = D3D12_HEAP_TYPE_DEFAULT
-        };
-
-        DXCall(g_allocator->CreateResource(
-            &alloc_desc,
-            &texture_desc,
-            D3D12_RESOURCE_STATE_COMMON,
-            nullptr,
-            &texture.allocation,
-            IID_PPV_ARGS(&texture.resource)
-        ));
-        texture.resource->SetName(path.c_str());
-
-        if (usage & RESOURCE_USAGE_SHADER_READABLE) {
-
-            PersistentDescriptorAlloc srv_alloc = allocate_persistent_descriptor(g_srv_descriptor_heap);
-            texture.srv = srv_alloc.idx;
-
-            D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = { };
-
-            if (meta_data.IsCubemap()) {
-                ASSERT(meta_data.arraySize == 6);
-                srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-                srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-                srv_desc.TextureCube.MostDetailedMip = 0;
-                srv_desc.TextureCube.MipLevels = meta_data.mipLevels;
-                srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
-            }
-
-            for (u32 i = 0; i < g_srv_descriptor_heap.num_heaps; ++i) {
-                g_device->CreateShaderResourceView(texture.resource, &srv_desc, srv_alloc.handles[i]);
-            }
-        }
-
-        return texture_handle;
-    }
-
-    void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size)
-    {
-        Buffer& buffer = g_buffers[buffer_id];
-        update_buffer(buffer, data, byte_size, g_current_frame_idx);
     }
 
     void set_active_resource_layout(const ResourceLayoutHandle resource_layout_id)

@@ -58,16 +58,16 @@ protected:
         // Create a root signature consisting of a descriptor table with a single CBV.
         {
             ResourceLayoutDesc layout_desc{ {
-                { ResourceLayoutEntryType::CONSTANT_BUFFER, ShaderVisibility::VERTEX },
-                { ResourceLayoutEntryType::CONSTANT_BUFFER, ShaderVisibility::VERTEX },
-                // Our texture descriptors 
                 {
                     ResourceLayoutEntryType::TABLE,
                     ShaderVisibility::PIXEL,
                     {
-                        {.usage = ResourceLayoutRangeUsage::READ, .count = 2}
+                        {.usage = ResourceLayoutRangeUsage::READ, .count = ResourceLayoutRangeDesc::UNBOUNDED_COUNT }
                     }
-                }
+                },
+                { ResourceLayoutEntryType::CONSTANT_BUFFER, ShaderVisibility::VERTEX },
+                { ResourceLayoutEntryType::CONSTANT_BUFFER, ShaderVisibility::VERTEX },
+                // Our texture descriptors 
             } };
 
             resource_layout = create_resource_layout(layout_desc);
@@ -211,11 +211,8 @@ protected:
 
         // Texture creation
         {
-            TextureDesc texture_desc{
-                .usage = RESOURCE_USAGE_SHADER_READABLE,
-            };
-            albedo_map = load_texture_from_file("textures/stone01.dds", texture_desc);
-            normal_map = load_texture_from_file("textures/bump01.dds", texture_desc);
+            albedo_map = load_texture_from_file("textures/stone01.dds", RESOURCE_USAGE_SHADER_READABLE);
+            normal_map = load_texture_from_file("textures/bump01.dds", RESOURCE_USAGE_SHADER_READABLE);
         }
 
         end_upload();
@@ -272,8 +269,8 @@ protected:
 
         set_active_resource_layout(resource_layout);
         set_pipeline_state(pso_handle);
-        bind_constant_buffer(view_cb_handle, 0);
-        bind_constant_buffer(draw_cb_handle, 1);
+        bind_constant_buffer(view_cb_handle, 1);
+        bind_constant_buffer(draw_cb_handle, 2);
         set_viewports(&viewport, 1);
         set_scissors(&scissor, 1);
 

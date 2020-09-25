@@ -82,6 +82,41 @@ namespace zec
             }
         }
 
+        BufferFormat from_d3d_format(const DXGI_FORMAT format)
+        {
+            switch (format) {
+            case DXGI_FORMAT_R16_UINT:
+                return BufferFormat::UINT16;
+            case DXGI_FORMAT_R32_UINT:
+                return BufferFormat::UINT32;
+            case DXGI_FORMAT_R8G8_UNORM:
+                return BufferFormat::UNORM8_2;
+            case DXGI_FORMAT_R16G16_UNORM:
+                return BufferFormat::UNORM16_2;
+            case DXGI_FORMAT_R32G32_FLOAT:
+                return BufferFormat::FLOAT_2;
+            case DXGI_FORMAT_R32G32B32_FLOAT:
+                return BufferFormat::FLOAT_3;
+            case DXGI_FORMAT_R8G8B8A8_UINT:
+                return BufferFormat::UINT8_4;
+            case DXGI_FORMAT_R8G8B8A8_UNORM:
+                return BufferFormat::UNORM8_4;
+            case DXGI_FORMAT_R16G16B16A16_UINT:
+                return BufferFormat::UINT16_4;
+            case DXGI_FORMAT_R16G16B16A16_UNORM:
+                return BufferFormat::UNORM16_4;
+            case DXGI_FORMAT_R16G16B16A16_FLOAT:
+                return BufferFormat::HALF_4;
+            case DXGI_FORMAT_R32G32B32A32_FLOAT:
+                return BufferFormat::FLOAT_4;
+
+            case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+                return BufferFormat::UNORM8_4_SRGB;
+            default:
+                throw std::runtime_error("Do not know how to transform this format!");
+            }
+        }
+
         D3D12_RASTERIZER_DESC to_d3d_rasterizer_desc(const RasterStateDesc& desc)
         {
             BOOL cull_ccw = (desc.cull_mode == CullMode::FRONT_CCW || desc.cull_mode == CullMode::BACK_CCW);
