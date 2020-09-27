@@ -1,7 +1,9 @@
 #include "pch.h"
+#include "core/zec_math.h"
 #include "upload_manager.h"
 #include "dx_utils.h"
 #include "globals.h"
+#include "DirectXTex/DirectXTex.h"
 
 namespace zec
 {
@@ -122,17 +124,30 @@ namespace zec
             cmd_list->CopyBufferRegion(destination_resource, 0, upload.resource, 0, desc.byte_size);
         }
 
-        void UploadManager::queue_upload(const TextureUploadDesc& texture_upload_desc, ID3D12Resource* resource)
+        void UploadManager::queue_upload(const TextureUploadDesc& texture_upload_desc, Texture& texture)
         {
-            const size_t upload_buffer_size = GetRequiredIntermediateSize(resource, 0, static_cast<u32>(texture_upload_desc.num_subresources));
 
+            D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts = (D3D12_PLACED_SUBRESOURCE_FOOTPRINT*)_alloca(sizeof(D3D12_PLACED_SUBRESOURCE_FOOTPRINT) * texture_upload_desc.num_subresources);
+            u32* num_rows = (u32*)_alloca(sizeof(u32) * texture_upload_desc.num_subresources);
+            u64* row_sizes = (u64*)_alloca(sizeof(u64) * texture_upload_desc.num_subresources);
+
+            u64 mem_size = 0;
+            const D3D12_RESOURCE_DESC& d3d_desc = texture_upload_desc.d3d_texture_desc;
+
+            g_device->GetCopyableFootprints(
+                &d3d_desc,
+                0,
+                u32(texture_upload_desc.num_subresources),
+                0,
+                layouts, num_rows, row_sizes, &mem_size);
+
+            // Get a GPU upload buffer
             Upload upload{ };
             D3D12MA::ALLOCATION_DESC upload_alloc_desc = {};
             upload_alloc_desc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
-
             DXCall(allocator->CreateResource(
                 &upload_alloc_desc,
-                &CD3DX12_RESOURCE_DESC::Buffer(upload_buffer_size),
+                &CD3DX12_RESOURCE_DESC::Buffer(mem_size),
                 D3D12_RESOURCE_STATE_GENERIC_READ,
                 NULL,
                 &upload.allocation,
@@ -142,22 +157,47 @@ namespace zec
             upload_queue.push_back(upload);
             ++pending_size;
 
-            UpdateSubresources(
-                cmd_list,
-                resource,
-                upload.resource,
-                0,
-                0,
-                static_cast<u32>(texture_upload_desc.num_subresources),
-                texture_upload_desc.subresources
-            );
+            void* mapped_ptr = nullptr;
+            DXCall(upload.resource->Map(0, NULL, &mapped_ptr));
 
-            D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-                resource,
-                D3D12_RESOURCE_STATE_COPY_DEST,
-                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
-            );
-            g_cmd_list->ResourceBarrier(1, &barrier);
+            for (u64 array_idx = 0; array_idx < texture.array_size; ++array_idx) {
+
+                for (u64 mip_idx = 0; mip_idx < texture.num_mips; ++mip_idx) {
+                    const u64 subresource_idx = mip_idx + (array_idx * texture.num_mips);
+
+                    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& subresource_layout = layouts[subresource_idx];
+                    const u64 subresource_height = num_rows[subresource_idx];
+                    const u64 subresource_pitch = subresource_layout.Footprint.RowPitch;
+                    const u64 subresource_depth = subresource_layout.Footprint.Depth;
+                    u8* dst_subresource_mem = reinterpret_cast<u8*>(mapped_ptr) + subresource_layout.Offset;
+
+                    for (u64 z = 0; z < subresource_depth; ++z) {
+                        const DirectX::Image* sub_image = texture_upload_desc.data->GetImage(mip_idx, array_idx, z);
+                        ASSERT(sub_image != nullptr);
+                        const u8* src_subresource_mem = sub_image->pixels;
+
+                        for (u64 y = 0; y < subresource_height; ++y) {
+                            memcpy(dst_subresource_mem, src_subresource_mem, zec::min(subresource_pitch, sub_image->rowPitch));
+                            dst_subresource_mem += subresource_pitch;
+                            src_subresource_mem += sub_image->rowPitch;
+                        }
+                    }
+                }
+            }
+
+            for (u64 subresource_idx = 0; subresource_idx < texture_upload_desc.num_subresources; ++subresource_idx) {
+                D3D12_TEXTURE_COPY_LOCATION dst = { };
+                dst.pResource = texture.resource;
+                dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+                dst.SubresourceIndex = u32(subresource_idx);
+                D3D12_TEXTURE_COPY_LOCATION src = { };
+                src.pResource = upload.resource;
+                src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+                src.PlacedFootprint = layouts[subresource_idx];
+                src.PlacedFootprint.Offset += upload.allocation->GetOffset();
+
+                cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+            }
         }
     }
 }

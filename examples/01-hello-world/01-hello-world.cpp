@@ -32,8 +32,9 @@ protected:
 
         // Create a root signature consisting of a descriptor table with a single CBV.
         {
-            ResourceLayoutDesc layout_desc{
-                { ResourceLayoutEntryType::CONSTANT_BUFFER, ShaderVisibility::VERTEX },
+            ResourceLayoutDescV2 layout_desc{
+                .constant_buffers = {{ ShaderVisibility::VERTEX }},
+                .num_constant_buffers = 1,
             };
 
             resource_layout = create_resource_layout(layout_desc);

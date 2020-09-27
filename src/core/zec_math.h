@@ -32,6 +32,24 @@ namespace zec
         return radians * conversion_factor;
     }
 
+    template<typename T>
+    inline T lerp(const T& x, const T& y, float s)
+    {
+        return x + (y - x) * s;
+    }
+
+    template<typename T>
+    inline T min(T a, T b)
+    {
+        return a < b ? a : b;
+    }
+
+    template<typename T>
+    inline T max(T a, T b)
+    {
+        return a < b ? b : a;
+    }
+
     // ---------- vec3 ----------
 
     struct vec3

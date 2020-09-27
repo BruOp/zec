@@ -203,6 +203,28 @@ namespace zec
         PIPELINE_STAGE_COMPUTE = 1 << 2
     };
 
+    enum struct SamplerFilterType : u8
+    {
+        MIN_POINT_MAG_POINT_MIP_POINT,
+        MIN_POINT_MAG_POINT_MIP_LINEAR,
+        MIN_POINT_MAG_LINEAR_MIP_POINT,
+        MIN_POINT_MAG_LINEAR_MIP_LINEAR,
+        MIN_LINEAR_MAG_POINT_MIP_POINT,
+        MIN_LINEAR_MAG_POINT_MIP_LINEAR,
+        MIN_LINEAR_MAG_LINEAR_MIP_POINT,
+        MIN_LINEAR_MAG_LINEAR_MIP_LINEAR,
+        ANISOTROPIC,
+    };
+
+    enum struct SamplerWrapMode : u8
+    {
+        WRAP,
+        MIRROR,
+        CLAMP,
+        BORDER,
+        MIRROR_ONCE
+    };
+
     // ---------- Creation Descriptors ---------- 
     struct RendererDesc
     {
@@ -254,28 +276,27 @@ namespace zec
         u32 depth = 0;
         u32 num_mips = 0;
         u32 array_size = 0;
-        u32 is_cubemap = 0;
+        u16 is_cubemap = 0;
+        u16 is_3d = 0;
         BufferFormat format;
         u16 usage = 0;
     };
 
-    /// This is used for loading resources that have subresources (e.g. mip levels, or elements
-    /// of a texture array). For a texture array with mips, we can imagine it as a matrix instead,
-    /// where each row is a mip level of all the different array elements, while a column is a
-    /// single texture element with all of its mips.
-    // See https://docs.microsoft.com/en-us/windows/win32/direct3d12/subresources for more details
-    struct TextureSubResourceDesc
+    struct SamplerDesc
     {
-        void* data = nullptr;
-        size_t row = 0;
-        size_t slice = 0;
+        SamplerFilterType filtering = SamplerFilterType::MIN_LINEAR_MAG_LINEAR_MIP_LINEAR;
+        SamplerWrapMode wrap_u = SamplerWrapMode::CLAMP;
+        SamplerWrapMode wrap_v = SamplerWrapMode::CLAMP;
+        SamplerWrapMode wrap_w = SamplerWrapMode::CLAMP;
+        u32 binding_slot;
     };
 
     struct ResourceLayoutRangeDesc
     {
-        static constexpr u32 UNBOUNDED_COUNT = UINT32_MAX;
+        static constexpr u32 UNBOUNDED_COUNT = 4096;
         ResourceLayoutRangeUsage usage = ResourceLayoutRangeUsage::UNUSED;
         u32 count = 0;
+        u32 space = 0;
     };
 
     struct ResourceLayoutEntryDesc
@@ -283,6 +304,8 @@ namespace zec
         // Table, Constant or Constant Buffer
         ResourceLayoutEntryType type = ResourceLayoutEntryType::INVALID;
         ShaderVisibility visibility = ShaderVisibility::ALL;
+        u32 binding_slot = 0;
+        u32 binding_space = 0;
         ResourceLayoutRangeDesc ranges[16] = {};
     };
 
@@ -290,6 +313,41 @@ namespace zec
     {
         static constexpr u64 MAX_ENTRIES = 16;
         ResourceLayoutEntryDesc entries[MAX_ENTRIES] = {};
+        SamplerDesc static_samplers[8] = {};
+        u32 num_static_samplers = 0;
+    };
+
+    struct ResourceTableEntryDesc
+    {
+        ResourceLayoutRangeDesc ranges[32] = {};
+        ShaderVisibility visibility = ShaderVisibility::ALL;
+    };
+
+    struct ResourceLayoutConstantsDesc
+    {
+        ShaderVisibility visibility = ShaderVisibility::ALL;
+        u32 num_constants = 1;
+    };
+
+    struct ResourceLayoutEntryDescV2
+    {
+        // Table, Constant or Constant Buffer
+        ShaderVisibility visibility = ShaderVisibility::ALL;
+    };
+
+    struct ResourceLayoutDescV2
+    {
+        static constexpr u64 MAX_ENTRIES = 16;
+        ResourceLayoutConstantsDesc constants[MAX_ENTRIES] = {};
+        u32 num_constants;
+        ResourceLayoutEntryDescV2 constant_buffers[MAX_ENTRIES] = {};
+        u32 num_constant_buffers;
+        ResourceTableEntryDesc tables[MAX_ENTRIES] = {};
+        u32 num_resource_tables;
+        // TODO: Add regular sampler descriptors? Not just static samplers?
+
+        SamplerDesc static_samplers[4] = {};
+        u32 num_static_samplers = 0;
     };
 
     struct StencilFuncDesc

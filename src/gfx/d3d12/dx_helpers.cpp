@@ -288,5 +288,46 @@ namespace zec
 
             return desc;
         }
+
+        D3D12_FILTER to_d3d_filter(const SamplerFilterType filter)
+        {
+            switch (filter) {
+            case SamplerFilterType::MIN_POINT_MAG_POINT_MIP_POINT:
+                return D3D12_FILTER_MIN_MAG_MIP_POINT;
+            case SamplerFilterType::MIN_POINT_MAG_POINT_MIP_LINEAR:
+                return D3D12_FILTER_MIN_MAG_POINT_MIP_LINEAR;
+            case SamplerFilterType::MIN_POINT_MAG_LINEAR_MIP_POINT:
+                return D3D12_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT;
+            case SamplerFilterType::MIN_POINT_MAG_LINEAR_MIP_LINEAR:
+                return D3D12_FILTER_MIN_POINT_MAG_MIP_LINEAR;
+            case SamplerFilterType::MIN_LINEAR_MAG_POINT_MIP_POINT:
+                return D3D12_FILTER_MIN_LINEAR_MAG_MIP_POINT;
+            case SamplerFilterType::MIN_LINEAR_MAG_POINT_MIP_LINEAR:
+                return D3D12_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR;
+            case SamplerFilterType::MIN_LINEAR_MAG_LINEAR_MIP_POINT:
+                return D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+            case SamplerFilterType::MIN_LINEAR_MAG_LINEAR_MIP_LINEAR:
+                return D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+            case SamplerFilterType::ANISOTROPIC:
+            default:
+                return D3D12_FILTER_ANISOTROPIC;
+            }
+        }
+        D3D12_TEXTURE_ADDRESS_MODE to_d3d_address_mode(const SamplerWrapMode mode)
+        {
+            switch (mode) {
+            case SamplerWrapMode::WRAP:
+                return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            case SamplerWrapMode::MIRROR:
+                return D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
+            case SamplerWrapMode::CLAMP:
+                return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+            case SamplerWrapMode::BORDER:
+                return D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+            case SamplerWrapMode::MIRROR_ONCE:
+            default:
+                return D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE;
+            }
+        }
     }
 }

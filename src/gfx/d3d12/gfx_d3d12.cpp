@@ -5,8 +5,7 @@
 #include "dx_utils.h"
 #include "dx_helpers.h"
 #include "globals.h"
-#include <DDSTextureLoader.h>
-#include <WICTextureLoader.h>
+#include "DirectXTex/DirectXTex.h"
 
 #if _DEBUG
 #define USE_DEBUG_DEVICE 1
@@ -579,7 +578,8 @@ namespace zec
     TextureHandle create_texture(TextureDesc desc)
     {
         TextureHandle handle = g_textures.create_back();
-        g_textures[handle] = {
+        Texture& texture = g_textures[handle];
+        texture = {
             nullptr,
             nullptr,
             UINT32_MAX,
@@ -592,116 +592,159 @@ namespace zec
             to_d3d_format(desc.format),
             desc.is_cubemap
         };
+
+        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
+
+        D3D12_RESOURCE_DESC d3d_desc = {
+            .Dimension = desc.is_3d ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+            .Alignment = 0,
+            .Width = texture.width,
+            .Height = texture.height,
+            .DepthOrArraySize = desc.is_3d ? u16(texture.depth) : u16(texture.array_size),
+            .MipLevels = u16(desc.num_mips),
+            .Format = texture.format,
+            .SampleDesc = {
+                .Count = 1,
+                .Quality = 0,
+             },
+             .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
+             .Flags = flags
+        };
+
+        D3D12MA::ALLOCATION_DESC alloc_desc = {
+            .HeapType = D3D12_HEAP_TYPE_DEFAULT
+        };
+
+        DXCall(g_allocator->CreateResource(
+            &alloc_desc,
+            &d3d_desc,
+            D3D12_RESOURCE_STATE_COMMON,
+            nullptr,
+            &texture.allocation,
+            IID_PPV_ARGS(&texture.resource)
+        ));
+
+
+        if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
+
+            PersistentDescriptorAlloc srv_alloc = allocate_persistent_descriptor(g_srv_descriptor_heap);
+            texture.srv = srv_alloc.idx;
+
+            D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = { };
+
+            if (desc.is_cubemap) {
+                ASSERT(texture.array_size == 6);
+                srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+                srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+                srv_desc.TextureCube.MostDetailedMip = 0;
+                srv_desc.TextureCube.MipLevels = texture.num_mips;
+                srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
+            }
+
+            for (u32 i = 0; i < g_srv_descriptor_heap.num_heaps; ++i) {
+                g_device->CreateShaderResourceView(texture.resource, &srv_desc, srv_alloc.handles[i]);
+            }
+        }
+
         return handle;
     }
 
-    TextureHandle zec::load_texture_from_file(const char* file_path, const ResourceUsage usage)
+    TextureHandle zec::load_texture_from_file(const char* file_path)
     {
-        TextureHandle texture_handle = g_textures.create_back();
-        Texture& texture = g_textures[texture_handle];
         std::wstring path = ansi_to_wstring(file_path);
 
-        std::vector<D3D12_SUBRESOURCE_DATA> subresources{};
-        std::unique_ptr<u8[]> data = nullptr;
-        bool is_cube_map = false;
+        DirectX::ScratchImage image;
 
-        DXCall(DirectX::LoadDDSTextureFromFileEx(
-            g_device,
-            path.c_str(),
-            0,
-            D3D12_RESOURCE_FLAG_NONE,
-            DirectX::DDS_LOADER_DEFAULT,
-            &texture.resource,
-            data,
-            subresources,
-            nullptr,
-            &is_cube_map));
+        DXCall(DirectX::LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image));
+        const DirectX::TexMetadata meta_data = image.GetMetadata();
+        bool is_3d = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
 
-        TextureUploadDesc desc{
-            .data = data.get(),
-            .subresources = subresources.data(),
-            .num_subresources = subresources.size(),
-            .is_cube_map = is_cube_map
+        TextureHandle handle = g_textures.create_back();
+        Texture& texture = g_textures[handle];
+
+        texture = {
+            .resource = nullptr,
+            .allocation = nullptr,
+            .srv = UINT32_MAX,
+            .uav = {},
+            .width = u32(meta_data.width),
+            .height = u32(meta_data.height),
+            .depth = u32(meta_data.depth),
+            .num_mips = u32(meta_data.mipLevels),
+            .array_size = u32(meta_data.arraySize),
+            .format = meta_data.format,
+            .is_cubemap = u16(meta_data.IsCubemap())
         };
-        g_upload_manager.queue_upload(desc, texture.resource);
 
-        return texture_handle;
+        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
 
-        //TextureDesc texture_desc
-        //{
-        //    .width = u32(meta_data.width),
-        //        .height = u32(meta_data.height),
-        //        .depth = u32(meta_data.depth),
-        //        .num_mips = u32(meta_data.mipLevels),
-        //        .array_size = u32(meta_data.arraySize),
-        //        .is_cubemap = u32(meta_data.IsCubemap()),
-        //        .format = from_d3d_format(meta_data.format),
-        //        .usage = usage,
-        //};
+        D3D12_RESOURCE_DESC d3d_desc = {
+            .Dimension = is_3d ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+            .Alignment = 0,
+            .Width = texture.width,
+            .Height = texture.height,
+            .DepthOrArraySize = is_3d ? u16(texture.depth) : u16(texture.array_size),
+            .MipLevels = u16(meta_data.mipLevels),
+            .Format = texture.format,
+            .SampleDesc = {
+                .Count = 1,
+                .Quality = 0,
+             },
+             .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
+             .Flags = flags
+        };
 
-        //texture.format = meta_data.format;
+        D3D12MA::ALLOCATION_DESC alloc_desc = {
+            .HeapType = D3D12_HEAP_TYPE_DEFAULT
+        };
 
-        //const bool is3D = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
-        //D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
+        DXCall(g_allocator->CreateResource(
+            &alloc_desc,
+            &d3d_desc,
+            D3D12_RESOURCE_STATE_COMMON,
+            nullptr,
+            &texture.allocation,
+            IID_PPV_ARGS(&texture.resource)
+        ));
 
-        //if (usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
-        //    flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-        //}
+        PersistentDescriptorAlloc srv_alloc = allocate_persistent_descriptor(g_srv_descriptor_heap);
+        texture.srv = srv_alloc.idx;
 
-        //D3D12_RESOURCE_DESC texture_desc = {
-        //    .Dimension = is3D ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-        //    .Alignment = 0,
-        //    .Width = meta_data.width,
-        //    .Height = meta_data.height,
-        //    .DepthOrArraySize = is3D ? u16(meta_data.depth) : u16(meta_data.arraySize),
-        //    .MipLevels = meta_data.mipLevels,
-        //    .Format = meta_data.format,
-        //    .SampleDesc = {
-        //        .Count = 1,
-        //        .Quality = 0,
-        //     },
-        //     .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
-        //     .Flags = flags
-        //};
+        D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
+            .Format = texture.format,
+            .ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
+            .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            .Texture2D = {
+                .MostDetailedMip = 0,
+                .MipLevels = texture.num_mips,
+                .ResourceMinLODClamp = 0.0f,
+             },
+        };
 
-        //D3D12MA::ALLOCATION_DESC alloc_desc = {
-        //    .HeapType = D3D12_HEAP_TYPE_DEFAULT
-        //};
+        if (meta_data.IsCubemap()) {
+            ASSERT(texture.array_size == 6);
+            srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+            srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srv_desc.TextureCube.MostDetailedMip = 0;
+            srv_desc.TextureCube.MipLevels = texture.num_mips;
+            srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
+        }
 
-        //DXCall(g_allocator->CreateResource(
-        //    &alloc_desc,
-        //    &texture_desc,
-        //    D3D12_RESOURCE_STATE_COMMON,
-        //    nullptr,
-        //    &texture.allocation,
-        //    IID_PPV_ARGS(&texture.resource)
-        //));
-        //texture.resource->SetName(path.c_str());
+        for (u32 i = 0; i < g_srv_descriptor_heap.num_heaps; ++i) {
+            g_device->CreateShaderResourceView(texture.resource, &srv_desc, srv_alloc.handles[i]);
+        }
 
-        //if (usage & RESOURCE_USAGE_SHADER_READABLE) {
+        texture.resource->SetName(path.c_str());
 
-        //    PersistentDescriptorAlloc srv_alloc = allocate_persistent_descriptor(g_srv_descriptor_heap);
-        //    texture.srv = srv_alloc.idx;
+        TextureUploadDesc texture_upload_desc{
+            .data = &image,
+            .d3d_texture_desc = d3d_desc,
+            .num_subresources = meta_data.mipLevels * meta_data.arraySize,
+            .is_cube_map = meta_data.IsCubemap(),
+        };
+        g_upload_manager.queue_upload(texture_upload_desc, texture);
 
-        //    D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = { };
-
-        //    if (meta_data.IsCubemap()) {
-        //        ASSERT(meta_data.arraySize == 6);
-        //        srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-        //        srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        //        srv_desc.TextureCube.MostDetailedMip = 0;
-        //        srv_desc.TextureCube.MipLevels = meta_data.mipLevels;
-        //        srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
-        //    }
-
-        //    for (u32 i = 0; i < g_srv_descriptor_heap.num_heaps; ++i) {
-        //        g_device->CreateShaderResourceView(texture.resource, &srv_desc, srv_alloc.handles[i]);
-        //    }
-        //}
-
-        //g_upload_manager.queue_upload()
-
-        //    return texture_handle;
+        return handle;
     }
 
     void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size)
@@ -731,11 +774,11 @@ namespace zec
             parameter.ShaderVisibility = to_d3d_visibility(entry.visibility);
             if (entry.type == ResourceLayoutEntryType::CONSTANT_BUFFER) {
                 parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-                parameter.Descriptor = D3D12_ROOT_DESCRIPTOR{ cbv_count++ };
+                parameter.Descriptor = D3D12_ROOT_DESCRIPTOR{ entry.binding_slot, entry.binding_space };
             }
             else if (entry.type == ResourceLayoutEntryType::CONSTANT) {
                 parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-                parameter.Constants = D3D12_ROOT_CONSTANTS{ 1, cbv_count++ };
+                parameter.Constants = D3D12_ROOT_CONSTANTS{ entry.binding_slot, entry.binding_space, 1 };
             }
             else if (entry.type == ResourceLayoutEntryType::TABLE) {
                 D3D12_ROOT_DESCRIPTOR_TABLE table = {};
@@ -749,7 +792,7 @@ namespace zec
                     d3d_ranges[0].BaseShaderRegister = 0;
                     d3d_ranges[0].NumDescriptors = unbounded_table_size;
                     d3d_ranges[0].RangeType = entry.ranges[0].usage == ResourceLayoutRangeUsage::READ ? D3D12_DESCRIPTOR_RANGE_TYPE_SRV : D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-                    d3d_ranges[0].RegisterSpace = unbounded_table_count++;
+                    d3d_ranges[0].RegisterSpace = entry.binding_space;
 
                     table.pDescriptorRanges = d3d_ranges;
                     table.NumDescriptorRanges = 1;
@@ -770,8 +813,10 @@ namespace zec
                         d3d_ranges[range_idx] = CD3DX12_DESCRIPTOR_RANGE(
                             D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
                             range.count,
-                            srv_count
+                            srv_count,
+                            entry.binding_space
                         );
+
                         srv_count += range.count;
                     }
                     else {
@@ -791,9 +836,26 @@ namespace zec
             }
         }
 
+        D3D12_STATIC_SAMPLER_DESC static_sampler_descs[ARRAY_SIZE(desc.static_samplers)] = { };
+
+        for (size_t i = 0; i < desc.num_static_samplers; i++) {
+            const auto& sampler_desc = desc.static_samplers[i];
+            D3D12_STATIC_SAMPLER_DESC& d3d_sampler_desc = static_sampler_descs[i];
+            d3d_sampler_desc.Filter = dx12::to_d3d_filter(sampler_desc.filtering);
+            d3d_sampler_desc.AddressU = dx12::to_d3d_address_mode(sampler_desc.wrap_u);
+            d3d_sampler_desc.AddressV = dx12::to_d3d_address_mode(sampler_desc.wrap_v);
+            d3d_sampler_desc.AddressW = dx12::to_d3d_address_mode(sampler_desc.wrap_w);
+            d3d_sampler_desc.MipLODBias = 0.0f;
+            d3d_sampler_desc.MaxAnisotropy = D3D12_MAX_MAXANISOTROPY;
+            d3d_sampler_desc.MinLOD = 0.0f;
+            d3d_sampler_desc.MaxLOD = D3D12_FLOAT32_MAX;
+            d3d_sampler_desc.ShaderRegister = sampler_desc.binding_slot;
+            d3d_sampler_desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        }
+
         root_signature_desc.pParameters = root_parameters;
-        root_signature_desc.NumStaticSamplers = 0; // TODO: Handle samplers lol
-        root_signature_desc.pStaticSamplers = nullptr;
+        root_signature_desc.NumStaticSamplers = desc.num_static_samplers;
+        root_signature_desc.pStaticSamplers = static_sampler_descs;
         root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
         ID3D12RootSignature* root_signature = nullptr;
@@ -813,6 +875,138 @@ namespace zec
         return g_root_signatures.push_back(root_signature);
     }
 
+    ResourceLayoutHandle create_resource_layout(const ResourceLayoutDescV2& desc)
+    {
+
+        constexpr u64 MAX_DWORDS_IN_RS = 64;
+        ASSERT(desc.num_constants < MAX_DWORDS_IN_RS);
+        ASSERT(desc.num_constant_buffers < MAX_DWORDS_IN_RS / 2);
+        ASSERT(desc.num_resource_tables < MAX_DWORDS_IN_RS);
+
+        ASSERT(desc.num_constants < ARRAY_SIZE(desc.constants));
+        ASSERT(desc.num_constant_buffers < ARRAY_SIZE(desc.constant_buffers));
+        ASSERT(desc.num_resource_tables < ARRAY_SIZE(desc.tables));
+
+        i8 remaining_dwords = i8(MAX_DWORDS_IN_RS);
+        D3D12_ROOT_SIGNATURE_DESC root_signature_desc{};
+        // In reality, inline descriptors use up 2 DWORDs so the limit is actually lower;
+        D3D12_ROOT_PARAMETER root_parameters[MAX_DWORDS_IN_RS];
+
+        u64 parameter_count = 0;
+        for (u32 i = 0; i < desc.num_constants; i++) {
+            D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_count];
+            parameter.ShaderVisibility = to_d3d_visibility(desc.constants[i].visibility);
+            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+            parameter.Constants = {
+                .ShaderRegister = i,
+                .RegisterSpace = 0,
+                .Num32BitValues = desc.constants[i].num_constants,
+            };
+            remaining_dwords -= 2;
+            parameter_count++;
+        }
+
+        for (u32 i = 0; i < desc.num_constant_buffers; i++) {
+            D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_count];
+            parameter.ShaderVisibility = to_d3d_visibility(desc.constant_buffers[i].visibility);
+            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+            parameter.Descriptor = {
+                .ShaderRegister = desc.num_constants + i, // Since the constants will immediately precede these
+                .RegisterSpace = 0,
+            };
+            remaining_dwords--;
+            parameter_count++;
+        }
+
+        for (u32 i = 0; i < desc.num_resource_tables; i++) {
+            D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_count];
+            parameter.ShaderVisibility = to_d3d_visibility(desc.tables[i].visibility);
+            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+            parameter.DescriptorTable = {};
+
+            constexpr u64 num_ranges = ARRAY_SIZE(desc.tables[i].ranges);
+            D3D12_DESCRIPTOR_RANGE d3d_ranges[num_ranges] = { };
+            parameter.DescriptorTable.pDescriptorRanges = d3d_ranges;
+
+            u32 srv_count = 0;
+            u32 uav_count = 0;
+            for (size_t range_idx = 0; range_idx < num_ranges; range_idx++) {
+                const ResourceLayoutRangeDesc& range_desc = desc.tables[i].ranges[range_idx];
+                if (range_desc.usage == ResourceLayoutRangeUsage::UNUSED) {
+                    parameter.DescriptorTable.NumDescriptorRanges = range_idx;
+                    break;
+                }
+                bool is_srv_range = range_desc.usage == ResourceLayoutRangeUsage::READ;
+                auto range_type = (is_srv_range) ? D3D12_DESCRIPTOR_RANGE_TYPE_SRV : D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+                u32 base_shader_register = is_srv_range ? srv_count : uav_count;
+                d3d_ranges[range_idx] = {
+                    .RangeType = range_type,
+                    .NumDescriptors = range_desc.count,
+                    .BaseShaderRegister = base_shader_register,
+                    // Every table gets placed in its own space... not sure this is a good idea? But let's keep it simple for now.
+                    // In the future we might want to consider putting all unbounded tables in the zero-th space? but that's complicated
+                    .RegisterSpace = i + 1,
+                    .OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND,
+                };
+
+                if (is_srv_range) {
+                    srv_count += range_desc.count;
+                }
+                else {
+                    uav_count += range_desc.count;
+                }
+            }
+
+            remaining_dwords--;
+            parameter_count++;
+        }
+
+        ASSERT(remaining_dwords > 0);
+        D3D12_STATIC_SAMPLER_DESC static_sampler_descs[ARRAY_SIZE(desc.static_samplers)] = { };
+
+        for (size_t i = 0; i < desc.num_static_samplers; i++) {
+            const auto& sampler_desc = desc.static_samplers[i];
+            D3D12_STATIC_SAMPLER_DESC& d3d_sampler_desc = static_sampler_descs[i];
+            d3d_sampler_desc.Filter = dx12::to_d3d_filter(sampler_desc.filtering);
+            d3d_sampler_desc.AddressU = dx12::to_d3d_address_mode(sampler_desc.wrap_u);
+            d3d_sampler_desc.AddressV = dx12::to_d3d_address_mode(sampler_desc.wrap_v);
+            d3d_sampler_desc.AddressW = dx12::to_d3d_address_mode(sampler_desc.wrap_w);
+            d3d_sampler_desc.MipLODBias = 0.0f;
+            d3d_sampler_desc.MaxAnisotropy = D3D12_MAX_MAXANISOTROPY;
+            d3d_sampler_desc.MinLOD = 0.0f;
+            d3d_sampler_desc.MaxLOD = D3D12_FLOAT32_MAX;
+            d3d_sampler_desc.ShaderRegister = sampler_desc.binding_slot;
+            d3d_sampler_desc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        }
+
+        root_signature_desc.pParameters = root_parameters;
+        root_signature_desc.NumParameters = desc.num_constants + desc.num_constant_buffers + desc.num_resource_tables;
+        root_signature_desc.NumStaticSamplers = desc.num_static_samplers;
+        root_signature_desc.pStaticSamplers = static_sampler_descs;
+        root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+        ID3D12RootSignature* root_signature = nullptr;
+
+        ID3DBlob* signature;
+        ID3DBlob* error;
+        DXCall(D3D12SerializeRootSignature(&root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
+        DXCall(g_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root_signature)));
+
+        if (error != nullptr) {
+            print_blob(error);
+            error->Release();
+            throw std::runtime_error("Failed to create root signature");
+        }
+        signature != nullptr && signature->Release();
+
+        return g_root_signatures.push_back(root_signature);
+    }
+
+    u32 get_shader_readable_texture_index(const TextureHandle handle)
+    {
+        return g_textures[handle].srv;
+    }
+
     void set_active_resource_layout(const ResourceLayoutHandle resource_layout_id)
     {
         ID3D12RootSignature* root_signature = g_root_signatures[resource_layout_id];
@@ -823,6 +1017,14 @@ namespace zec
     {
         ID3D12PipelineState* pso = g_pipelines[pso_handle];
         g_cmd_list->SetPipelineState(pso);
+    }
+
+    void bind_resource_table(const u32 resource_layout_entry_idx)
+    {
+        ID3D12DescriptorHeap* ppHeaps[] = { g_srv_descriptor_heap.heaps[g_srv_descriptor_heap.heap_idx] };
+        g_cmd_list->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+        D3D12_GPU_DESCRIPTOR_HANDLE handle = g_srv_descriptor_heap.gpu_start[g_srv_descriptor_heap.heap_idx];
+        g_cmd_list->SetGraphicsRootDescriptorTable(resource_layout_entry_idx, handle);
     }
 
     void bind_constant_buffer(const BufferHandle& buffer_handle, u32 binding_slot)

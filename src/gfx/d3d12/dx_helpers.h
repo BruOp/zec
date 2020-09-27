@@ -37,6 +37,10 @@ namespace zec
 
         D3D12_DEPTH_STENCIL_DESC to_d3d_depth_stencil_desc(const DepthStencilDesc& depthDesc);
 
+        D3D12_FILTER to_d3d_filter(const SamplerFilterType filter);
+
+        D3D12_TEXTURE_ADDRESS_MODE to_d3d_address_mode(const SamplerWrapMode mode);
+
         template <typename T, typename ResourceHandle>
         class DXPtrArray
         {

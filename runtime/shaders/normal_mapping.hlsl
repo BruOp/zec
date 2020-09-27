@@ -10,9 +10,15 @@
 //*********************************************************
 #pragma pack_matrix( row_major )
 
-Texture2D tex2D_table[] : register(t0);
+cbuffer draw_constants_buffer : register(b0)
+{
+    float4x4 model;
+    float4x4 inv_model;
+    uint albedo_texture_idx;
+    uint normal_texture_idx;
+};
 
-cbuffer view_constants_buffer : register(b0)
+cbuffer view_constants_buffer : register(b1)
 {
     float4x4 view;
     float4x4 proj;
@@ -21,13 +27,9 @@ cbuffer view_constants_buffer : register(b0)
     float time;
 };
 
-cbuffer draw_constants_buffer : register(b1)
-{
-    float4x4 model;
-    float4x4 inv_model;
-};
+SamplerState default_sampler : register(s0);
 
-
+Texture2D tex2D_table[4096] : register(t0, space1);
 
 struct PSInput
 {
@@ -51,5 +53,7 @@ PSInput VSMain(float3 position : POSITION, float3 normal : NORMAL, float2 uv : T
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    return float4(input.position_ws.xyz, 1.0);
+    Texture2D albedo_texture = tex2D_table[albedo_texture_idx];
+    float4 color = albedo_texture.Sample(default_sampler, input.uv);
+    return float4(color.rgb, 1.0);
 }

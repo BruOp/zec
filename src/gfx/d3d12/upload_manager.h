@@ -5,6 +5,11 @@
 #include "wrappers.h"
 #include "resource_managers.h"
 
+namespace DirectX
+{
+    class ScratchImage;
+}
+
 namespace zec
 {
     namespace dx12
@@ -19,10 +24,10 @@ namespace zec
 
         struct TextureUploadDesc
         {
-            u8* data;
-            D3D12_SUBRESOURCE_DATA* subresources;
-            u64 num_subresources;
-            bool is_cube_map;
+            DirectX::ScratchImage* data = nullptr;
+            D3D12_RESOURCE_DESC d3d_texture_desc = {};
+            u64 num_subresources = 0;
+            bool is_cube_map = false;
         };
 
         class UploadManager
@@ -47,7 +52,7 @@ namespace zec
             void end_upload();
 
             void queue_upload(const BufferDesc& buffer_desc, ID3D12Resource* destination_resource);
-            void queue_upload(const TextureUploadDesc& texture_upload_desc, ID3D12Resource* destination_resource);
+            void queue_upload(const TextureUploadDesc& texture_upload_desc, Texture& texture);
 
             Fence fence = { };
             u64 current_fence_value = 0;

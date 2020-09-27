@@ -21,10 +21,14 @@ namespace zec
     MeshHandle create_mesh(MeshDesc mesh_desc);
     TextureHandle create_texture(TextureDesc texture_desc);
     ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
+    ResourceLayoutHandle create_resource_layout(const ResourceLayoutDescV2& desc);
     PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
 
+    // Resource Queries
+    u32 get_shader_readable_texture_index(const TextureHandle handle);
+
     // Resource loading
-    TextureHandle load_texture_from_file(const char* file_path, const ResourceUsage usage);
+    TextureHandle load_texture_from_file(const char* file_path);
 
     // Resource updates
     void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size);
@@ -32,6 +36,8 @@ namespace zec
     // Resource Binding
     void set_active_resource_layout(const ResourceLayoutHandle resource_layout_id);
     void set_pipeline_state(const PipelineStateHandle pso_handle);
+
+    void bind_resource_table(const u32 resource_layout_entry_idx);
     void bind_constant_buffer(const BufferHandle& buffer_handle, u32 binding_slot);
 
     void draw_mesh(const MeshHandle mesh_id);

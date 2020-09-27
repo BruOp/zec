@@ -27,7 +27,7 @@ function exampleProject(...)
 
     defines {
       "_SECURE_SCL=0",
-      -- "_ITERATOR_DEBUG_LEVEL=0"
+      "_ITERATOR_DEBUG_LEVEL=0",
     }
 
     links {

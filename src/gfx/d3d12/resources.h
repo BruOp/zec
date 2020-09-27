@@ -11,11 +11,13 @@ namespace zec
         constexpr size_t VERTEX_BUFFER_ALIGNMENT = 4;
         constexpr size_t INDEX_BUFFER_ALIGNMENT = 4;
 
+        constexpr u32 INVALID_SRV = UINT32_MAX;
+
         struct Texture
         {
             ID3D12Resource* resource = nullptr;
             D3D12MA::Allocation* allocation = nullptr;
-            u32 srv = UINT32_MAX;
+            u32 srv = INVALID_SRV;
             D3D12_CPU_DESCRIPTOR_HANDLE uav = {};
             u32 width = 0;
             u32 height = 0;

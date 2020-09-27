@@ -38,7 +38,6 @@ namespace zec
                 strcpy(target, "cs_5_1");
             }
 
-
             HRESULT result = D3DCompileFromFile(file_name, nullptr, nullptr, entry, target, compile_flags, 0, &blob, &error);
             if (error) {
                 const char* error_string = (char*)error->GetBufferPointer();

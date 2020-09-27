@@ -22,7 +22,9 @@ struct DrawConstantData
 {
     mat4 model;
     mat4 inv_model;
-    float padding[32];
+    u32 albedo_map_idx;
+    u32 normal_map_idx;
+    float padding[30];
 };
 
 static_assert(sizeof(DrawConstantData) == 256);
@@ -57,18 +59,33 @@ protected:
         camera_controller.radius = 2.0f;
         // Create a root signature consisting of a descriptor table with a single CBV.
         {
-            ResourceLayoutDesc layout_desc{ {
-                {
-                    ResourceLayoutEntryType::TABLE,
-                    ShaderVisibility::PIXEL,
+            constexpr u32 num_textures = 1024;
+            ResourceLayoutDescV2 layout_desc{
+                .num_constants = 0,
+                .constant_buffers = {
+                    { ShaderVisibility::ALL },
+                    { ShaderVisibility::VERTEX },
+                },
+                .num_constant_buffers = 2,
+                .tables = {
                     {
-                        {.usage = ResourceLayoutRangeUsage::READ, .count = ResourceLayoutRangeDesc::UNBOUNDED_COUNT }
+                        .ranges = {
+                            {.usage = ResourceLayoutRangeUsage::READ, .count = ResourceLayoutRangeDesc::UNBOUNDED_COUNT },
+                        },
+                        .visibility = ShaderVisibility::PIXEL,
                     }
                 },
-                { ResourceLayoutEntryType::CONSTANT_BUFFER, ShaderVisibility::VERTEX },
-                { ResourceLayoutEntryType::CONSTANT_BUFFER, ShaderVisibility::VERTEX },
-                // Our texture descriptors 
-            } };
+                .num_resource_tables = 1,
+                .static_samplers = {
+                    {
+                        .filtering = SamplerFilterType::ANISOTROPIC,
+                        .wrap_u = SamplerWrapMode::WRAP,
+                        .wrap_v = SamplerWrapMode::WRAP,
+                        .binding_slot = 0,
+                    },
+                },
+                .num_static_samplers = 1,
+            };
 
             resource_layout = create_resource_layout(layout_desc);
         }
@@ -78,8 +95,8 @@ protected:
             PipelineStateObjectDesc pipeline_desc = {};
             pipeline_desc.input_assembly_desc = { {
                 { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
-                { MESH_ATTRIBUTE_NORMAL, 0, BufferFormat::UNORM8_4, 1 },
-                { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::UNORM8_4, 2 },
+                { MESH_ATTRIBUTE_NORMAL, 0, BufferFormat::FLOAT_3, 1 },
+                { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::FLOAT_2, 2 },
             } };
             pipeline_desc.shader_file_path = L"shaders/normal_mapping.hlsl";
             pipeline_desc.rtv_formats[0] = BufferFormat::R8G8B8A8_UNORM_SRGB;
@@ -95,44 +112,59 @@ protected:
 
         // Create the vertex buffer.
         {
-            // Define the geometry for a triangle.
-
+            // Define the geometry for a cube.
             constexpr float cube_positions[] = {
-                -0.5f,  0.5f, -0.5f, // +Y (top face)
-                 0.5f,  0.5f, -0.5f,
-                 0.5f,  0.5f,  0.5f,
+                 0.5f,  0.5f,  0.5f, // +Y (Top face)
                 -0.5f,  0.5f,  0.5f,
-                -0.5f, -0.5f,  0.5f,  // -Y (bottom face)
+                -0.5f,  0.5f, -0.5f,
+                 0.5f,  0.5f, -0.5f,
+                 0.5f,  0.5f,  0.5f, // +X (Right face)
+                 0.5f,  0.5f, -0.5f,
+                 0.5f, -0.5f, -0.5f,
+                 0.5f, -0.5f,  0.5f,
+                -0.5f,  0.5f, -0.5f, // -X (Left face)
+                -0.5f,  0.5f,  0.5f,
+                -0.5f, -0.5f,  0.5f,
+                -0.5f, -0.5f, -0.5f,
+                 0.5f,  0.5f, -0.5f, // -Z (Back face)
+                -0.5f,  0.5f, -0.5f,
+                -0.5f, -0.5f, -0.5f,
+                 0.5f, -0.5f, -0.5f,
+                -0.5f,  0.5f,  0.5f, // +Z (Front face)
+                 0.5f,  0.5f,  0.5f,
+                 0.5f, -0.5f,  0.5f,
+                -0.5f, -0.5f,  0.5f,
+                -0.5f, -0.5f,  0.5f, // -Y (Bottom face)
                  0.5f, -0.5f,  0.5f,
                  0.5f, -0.5f, -0.5f,
                 -0.5f, -0.5f, -0.5f,
             };
 
             constexpr float cube_normals[] = {
-                0.0f, 1.0f, 0.0f, // +Y (Top face)
-                0.0f, 1.0f, 0.0f,
-                0.0f, 1.0f, 0.0f,
-                0.0f, 1.0f, 0.0f,
-                1.0f, 0.0f, 0.0f, // +X (Right face)
-                1.0f, 0.0f, 0.0f,
-                1.0f, 0.0f, 0.0f,
-                1.0f, 0.0f, 0.0f,
-                -1.0f, 0.0f, 0.0f, // -X (Left face)
-                -1.0f, 0.0f, 0.0f,
-                -1.0f, 0.0f, 0.0f,
-                -1.0f, 0.0f, 0.0f,
-                0.0f, 0.0f, -1.0f, // -Z (Back face)
-                0.0f, 0.0f, -1.0f,
-                0.0f, 0.0f, -1.0f,
-                0.0f, 0.0f, -1.0f,
-                0.0f, 0.0f, 1.0f, // +Z (Front face)
-                0.0f, 0.0f, 1.0f,
-                0.0f, 0.0f, 1.0f,
-                0.0f, 0.0f, 1.0f,
-                0.0f, -1.0f, 0.0f, // -Y (Bottom face)
-                0.0f, -1.0f, 0.0f,
-                0.0f, -1.0f, 0.0f,
-                0.0f, -1.0f, 0.0f,
+                 0.0f,  1.0f,  0.0f, // +Y (Top face)
+                 0.0f,  1.0f,  0.0f,
+                 0.0f,  1.0f,  0.0f,
+                 0.0f,  1.0f,  0.0f,
+                 1.0f,  0.0f,  0.0f, // +X (Right face)
+                 1.0f,  0.0f,  0.0f,
+                 1.0f,  0.0f,  0.0f,
+                 1.0f,  0.0f,  0.0f,
+                -1.0f,  0.0f,  0.0f, // -X (Left face)
+                -1.0f,  0.0f,  0.0f,
+                -1.0f,  0.0f,  0.0f,
+                -1.0f,  0.0f,  0.0f,
+                 0.0f,  0.0f, -1.0f, // -Z (Back face)
+                 0.0f,  0.0f, -1.0f,
+                 0.0f,  0.0f, -1.0f,
+                 0.0f,  0.0f, -1.0f,
+                 0.0f,  0.0f,  1.0f, // +Z (Front face)
+                 0.0f,  0.0f,  1.0f,
+                 0.0f,  0.0f,  1.0f,
+                 0.0f,  0.0f,  1.0f,
+                 0.0f, -1.0f,  0.0f, // -Y (Bottom face)
+                 0.0f, -1.0f,  0.0f,
+                 0.0f, -1.0f,  0.0f,
+                 0.0f, -1.0f,  0.0f,
             };
 
             constexpr float cube_uvs[] = {
@@ -162,19 +194,19 @@ protected:
                 0.0f, 1.0f,
             };
 
-            constexpr u16 cube_indices[] = {
-                2, 1, 0,
-                3, 2, 0,
-                5, 1, 2,
-                5, 6, 1,
-                4, 3, 0,
-                7, 4, 0,
-                1, 7, 0,
-                6, 7, 1,
-                4, 2, 3,
-                4, 5, 2,
-                7, 5, 4,
-                7, 6, 5
+            constexpr uint16_t cube_indices[] = {
+                 0,  2,  1, // Top
+                 3,  2,  0,
+                 4,  6,  5, // Right
+                 7,  6,  4,
+                 8, 10,  9, // Left
+                11, 10,  8,
+                12, 14, 13, // Back
+                15, 14, 12,
+                16, 18, 17, // Front
+                19, 18, 16,
+                20, 22, 21, // Bottom
+                23, 22, 20,
             };
 
             MeshDesc mesh_desc{};
@@ -211,8 +243,8 @@ protected:
 
         // Texture creation
         {
-            albedo_map = load_texture_from_file("textures/stone01.dds", RESOURCE_USAGE_SHADER_READABLE);
-            normal_map = load_texture_from_file("textures/bump01.dds", RESOURCE_USAGE_SHADER_READABLE);
+            albedo_map = load_texture_from_file("textures/stone01.dds");
+            normal_map = load_texture_from_file("textures/bump01.dds");
         }
 
         end_upload();
@@ -256,6 +288,9 @@ protected:
 
         draw_constant_data.model = identity_mat4();
         draw_constant_data.inv_model = identity_mat4();
+        // TODO: Actually grab the relevant descriptors?
+        draw_constant_data.albedo_map_idx = get_shader_readable_texture_index(albedo_map);
+        draw_constant_data.normal_map_idx = get_shader_readable_texture_index(normal_map);
         update_buffer(draw_cb_handle, &draw_constant_data, sizeof(draw_constant_data));
     }
 
@@ -269,8 +304,9 @@ protected:
 
         set_active_resource_layout(resource_layout);
         set_pipeline_state(pso_handle);
+        bind_resource_table(2);
+        bind_constant_buffer(draw_cb_handle, 0);
         bind_constant_buffer(view_cb_handle, 1);
-        bind_constant_buffer(draw_cb_handle, 2);
         set_viewports(&viewport, 1);
         set_scissors(&scissor, 1);
 
