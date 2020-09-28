@@ -11,14 +11,18 @@ namespace zec
         constexpr size_t VERTEX_BUFFER_ALIGNMENT = 4;
         constexpr size_t INDEX_BUFFER_ALIGNMENT = 4;
 
-        constexpr u32 INVALID_SRV = UINT32_MAX;
-
         struct Texture
         {
             ID3D12Resource* resource = nullptr;
             D3D12MA::Allocation* allocation = nullptr;
             u32 srv = INVALID_SRV;
-            D3D12_CPU_DESCRIPTOR_HANDLE uav = {};
+            D3D12_CPU_DESCRIPTOR_HANDLE uav = INVALID_CPU_HANDLE;
+            TextureInfo info = {};
+            RenderTargetInfo render_target_info = {};
+        };
+
+        struct TextureInfo
+        {
             u32 width = 0;
             u32 height = 0;
             u32 depth = 0;
@@ -28,12 +32,11 @@ namespace zec
             u32 is_cubemap = 0;
         };
 
-        struct RenderTarget : public Texture
+        struct RenderTargetInfo
         {
-            D3D12_CPU_DESCRIPTOR_HANDLE rtv = {};
-
-            u32 mssa_samples = 0;
-            u32 msaa_quality = 0;
+            D3D12_CPU_DESCRIPTOR_HANDLE rtv = INVALID_CPU_HANDLE;
+            u8 mssa_samples = 0;
+            u8 msaa_quality = 0;
         };
 
         struct Buffer

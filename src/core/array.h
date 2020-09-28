@@ -67,6 +67,14 @@ namespace zec
             return size++;
         };
 
+        void insert_grow(size_t idx, const T& value)
+        {
+            if (idx > capacity - 1) {
+                grow(idx + 1);
+            }
+            memory::copy((void*)&data[idx], (void*)&value, sizeof(T));
+        }
+
         size_t grow(size_t additional_slots)
         {
             if (additional_slots + size > capacity) {
@@ -79,6 +87,7 @@ namespace zec
         size_t reserve(size_t new_capacity)
         {
             ASSERT_MSG(new_capacity > capacity, "Array can only grow at the moment!");
+
             const SysInfo& sys_info = get_sys_info();
             void* currentEnd = (void*)(data + capacity);
             size_t additional_memory_required = (new_capacity - capacity) * sizeof(T);
@@ -97,6 +106,16 @@ namespace zec
         {
             memset((void*)data, 0, size * sizeof(T));
             size = 0;
+        }
+
+        size_t find_index(const T value_to_compare, const size_t starting_idx = 0)
+        {
+            for (size_t i = starting_idx; i < size; i++) {
+                if (data[i] == value_to_compare) {
+                    return i;
+                }
+            }
+            return UINT64_MAX;
         }
     };
 

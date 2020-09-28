@@ -24,11 +24,6 @@ namespace zec
 
     namespace dx12
     {
-        RenderTarget& get_current_back_buffer()
-        {
-            return g_render_targets.get_backbuffer(g_current_frame_idx);
-        };
-
         static void set_formats(SwapChain& swap_chain, const DXGI_FORMAT format)
         {
             swap_chain.format = format;
@@ -64,38 +59,41 @@ namespace zec
             g_swap_chain.refresh_rate = closest_match.RefreshRate;
         }
 
-        void store_back_buffers(SwapChain& swap_chain)
-        {
-            for (size_t i = 0; i < NUM_BACK_BUFFERS; i++) {
-                g_render_targets.set_backbuffer(g_swap_chain.back_buffers[i], i);
-            }
-        }
-
         void recreate_swap_chain_rtv_descriptors(SwapChain& swap_chain)
         {
             // Re-create an RTV for each back buffer
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
                 // RTV Descriptor heap only has one heap -> only one handle is issued
                 ASSERT(g_rtv_descriptor_heap.num_heaps == 1);
-                swap_chain.back_buffers[i].rtv = allocate_persistent_descriptor(g_rtv_descriptor_heap).handles[0];
-                DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&swap_chain.back_buffers[i].resource)));
+                TextureHandle texture_handle = swap_chain.back_buffers[i];
+                RenderTargetInfo& rt_info = get_render_target_info(g_textures, texture_handle);
+
+                rt_info.rtv = allocate_persistent_descriptor(g_rtv_descriptor_heap).handles[0];
+                ID3D12Resource* resource = get_resource(g_textures, texture_handle);
+                if (resource != nullptr) dx_destroy(&resource);
+
+                DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&resource)));
+                set_resource(g_textures, resource, texture_handle);
 
                 D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = { };
                 rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
                 rtvDesc.Format = swap_chain.format;
                 rtvDesc.Texture2D.MipSlice = 0;
                 rtvDesc.Texture2D.PlaneSlice = 0;
-                g_device->CreateRenderTargetView(swap_chain.back_buffers[i].resource, &rtvDesc, swap_chain.back_buffers[i].rtv);
+                g_device->CreateRenderTargetView(resource, &rtvDesc, rt_info.rtv);
+                // TODO: Store MSAA info?
 
-                swap_chain.back_buffers[i].resource->SetName(make_string(L"Back Buffer %llu", i).c_str());
+                resource->SetName(make_string(L"Back Buffer %llu", i).c_str());
 
                 // Copy properties from swap chain to backbuffer textures, in case we need em
-                swap_chain.back_buffers[i].width = swap_chain.width;
-                swap_chain.back_buffers[i].height = swap_chain.height;
-                swap_chain.back_buffers[i].depth = 1;
-                swap_chain.back_buffers[i].array_size = 1;
-                swap_chain.back_buffers[i].format = swap_chain.format;
-                swap_chain.back_buffers[i].num_mips = 1;
+                TextureInfo& texture_info = get_texture_info(g_textures, texture_handle);
+                texture_info.width = swap_chain.width;
+                texture_info.height = swap_chain.height;
+                texture_info.depth = 1;
+                texture_info.array_size = 1;
+                texture_info.format = swap_chain.format;
+                texture_info.num_mips = 1;
+
 
             }
             swap_chain.back_buffer_idx = swap_chain.swap_chain->GetCurrentBackBufferIndex();
@@ -110,8 +108,11 @@ namespace zec
             }
 
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
-                g_swap_chain.back_buffers[i].resource->Release();
-                free_persistent_alloc(g_rtv_descriptor_heap, g_swap_chain.back_buffers[i].rtv);
+                TextureHandle texture_handle = g_swap_chain.back_buffers[i];
+                get_resource(g_textures, texture_handle)->Release();
+                auto& rt_info = get_render_target_info(g_textures, texture_handle);
+                free_persistent_alloc(g_rtv_descriptor_heap, rt_info.rtv);
+                rt_info = {};
             }
 
             set_formats(g_swap_chain, g_swap_chain.format);
@@ -149,13 +150,12 @@ namespace zec
             }
 
             recreate_swap_chain_rtv_descriptors(g_swap_chain);
-            store_back_buffers(g_swap_chain);
         }
 
         void reset()
         {
             reset_swap_chain();
-            g_destruction_queue.process_queue();
+            process_destruction_queue(g_destruction_queue);
         }
     }
 
@@ -324,6 +324,10 @@ namespace zec
         {
             ASSERT(g_swap_chain.swap_chain == nullptr);
 
+            for (size_t i = 0; i < NUM_BACK_BUFFERS; i++) {
+                g_swap_chain.back_buffers[i] = push_back(g_textures, Texture{});
+            }
+
             SwapChainDesc swap_chain_desc{ };
             swap_chain_desc.width = renderer_desc.width;
             swap_chain_desc.height = renderer_desc.height;
@@ -364,16 +368,14 @@ namespace zec
             g_swap_chain.waitable_object = g_swap_chain.swap_chain->GetFrameLatencyWaitableObject();
 
             recreate_swap_chain_rtv_descriptors(g_swap_chain);
-            store_back_buffers(g_swap_chain);
         }
-        g_fence_manager.init(g_device, &g_destruction_queue);
-        g_frame_fence = g_fence_manager.create_fence(0);
+        g_frame_fence = create_fence(g_fences, 0);
 
         g_upload_manager.init({
             g_device,
             g_allocator,
             g_copy_queue,
-            &g_fence_manager });
+            &g_fences });
     }
 
     void destroy_renderer()
@@ -382,16 +384,7 @@ namespace zec
         wait(g_frame_fence, g_current_cpu_frame);
 
         // Swap Chain Destruction
-        {
-            for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
-                // Do not need to destroy the resource ourselves, since it's managed by the swap chain (??)
-                g_swap_chain.back_buffers[i].resource->Release();
-                free_persistent_alloc(g_rtv_descriptor_heap, g_swap_chain.back_buffers[i].rtv);
-            }
-
-            g_swap_chain.swap_chain->Release();
-            g_swap_chain.output->Release();
-        }
+        destroy(g_destruction_queue, g_textures, g_rtv_descriptor_heap, g_swap_chain);
 
         g_root_signatures.destroy();
         g_pipelines.destroy();
@@ -400,10 +393,15 @@ namespace zec
         destroy(g_dsv_descriptor_heap);
         destroy(g_srv_descriptor_heap);
         g_upload_manager.destroy();
-        g_render_targets.destroy();
-        g_textures.destroy();
-        g_buffers.destroy();
-        g_fence_manager.destroy();
+        destroy(
+            g_destruction_queue,
+            g_srv_descriptor_heap,
+            g_srv_descriptor_heap,
+            g_rtv_descriptor_heap,
+            g_textures
+        );
+        destroy(g_destruction_queue, g_buffers);
+        destroy(g_destruction_queue, g_fences);
 
         dx_destroy(&g_cmd_list);
         for (u64 i = 0; i < RENDER_LATENCY; i++) {
@@ -412,7 +410,7 @@ namespace zec
         dx_destroy(&g_gfx_queue);
         dx_destroy(&g_copy_queue);
 
-        g_destruction_queue.destroy();
+        destroy(g_destruction_queue);
         dx_destroy(&g_allocator);
 
         dx_destroy(&g_device);
@@ -451,16 +449,16 @@ namespace zec
         }
 
         // Process resources queued for destruction
-        g_destruction_queue.process_queue();
+        process_destruction_queue(g_destruction_queue);
 
         // TODO: Provide interface for creating barriers? Maybe that needs to be handled as part of the render graph though
 
-        RenderTarget& render_target = get_current_back_buffer();
+        const TextureHandle backbuffer = get_current_back_buffer_handle(g_swap_chain);
 
         D3D12_RESOURCE_BARRIER barrier{  };
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.Transition.pResource = render_target.resource;
+        barrier.Transition.pResource = get_resource(g_textures, backbuffer);
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
@@ -469,12 +467,12 @@ namespace zec
 
     void end_frame()
     {
-        RenderTarget& render_target = get_current_back_buffer();
+        const TextureHandle backbuffer = get_current_back_buffer_handle(g_swap_chain);
 
         D3D12_RESOURCE_BARRIER barrier{  };
         barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.Transition.pResource = render_target.resource;
+        barrier.Transition.pResource = get_resource(g_textures, backbuffer);
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
@@ -577,20 +575,16 @@ namespace zec
 
     TextureHandle create_texture(TextureDesc desc)
     {
-        TextureHandle handle = g_textures.create_back();
-        Texture& texture = g_textures[handle];
-        texture = {
-            nullptr,
-            nullptr,
-            UINT32_MAX,
-            {},
-            desc.width,
-            desc.height,
-            desc.depth,
-            desc.num_mips,
-            desc.array_size,
-            to_d3d_format(desc.format),
-            desc.is_cubemap
+        Texture texture = {
+            .info = {
+                .width = desc.width,
+                .height = desc.height,
+                .depth = desc.depth,
+                .num_mips = desc.num_mips,
+                .array_size = desc.array_size,
+                .format = to_d3d_format(desc.format),
+                .is_cubemap = desc.is_cubemap
+            }
         };
 
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
@@ -598,11 +592,11 @@ namespace zec
         D3D12_RESOURCE_DESC d3d_desc = {
             .Dimension = desc.is_3d ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D,
             .Alignment = 0,
-            .Width = texture.width,
-            .Height = texture.height,
-            .DepthOrArraySize = desc.is_3d ? u16(texture.depth) : u16(texture.array_size),
+            .Width = texture.info.width,
+            .Height = texture.info.height,
+            .DepthOrArraySize = desc.is_3d ? u16(texture.info.depth) : u16(texture.info.array_size),
             .MipLevels = u16(desc.num_mips),
-            .Format = texture.format,
+            .Format = texture.info.format,
             .SampleDesc = {
                 .Count = 1,
                 .Quality = 0,
@@ -633,11 +627,11 @@ namespace zec
             D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = { };
 
             if (desc.is_cubemap) {
-                ASSERT(texture.array_size == 6);
+                ASSERT(texture.info.array_size == 6);
                 srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
                 srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
                 srv_desc.TextureCube.MostDetailedMip = 0;
-                srv_desc.TextureCube.MipLevels = texture.num_mips;
+                srv_desc.TextureCube.MipLevels = texture.info.num_mips;
                 srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
             }
 
@@ -646,7 +640,7 @@ namespace zec
             }
         }
 
-        return handle;
+        return push_back(g_textures, texture);
     }
 
     TextureHandle zec::load_texture_from_file(const char* file_path)
@@ -659,21 +653,17 @@ namespace zec
         const DirectX::TexMetadata meta_data = image.GetMetadata();
         bool is_3d = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
 
-        TextureHandle handle = g_textures.create_back();
-        Texture& texture = g_textures[handle];
 
-        texture = {
-            .resource = nullptr,
-            .allocation = nullptr,
-            .srv = UINT32_MAX,
-            .uav = {},
-            .width = u32(meta_data.width),
-            .height = u32(meta_data.height),
-            .depth = u32(meta_data.depth),
-            .num_mips = u32(meta_data.mipLevels),
-            .array_size = u32(meta_data.arraySize),
-            .format = meta_data.format,
-            .is_cubemap = u16(meta_data.IsCubemap())
+        Texture& texture = {
+            .info = {
+                .width = u32(meta_data.width),
+                .height = u32(meta_data.height),
+                .depth = u32(meta_data.depth),
+                .num_mips = u32(meta_data.mipLevels),
+                .array_size = u32(meta_data.arraySize),
+                .format = meta_data.format,
+                .is_cubemap = u16(meta_data.IsCubemap())
+            }
         };
 
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
@@ -681,11 +671,11 @@ namespace zec
         D3D12_RESOURCE_DESC d3d_desc = {
             .Dimension = is_3d ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D,
             .Alignment = 0,
-            .Width = texture.width,
-            .Height = texture.height,
-            .DepthOrArraySize = is_3d ? u16(texture.depth) : u16(texture.array_size),
+            .Width = texture.info.width,
+            .Height = texture.info.height,
+            .DepthOrArraySize = is_3d ? u16(texture.info.depth) : u16(texture.info.array_size),
             .MipLevels = u16(meta_data.mipLevels),
-            .Format = texture.format,
+            .Format = texture.info.format,
             .SampleDesc = {
                 .Count = 1,
                 .Quality = 0,
@@ -711,22 +701,22 @@ namespace zec
         texture.srv = srv_alloc.idx;
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
-            .Format = texture.format,
+            .Format = texture.info.format,
             .ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
             .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
             .Texture2D = {
                 .MostDetailedMip = 0,
-                .MipLevels = texture.num_mips,
+                .MipLevels = texture.info.num_mips,
                 .ResourceMinLODClamp = 0.0f,
              },
         };
 
         if (meta_data.IsCubemap()) {
-            ASSERT(texture.array_size == 6);
+            ASSERT(texture.info.array_size == 6);
             srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
             srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
             srv_desc.TextureCube.MostDetailedMip = 0;
-            srv_desc.TextureCube.MipLevels = texture.num_mips;
+            srv_desc.TextureCube.MipLevels = texture.info.num_mips;
             srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
         }
 
@@ -744,7 +734,7 @@ namespace zec
         };
         g_upload_manager.queue_upload(texture_upload_desc, texture);
 
-        return handle;
+        return push_back(g_textures, texture);
     }
 
     void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size)
@@ -1000,11 +990,6 @@ namespace zec
         signature != nullptr && signature->Release();
 
         return g_root_signatures.push_back(root_signature);
-    }
-
-    u32 get_shader_readable_texture_index(const TextureHandle handle)
-    {
-        return g_textures[handle].srv;
     }
 
     void set_active_resource_layout(const ResourceLayoutHandle resource_layout_id)

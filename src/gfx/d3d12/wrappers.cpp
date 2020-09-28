@@ -133,7 +133,7 @@ namespace zec
 
         void free_persistent_alloc(DescriptorHeap& heap, const D3D12_CPU_DESCRIPTOR_HANDLE& handle)
         {
-            if (handle.ptr != 0) {
+            if (handle != INVALID_CPU_HANDLE) {
                 u32 idx = get_idx_from_handle(heap, handle);
                 free_persistent_alloc(heap, idx);
             }
@@ -141,9 +141,17 @@ namespace zec
 
         void free_persistent_alloc(DescriptorHeap& heap, const D3D12_GPU_DESCRIPTOR_HANDLE& handle)
         {
-            if (handle.ptr != 0) {
+            if (handle != INVALID_GPU_HANDLE) {
                 u32 idx = get_idx_from_handle(heap, handle);
                 free_persistent_alloc(heap, idx);
+            }
+        }
+
+        template<typename T>
+        void free_persistent_allocs(DescriptorHeap& descriptor_heap, const T* alloc_indices, const u64 num_indices)
+        {
+            for (size_t i = 0; i < num_indices; i++) {
+                free_persistent_alloc(descriptor_heap, alloc_indices[i]);
             }
         }
 

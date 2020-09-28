@@ -1,73 +1,37 @@
 #pragma once
 #include "pch.h"
+#include "flat_hash_map/bytell_hash_map.hpp"
+
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 #include "gfx/public_resources.h"
 #include "wrappers.h"
+#include "resources.h"
 #include "utils/utils.h"
 
 namespace zec
 {
     namespace dx12
     {
-        class ResourceDestructionQueue
+
+        template<typename List, typename ResourceHandle>
+        inline ID3D12Resource* get_resource(const List& list, const ResourceHandle handle)
         {
-        public:
-            ResourceDestructionQueue() = default;
-            ~ResourceDestructionQueue()
-            {
-                ASSERT(queue.size == 0);
-                ASSERT(allocations.size == 0);
-            }
-
-            UNCOPIABLE(ResourceDestructionQueue);
-            UNMOVABLE(ResourceDestructionQueue);
-
-            void queue_for_destruction(IUnknown* resource, D3D12MA::Allocation* allocation = nullptr)
-            {
-                if (resource == nullptr) {
-                    return;
-                }
-                // So resource is a reference to a ptr of type T that is castable to IUnknown
-                queue.push_back(resource);
-                allocations.push_back(allocation);
-            }
-
-            void process_queue();
-            void destroy();
-        private:
-            Array<IUnknown*> queue = {};
-            Array<D3D12MA::Allocation*> allocations;
+            return list.resources[handle.idx];
         };
 
-        class FenceManager
+        template<typename List, typename ResourceHandle>
+        inline void set_resource(List& list, ID3D12Resource* resource, const ResourceHandle handle)
         {
-        public:
-            FenceManager() = default;
-            ~FenceManager()
-            {
-                ASSERT(fences.size == 0);
-            };
+            list.resources[handle.idx] = resource;
+        }
 
-            UNCOPIABLE(FenceManager);
-            UNMOVABLE(FenceManager);
-
-            void init(ID3D12Device* pDevice, ResourceDestructionQueue* p_destruction_queue);
-            void destroy();
-
-            Fence create_fence(const u64 initial_value = 0);
-        private:
-            // Not owned
-            ID3D12Device* device = nullptr;
-            ResourceDestructionQueue* destruction_queue = nullptr;
-            // Owned
-            Array<Fence> fences = {};
-        };
+        Fence create_fence(Array<Fence>& fence_list, const u64 initial_value = 0);
 
         template< typename Resource, typename ResourceHandle>
-        class ResourceList
+        struct ResourceList
         {
         public:
-            ResourceList(ResourceDestructionQueue* destruction_queue) : destruction_queue{ destruction_queue }, resources{ } { };
+            ResourceList() = default;
             ~ResourceList()
             {
                 ASSERT(resources.size == 0);
@@ -80,20 +44,14 @@ namespace zec
                 return { u32(idx) };
             };
 
-            void destroy()
-            {
-                for (size_t i = 0; i < resources.size; i++) {
-                    destruction_queue->queue_for_destruction(resources[i].resource, resources[i].allocation);
-                }
-                resources.empty();
-            }
-
+            // WARNING: This does not release or destroy the resource in any way.
+            // If you need to destroy the resource you must use the corresponding `destroy` function, if it exists.
+            // Instead, this "resets" the resource to it's default initialized state.
+            // TODO: Is this useful right now?
             // TODO: Support deleting using a free list or something
-            void destroy_resource(const ResourceHandle handle)
+            void remove(const ResourceHandle handle)
             {
-                Resource& resource = resources.get(handle.idx);
-                destruction_queue->queue_for_destruction(resource.resource, resource.allocation);
-                resource = {};
+                resources.get(handle.idx) = {};
             }
 
             Resource& get(const ResourceHandle handle)
@@ -113,54 +71,65 @@ namespace zec
                 return resources[handle.idx];
             }
 
-            ResourceDestructionQueue* destruction_queue = nullptr;
+            size_t size()
+            {
+                return resource.size();
+            }
+
             Array<Resource> resources;
         };
 
-        class RenderTargetManager
+        template<typename T, typename ResourceHandle>
+        class ResourceMap
         {
         public:
-            RenderTargetManager(ResourceDestructionQueue* destruction_queue) :
-                destruction_queue{ destruction_queue },
-                render_targets{ NUM_BACK_BUFFERS }
-            { }
-            ~RenderTargetManager()
-            {
-                ASSERT(render_targets.size == 0);
-            }
 
-            void destroy()
-            {
-                // We skip the first N=NUM_BACK_BUFFERS entries that are reserved for the backbuffer, they are deleted elsewhere
-                for (size_t i = NUM_BACK_BUFFERS; i < render_targets.size; i++) {
-                    destruction_queue->queue_for_destruction(render_targets[i].resource, render_targets[i].allocation);
-                }
-                render_targets.empty();
-            }
 
-            RenderTarget& get_backbuffer(const u64 current_frame_index)
-            {
-                ASSERT(render_targets.size >= NUM_BACK_BUFFERS);
-                return render_targets[current_frame_index];
-            }
-
-            // We use this to store our backbuffers in the first N entries
-            void set_backbuffer(RenderTarget back_buffer, const u64 current_frame_index)
-            {
-                render_targets[current_frame_index] = back_buffer;
-            }
-
-            RenderTarget& operator[](RenderTargetHandle handle)
-            {
-                return render_targets[handle.idx];
-            }
-            const RenderTarget& operator[](RenderTargetHandle handle) const
-            {
-                return render_targets[handle.idx];
-            }
         private:
-            ResourceDestructionQueue* destruction_queue;
-            Array<RenderTarget> render_targets = {};
+            struct Hasher
+            {
+                size_t operator()(const ResourceHandle handle)
+                {
+                    return handle;
+                }
+            };
+
+            ska::bytell_hash_map<ResourceHandle, T, Hasher> map;
         };
+
+        struct TextureList
+        {
+            TextureList() = default;
+            ~TextureList()
+            {
+                ASSERT(resources.size == 0);
+                ASSERT(allocations.size == 0);
+            }
+
+            Array<ID3D12Resource*> resources = {};
+            Array<D3D12MA::Allocation*> allocations = {};
+            Array<u32> srv_indices = {};
+            Array<D3D12_CPU_DESCRIPTOR_HANDLE> uavs = {};
+            Array<TextureInfo> infos = {};
+            Array<RenderTargetInfo> render_target_infos = {};
+        };
+
+        TextureHandle push_back(TextureList& list, Texture& texture);
+
+        inline u32 get_srv_index(TextureList& texture_list, TextureHandle handle)
+        {
+            return texture_list.srv_indices[handle.idx];
+        };
+
+        inline TextureInfo& get_texture_info(TextureList& texture_list, TextureHandle texture_handle)
+        {
+            return texture_list.infos[texture_handle.idx];
+        }
+
+        inline RenderTargetInfo& get_render_target_info(TextureList& texture_list, TextureHandle handle)
+        {
+            return texture_list.render_target_infos[handle.idx];
+        };
+
     }
 }

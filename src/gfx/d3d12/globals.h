@@ -7,6 +7,7 @@
 #include "resources.h"
 #include "resource_managers.h"
 #include "upload_manager.h"
+#include "resource_destruction.h"
 
 namespace zec
 {
@@ -33,7 +34,7 @@ namespace zec
         extern DescriptorHeap g_srv_descriptor_heap;
 
         // Resources
-        extern FenceManager g_fence_manager;
+        extern Array<Fence> g_fences;
         extern Fence g_frame_fence;
         extern u64 g_current_frame_idx;
         // Total number of CPU frames completed (means that we've recorded and submitted commands for the frame)
@@ -45,8 +46,7 @@ namespace zec
         extern DXPtrArray<ID3D12PipelineState, PipelineStateHandle> g_pipelines;
 
         extern ResourceList<Buffer, BufferHandle> g_buffers;
-        extern ResourceList<Texture, TextureHandle> g_textures;
-        extern RenderTargetManager g_render_targets;
+        extern TextureList g_textures;
         extern Array<Mesh> g_meshes;
     }
 }

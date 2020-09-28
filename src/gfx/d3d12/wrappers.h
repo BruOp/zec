@@ -3,12 +3,25 @@
 #include "core/array.h"
 #include "gfx/constants.h"
 #include "gfx/public_resources.h"
-#include "resources.h"
 
 namespace zec
 {
     namespace dx12
     {
+        constexpr u32 INVALID_SRV = UINT32_MAX;
+        constexpr D3D12_CPU_DESCRIPTOR_HANDLE INVALID_CPU_HANDLE = { 0 };
+        constexpr D3D12_GPU_DESCRIPTOR_HANDLE INVALID_GPU_HANDLE = { 0 };
+
+        inline bool operator==(D3D12_CPU_DESCRIPTOR_HANDLE a, D3D12_CPU_DESCRIPTOR_HANDLE b)
+        {
+            return a.ptr == b.ptr;
+        }
+
+        inline bool operator==(D3D12_GPU_DESCRIPTOR_HANDLE a, D3D12_GPU_DESCRIPTOR_HANDLE b)
+        {
+            return a.ptr == b.ptr;
+        }
+
         // ---------- Descriptor Heap Wrapper ----------
         struct PersistentDescriptorAlloc
         {
@@ -51,6 +64,9 @@ namespace zec
         void free_persistent_alloc(DescriptorHeap& descriptor_heap, const D3D12_CPU_DESCRIPTOR_HANDLE& handle);
         void free_persistent_alloc(DescriptorHeap& descriptor_heap, const D3D12_GPU_DESCRIPTOR_HANDLE& handle);
 
+        template<typename T>
+        void free_persistent_allocs(DescriptorHeap& descriptor_heap, const T* alloc_indices, const u64 num_indices);
+
         // ---------- Swap Chain Wrapper ----------
         struct SwapChainDesc
         {
@@ -66,10 +82,9 @@ namespace zec
         {
             // Non-owning ptr, no need to release on destruction
             DescriptorHeap* rtv_descriptor_heap = nullptr;
-
             IDXGISwapChain4* swap_chain = nullptr;
             u32 back_buffer_idx = 0;
-            RenderTarget back_buffers[NUM_BACK_BUFFERS] = { };
+            TextureHandle back_buffers[NUM_BACK_BUFFERS] = {};
 
             HANDLE waitable_object = INVALID_HANDLE_VALUE;
 
@@ -88,6 +103,12 @@ namespace zec
             };
             u32 num_vsync_intervals = 1;
         };
+
+        inline const TextureHandle get_current_back_buffer_handle(const SwapChain& swap_chain)
+        {
+            return swap_chain.back_buffers[swap_chain.back_buffer_idx];
+        }
+
 
         // ---------- Fence ----------
         struct Fence

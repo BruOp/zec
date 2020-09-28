@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "array.h"
 #include "murmur/MurmurHash3.h"
+#include "flat_hash_map/bytell_hash_map.hpp"
 
 namespace zec
 {
@@ -23,10 +24,9 @@ namespace zec
             u64 str_length = strlen(unhashed_key);
             ASSERT(str_length < max_key_size);
             u32 key = hash_key(unhashed_key, str_length);
-            ASSERT(key != INVALID_VALUE);
+            ASSERT(key != EMPTY_VALUE);
 
-            u64 idx = find_index_of_key(u64(key), INVALID_VALUE);
-            ASSERT(idx != INVALID_VALUE);
+            u64 idx = find_index_of_key(u64(key), EMPTY_VALUE);
 
             values[idx] = value;
             keys[idx] = key;
@@ -44,7 +44,7 @@ namespace zec
             u32 hashed_key = hash_key(unhashed_key, str_length);
             ASSERT(hashed_key != EMPTY_VALUE);
 
-            u64 idx = find_index_of_key(hashed_key, hashed_key);
+            u64 idx = keys.find_index();// (hashed_key, hashed_key);
             ASSERT(idx != EMPTY_VALUE);
             return values[idx];
         }
@@ -66,24 +66,111 @@ namespace zec
             return key;
         }
 
-        u64 find_index_of_key(const u64 starting_idx, const u32 search_key)
+        u64 find_index_of_key(const u32 key, const u32 search_key) const
         {
-            constexpr u64 mask = max_size - 1;
-            for (size_t i = 0; i < max_size; ++i) {
-                u64 idx = (hashed_key + i) & max;
+            u64 mask = (capacity - 1);
+            for (size_t i = 0; i < capacity; i++) {
+                u64 idx = (key + i) & mask;
                 if (keys[idx] == search_key) {
                     return idx;
                 }
-            }
-            return UINT32_MAX;
+            };
+            return UINT64_MAX;
         }
+
     };
 
-    //template<typename T, size_t max_key_size = 64>
-    //class Map
-    //{
-    //    Array<T> values = {};
-    //    Array<u32> keys = {};
-    //    Array<char[64]> unhashed_keys = {};
-    //};
+    template<typename K, typename V, typename H>
+    class Map
+    {
+    public:
+        Map()
+        {
+            memset(values, 0, sizeof(values));
+            memset(unhashed_keys, 0, sizeof(unhashed_keys));
+            std::fill_n(keys, max_size, EMPTY_VALUE);
+        }
+
+        void insert(const K& unhashed_key, const V& value)
+        {
+            if (floor(size * MAX_OCCUPANCY) >= capacity) {
+                grow(2 * capacity);
+            }
+
+            u64 key = H(unhashed_key);
+            u64 idx = find_index_of_key(key, EMPTY_VALUE);
+            if (idx != UINT32_MAX) {
+                keys[idx] = key;
+                values[idx] = value;
+                unhashed_keys[idx] = unhashed_key;
+            }
+        };
+
+        V* find(const K& unhashed_key)
+        {
+            u64 key = H(unhashed_key);
+
+        }
+
+        size_t size() const
+        {
+            return size;
+        }
+
+        size_t capacity() const
+        {
+            return capacity;
+        }
+
+        V& operator[](const K& unhashed_key)
+        {
+
+        };
+
+    private:
+
+        find_index_of_key(const u32 key, const u32 search_key) const
+        {
+            u64 mask = (capacity - 1);
+            for (size_t i = 0; i < capacity; i++) {
+                u64 idx = (key + i) & mask;
+                if (keys[idx] == search_key) {
+                    return idx;
+                }
+            };
+            return UINT32_MAX;
+        }
+
+        grow(size_t additional_slots)
+        {
+            u64 mask = (capacity - 1);
+            values.grow(additional_slots);
+            unhashed_keys.grow(additional_slots);
+            Array<u32> new_keys(capacity + additional_slots);
+            std::fill_n(new_keys.data, new_keys.size, EMPTY_KEY);
+
+            for (size_t i = 0; i < capacity; i++) {
+                u32 key = keys[i];
+                if (key != EMPTY_KEY) {
+                    u64 new_idx = u64(keys[i]) & mask;
+                    new_keys.find_index(EMPTY_KEY, new_idx);
+                    new_keys[new_idx] = keys[i];
+                    values[new_idx] = values[i];
+                    unhashed_keys[new_idx] = unhashed_keys[i];
+                }
+                else {
+
+                }
+            }
+        }
+
+        static constexpr float MAX_OCCUPANCY = 0.5f;
+        static constexpr u32 EMPTY_KEY = UINT32_MAX;
+        Array<T> values = {};
+        Array<u32> keys = {};
+        Array<K> unhashed_keys = {};
+        size_t size = 0;
+        size_t capacity = 0;
+
+    };
 }

@@ -26,7 +26,7 @@ namespace zec
         DescriptorHeap g_srv_descriptor_heap = {};
 
         // Resources
-        FenceManager g_fence_manager = {};
+        Array<Fence> g_fences = {};
         Fence g_frame_fence = { };
         u64 g_current_frame_idx = 0;
         // Total number of CPU frames completed (means that we've recorded and submitted commands for the frame)
@@ -37,9 +37,8 @@ namespace zec
         DXPtrArray<ID3D12RootSignature, ResourceLayoutHandle> g_root_signatures = {};
         DXPtrArray<ID3D12PipelineState, PipelineStateHandle> g_pipelines = {};
 
-        ResourceList<Buffer, BufferHandle> g_buffers = { &g_destruction_queue };
-        ResourceList<Texture, TextureHandle> g_textures = { &g_destruction_queue };
-        RenderTargetManager g_render_targets = { &g_destruction_queue };
+        ResourceList<Buffer, BufferHandle> g_buffers = {};
+        TextureList g_textures = {};
         Array<Mesh> g_meshes = {};
     }
 }
