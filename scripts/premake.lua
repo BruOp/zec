@@ -110,5 +110,6 @@ include("./tests.lua")
 group "examples"
 exampleProject(
     "01-hello-world",
-    "02-normal-mapping"
+    "02-normal-mapping",
+    "03-gltf-loading"
 )

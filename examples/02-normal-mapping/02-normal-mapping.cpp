@@ -64,7 +64,7 @@ protected:
                 .num_constants = 0,
                 .constant_buffers = {
                     { ShaderVisibility::ALL },
-                    { ShaderVisibility::VERTEX },
+                    { ShaderVisibility::ALL },
                 },
                 .num_constant_buffers = 2,
                 .tables = {
@@ -283,7 +283,7 @@ protected:
         view_constant_data.projection = camera.projection;
         view_constant_data.VP = camera.projection * camera.view;
         view_constant_data.camera_position = get_translation(camera.view);
-        view_constant_data.time = time_data.delta_seconds_f;
+        view_constant_data.time = time_data.elapsed_seconds_f;
         update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
 
         draw_constant_data.model = identity_mat4();

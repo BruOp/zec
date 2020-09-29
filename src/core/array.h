@@ -57,6 +57,12 @@ namespace zec
             return size++;
         };
 
+        T pop_back()
+        {
+            ASSERT(size > 0);
+            return data[--size];
+        }
+
         template<typename ...Args>
         size_t create_back(Args... args)
         {
@@ -86,7 +92,10 @@ namespace zec
 
         size_t reserve(size_t new_capacity)
         {
-            ASSERT_MSG(new_capacity > capacity, "Array can only grow at the moment!");
+            if (new_capacity <= capacity) {
+                debug_print(L"Array can only grow at the moment!");
+                return capacity;
+            }
 
             const SysInfo& sys_info = get_sys_info();
             void* currentEnd = (void*)(data + capacity);
@@ -117,6 +126,12 @@ namespace zec
             }
             return UINT64_MAX;
         }
+    };
+
+    template<typename T>
+    class Stack
+    {
+        Array<T> elements;
     };
 
     template<typename T>
