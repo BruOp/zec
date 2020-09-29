@@ -104,9 +104,9 @@ namespace zec
             u32 num_vsync_intervals = 1;
         };
 
-        inline const TextureHandle get_current_back_buffer_handle(const SwapChain& swap_chain)
+        inline const TextureHandle get_current_back_buffer_handle(const SwapChain& swap_chain, const u64 current_frame_idx)
         {
-            return swap_chain.back_buffers[swap_chain.back_buffer_idx];
+            return swap_chain.back_buffers[current_frame_idx];
         }
 
 

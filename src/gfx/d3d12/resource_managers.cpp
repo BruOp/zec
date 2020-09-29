@@ -24,6 +24,7 @@ namespace zec
             list.allocations.push_back(texture.allocation);
             list.srv_indices.push_back(texture.srv);
             list.uavs.push_back(texture.uav);
+            list.rtvs.push_back(texture.rtv);
             list.infos.push_back(texture.info);
             list.render_target_infos.push_back(texture.render_target_info);
             return handle;

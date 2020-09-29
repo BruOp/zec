@@ -41,14 +41,7 @@ namespace zec
             SwapChain& swap_chain
         )
         {
-            for (size_t i = 0; i < NUM_BACK_BUFFERS; i++) {
-                const TextureHandle tex_handle = swap_chain.back_buffers[i];
-                dx_destroy(&texture_list.resources[tex_handle.idx]);
-                auto rtv = get_rtv(texture_list, tex_handle);
-                free_persistent_alloc(rtv_descriptor_heap, rtv);
-                set_rtv(texture_list, tex_handle, INVALID_CPU_HANDLE);
-            }
-
+            // The backbuffers will be destroyed when we destroy our Texture List
             swap_chain.swap_chain->Release();
             swap_chain.output->Release();
         }
@@ -56,13 +49,11 @@ namespace zec
         void destroy(ResourceDestructionQueue& destruction_queue, DescriptorHeap& srv_descriptor_heap, DescriptorHeap& uav_descriptor_heap, DescriptorHeap& rtv_descriptor_heap, TextureList& texture_list)
         {
             for (size_t i = 0; i < texture_list.resources.size; i++) {
-                queue_destruction(destruction_queue, texture_list.resources[i], texture_list.allocations[i]);
+                if (texture_list.resources[i]) {
+                    queue_destruction(destruction_queue, texture_list.resources[i], texture_list.allocations[i]);
+                }
                 free_persistent_alloc(srv_descriptor_heap, texture_list.srv_indices[i]);
                 free_persistent_alloc(uav_descriptor_heap, texture_list.uavs[i]);
-
-            }
-
-            for (size_t i = 0; i < texture_list.rtvs.size; i++) {
                 free_persistent_alloc(rtv_descriptor_heap, texture_list.rtvs[i]);
             }
 

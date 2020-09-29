@@ -60,7 +60,7 @@ protected:
         // Create a root signature consisting of a descriptor table with a single CBV.
         {
             constexpr u32 num_textures = 1024;
-            ResourceLayoutDescV2 layout_desc{
+            ResourceLayoutDesc layout_desc{
                 .num_constants = 0,
                 .constant_buffers = {
                     { ShaderVisibility::ALL },
@@ -299,8 +299,8 @@ protected:
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         Scissor scissor{ 0, 0, width, height };
 
-        RenderTargetHandle render_target = get_current_backbuffer_handle();
-        clear_render_target(render_target, clear_color);
+        TextureHandle backbuffer = get_current_back_buffer_handle();
+        clear_render_target(backbuffer, clear_color);
 
         set_active_resource_layout(resource_layout);
         set_pipeline_state(pso_handle);
@@ -310,7 +310,7 @@ protected:
         set_viewports(&viewport, 1);
         set_scissors(&scissor, 1);
 
-        set_render_targets(&render_target, 1);
+        set_render_targets(&backbuffer, 1);
         draw_mesh(cube_mesh);
     }
 

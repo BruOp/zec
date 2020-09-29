@@ -298,24 +298,6 @@ namespace zec
         u32 space = 0;
     };
 
-    struct ResourceLayoutEntryDesc
-    {
-        // Table, Constant or Constant Buffer
-        ResourceLayoutEntryType type = ResourceLayoutEntryType::INVALID;
-        ShaderVisibility visibility = ShaderVisibility::ALL;
-        u32 binding_slot = 0;
-        u32 binding_space = 0;
-        ResourceLayoutRangeDesc ranges[16] = {};
-    };
-
-    struct ResourceLayoutDesc
-    {
-        static constexpr u64 MAX_ENTRIES = 16;
-        ResourceLayoutEntryDesc entries[MAX_ENTRIES] = {};
-        SamplerDesc static_samplers[8] = {};
-        u32 num_static_samplers = 0;
-    };
-
     struct ResourceTableEntryDesc
     {
         ResourceLayoutRangeDesc ranges[32] = {};
@@ -328,18 +310,18 @@ namespace zec
         u32 num_constants = 1;
     };
 
-    struct ResourceLayoutEntryDescV2
+    struct ResourceLayoutEntryDesc
     {
         // Table, Constant or Constant Buffer
         ShaderVisibility visibility = ShaderVisibility::ALL;
     };
 
-    struct ResourceLayoutDescV2
+    struct ResourceLayoutDesc
     {
         static constexpr u64 MAX_ENTRIES = 16;
         ResourceLayoutConstantsDesc constants[MAX_ENTRIES] = {};
         u32 num_constants;
-        ResourceLayoutEntryDescV2 constant_buffers[MAX_ENTRIES] = {};
+        ResourceLayoutEntryDesc constant_buffers[MAX_ENTRIES] = {};
         u32 num_constant_buffers;
         ResourceTableEntryDesc tables[MAX_ENTRIES] = {};
         u32 num_resource_tables;
