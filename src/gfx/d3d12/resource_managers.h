@@ -1,7 +1,5 @@
 #pragma once
 #include "pch.h"
-#include "flat_hash_map/bytell_hash_map.hpp"
-
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 #include "gfx/public_resources.h"
 #include "wrappers.h"
@@ -73,29 +71,29 @@ namespace zec
 
             size_t size()
             {
-                return resource.size();
+                return resources.size;
             }
 
             Array<Resource> resources;
         };
 
-        template<typename T, typename ResourceHandle>
-        class ResourceMap
-        {
-        public:
+        //template<typename T, typename ResourceHandle>
+        //class ResourceMap
+        //{
+        //public:
 
 
-        private:
-            struct Hasher
-            {
-                size_t operator()(const ResourceHandle handle)
-                {
-                    return handle;
-                }
-            };
+        //private:
+        //    struct Hasher
+        //    {
+        //        size_t operator()(const ResourceHandle handle)
+        //        {
+        //            return handle;
+        //        }
+        //    };
 
-            ska::bytell_hash_map<ResourceHandle, T, Hasher> map;
-        };
+        //    ska::bytell_hash_map<ResourceHandle, T, Hasher> map;
+        //};
 
         struct TextureList
         {
@@ -110,6 +108,7 @@ namespace zec
             Array<D3D12MA::Allocation*> allocations = {};
             Array<u32> srv_indices = {};
             Array<D3D12_CPU_DESCRIPTOR_HANDLE> uavs = {};
+            Array<D3D12_CPU_DESCRIPTOR_HANDLE> rtvs = {};
             Array<TextureInfo> infos = {};
             Array<RenderTargetInfo> render_target_infos = {};
         };
@@ -119,6 +118,16 @@ namespace zec
         inline u32 get_srv_index(TextureList& texture_list, TextureHandle handle)
         {
             return texture_list.srv_indices[handle.idx];
+        };
+
+        inline D3D12_CPU_DESCRIPTOR_HANDLE get_rtv(TextureList& texture_list, TextureHandle handle)
+        {
+            return texture_list.rtvs[handle.idx];
+        };
+
+        inline void set_rtv(TextureList& texture_list, TextureHandle handle, D3D12_CPU_DESCRIPTOR_HANDLE rtv)
+        {
+            texture_list.rtvs[handle.idx] = rtv;
         };
 
         inline TextureInfo& get_texture_info(TextureList& texture_list, TextureHandle texture_handle)

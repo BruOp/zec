@@ -3,9 +3,9 @@
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 #include "core/array.h"
 #include "gfx/public_resources.h"
-#include "gfx/d3d12/wrappers.h"
-#include "gfx/d3d12/resources.h"
-#include "gfx/d3d12/resource_managers.h"
+#include "wrappers.h"
+#include "resources.h"
+#include "resource_managers.h"
 
 namespace zec
 {
@@ -36,7 +36,7 @@ namespace zec
 
         void process_destruction_queue(ResourceDestructionQueue& queue);
 
-        void destroy(ResourceDestructionQueue& queue)
+        inline void destroy(ResourceDestructionQueue& queue)
         {
             process_destruction_queue(queue);
         }
@@ -61,5 +61,15 @@ namespace zec
             DescriptorHeap& rtv_descriptor_heap,
             TextureList& texture_list
         );
+
+        template<typename Resource, typename ResourceHandle>
+        void destroy(ResourceDestructionQueue& queue, ResourceList<typename Resource, ResourceHandle>& list)
+        {
+            for (size_t i = 0; i < list.size(); i++) {
+                Resource& resource = list.resources[i];
+                queue_destruction(queue, resource.resource, resource.allocation);
+            }
+            list.resources.empty();
+        }
     }
 }

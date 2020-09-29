@@ -16,8 +16,8 @@ namespace zec
             queue.allocations.empty();
         }
 
-        template<typename Resource, typename ResourceHandle>
-        void destroy(ResourceDestructionQueue& queue, ResourceList<typename Resource, ResourceHandle>& list)
+        template<typename ResourceList>
+        void destroy(ResourceDestructionQueue& queue, ResourceList& list)
         {
             for (size_t i = 0; i < list.size(); i++) {
                 queue_destruction(queue, list.resources[i], list.allocations[i]);
@@ -44,9 +44,9 @@ namespace zec
             for (size_t i = 0; i < NUM_BACK_BUFFERS; i++) {
                 const TextureHandle tex_handle = swap_chain.back_buffers[i];
                 dx_destroy(&texture_list.resources[tex_handle.idx]);
-                auto& rt_info = get_render_target_info(texture_list, tex_handle);
-                free_persistent_alloc(rtv_descriptor_heap, rt_info.rtv);
-                rt_info = {};
+                auto rtv = get_rtv(texture_list, tex_handle);
+                free_persistent_alloc(rtv_descriptor_heap, rtv);
+                set_rtv(texture_list, tex_handle, INVALID_CPU_HANDLE);
             }
 
             swap_chain.swap_chain->Release();
@@ -62,8 +62,8 @@ namespace zec
 
             }
 
-            for (size_t i = 0; i < texture_list.render_target_infos.size; i++) {
-                free_persistent_alloc(rtv_descriptor_heap, texture_list.render_target_infos[i].rtv);
+            for (size_t i = 0; i < texture_list.rtvs.size; i++) {
+                free_persistent_alloc(rtv_descriptor_heap, texture_list.rtvs[i]);
             }
 
             texture_list.resources.empty();

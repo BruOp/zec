@@ -3,7 +3,7 @@
 #include "upload_manager.h"
 #include "dx_utils.h"
 #include "globals.h"
-#include "DirectXTex/DirectXTex.h"
+#include "DirectXTex.h"
 
 namespace zec
 {
@@ -27,7 +27,7 @@ namespace zec
             cmd_list->Close();
             allocator = desc.allocator;
             cmd_queue = desc.cmd_queue;
-            fence = desc.fence_manager->create_fence(0);
+            fence = create_fence(*desc.fences, 0);
         }
 
         void UploadManager::destroy()
@@ -160,10 +160,10 @@ namespace zec
             void* mapped_ptr = nullptr;
             DXCall(upload.resource->Map(0, NULL, &mapped_ptr));
 
-            for (u64 array_idx = 0; array_idx < texture.array_size; ++array_idx) {
+            for (u64 array_idx = 0; array_idx < texture.info.array_size; ++array_idx) {
 
-                for (u64 mip_idx = 0; mip_idx < texture.num_mips; ++mip_idx) {
-                    const u64 subresource_idx = mip_idx + (array_idx * texture.num_mips);
+                for (u64 mip_idx = 0; mip_idx < texture.info.num_mips; ++mip_idx) {
+                    const u64 subresource_idx = mip_idx + (array_idx * texture.info.num_mips);
 
                     const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& subresource_layout = layouts[subresource_idx];
                     const u64 subresource_height = num_rows[subresource_idx];

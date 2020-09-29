@@ -27,9 +27,9 @@ workspace "zec"
   -- Reset the filter for other settings
   filter { }
 
-  -- nuget {
-  --   "directxtk12_desktop_2017:2020.8.15.1"
-  -- }
+  nuget {
+    "directxtex_desktop_win10:2020.8.15.1"
+  }
 
   libdirs { EXTERNAL_LIB_DIR }
   targetdir (BUILD_DIR .. "bin/%{prj.name}/%{cfg.longname}")
@@ -46,7 +46,7 @@ workspace "zec"
     "_SCL_SECURE_NO_WARNINGS",
     "_CRT_SECURE_NO_WARNINGS",
     "_CRT_SECURE_NO_DEPRECATE",
-    "_ITERATOR_DEBUG_LEVEL=0",
+    -- "_ITERATOR_DEBUG_LEVEL=0",
     "USE_D3D_RENDERER",
   }
   linkoptions {
@@ -84,7 +84,7 @@ project("zec_lib")
   }
 
   debugenvs { "PATH=%PATH%;../external/lib/;" }
-  
+
   includedirs {
     ZEC_SRC_DIR,
     EXTERNAL_DIR,
@@ -97,7 +97,6 @@ project("zec_lib")
     "dxgi",
     "d3d12",
     "dxguid",
-    "DirectXTex",
     "D3DCompiler",
     "gainput-d",
     "Xinput9_1_0",

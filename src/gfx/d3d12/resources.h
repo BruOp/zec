@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "gfx/public_resources.h"
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
+#include "wrappers.h"
 
 namespace zec
 {
@@ -10,16 +11,6 @@ namespace zec
         constexpr size_t CONSTANT_BUFFER_ALIGNMENT = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
         constexpr size_t VERTEX_BUFFER_ALIGNMENT = 4;
         constexpr size_t INDEX_BUFFER_ALIGNMENT = 4;
-
-        struct Texture
-        {
-            ID3D12Resource* resource = nullptr;
-            D3D12MA::Allocation* allocation = nullptr;
-            u32 srv = INVALID_SRV;
-            D3D12_CPU_DESCRIPTOR_HANDLE uav = INVALID_CPU_HANDLE;
-            TextureInfo info = {};
-            RenderTargetInfo render_target_info = {};
-        };
 
         struct TextureInfo
         {
@@ -34,9 +25,18 @@ namespace zec
 
         struct RenderTargetInfo
         {
-            D3D12_CPU_DESCRIPTOR_HANDLE rtv = INVALID_CPU_HANDLE;
             u8 mssa_samples = 0;
             u8 msaa_quality = 0;
+        };
+
+        struct Texture
+        {
+            ID3D12Resource* resource = nullptr;
+            D3D12MA::Allocation* allocation = nullptr;
+            u32 srv = INVALID_SRV;
+            D3D12_CPU_DESCRIPTOR_HANDLE uav = INVALID_CPU_HANDLE;
+            TextureInfo info = {};
+            RenderTargetInfo render_target_info = {};
         };
 
         struct Buffer

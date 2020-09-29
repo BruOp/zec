@@ -19,7 +19,7 @@ namespace zec
             ID3D12Device* device = nullptr;
             D3D12MA::Allocator* allocator = nullptr;
             ID3D12CommandQueue* cmd_queue = nullptr;
-            FenceManager* fence_manager = nullptr;
+            Array<Fence>* fences = nullptr;
         };
 
         struct TextureUploadDesc

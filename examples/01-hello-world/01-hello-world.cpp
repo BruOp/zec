@@ -168,7 +168,7 @@ protected:
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         Scissor scissor{ 0, 0, width, height };
 
-        RenderTargetHandle render_target = get_current_backbuffer_handle();
+        TextureHandle render_target = get_current_back_buffer_handle();
         clear_render_target(render_target, clear_color);
 
         set_active_resource_layout(resource_layout);

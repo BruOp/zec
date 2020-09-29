@@ -14,7 +14,7 @@ namespace zec
     void begin_frame();
     void end_frame();
 
-    RenderTargetHandle get_current_backbuffer_handle();
+    TextureHandle get_current_back_buffer_handle();
 
     // Resource creation
     BufferHandle create_buffer(BufferDesc buffer_desc);
@@ -41,12 +41,12 @@ namespace zec
     void bind_constant_buffer(const BufferHandle& buffer_handle, u32 binding_slot);
 
     void draw_mesh(const MeshHandle mesh_id);
-    void clear_render_target(const RenderTargetHandle render_target, const float* clear_color);
-    inline void clear_render_target(const RenderTargetHandle render_target, const vec4 clear_color)
+    void clear_render_target(const TextureHandle render_texture, const float* clear_color);
+    inline void clear_render_target(const TextureHandle render_texture, const vec4 clear_color)
     {
-        clear_render_target(render_target, clear_color.data);
+        clear_render_target(render_texture, clear_color.data);
     };
     void set_viewports(const Viewport* viewport, const u32 num_viewports);
     void set_scissors(const Scissor* scissor, const u32 num_scissors);
-    void set_render_targets(RenderTargetHandle* render_targets, const u32 num_render_targets);
+    void set_render_targets(TextureHandle* render_textures, const u32 num_render_targets);
 }

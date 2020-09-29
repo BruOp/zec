@@ -20,7 +20,6 @@ namespace zec
     RESOURCE_HANDLE(MeshHandle);
     RESOURCE_HANDLE(ResourceLayoutHandle);
     RESOURCE_HANDLE(PipelineStateHandle);
-    RESOURCE_HANDLE(RenderTargetHandle);
 
     // ---------- Enums ----------
     enum ResourceUsage : u16

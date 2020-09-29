@@ -19,12 +19,14 @@ namespace zec
 
         TextureHandle push_back(TextureList& list, Texture& texture)
         {
-            list.resources.push_back(texture.resource);
+            ASSERT(list.resources.size < UINT32_MAX);
+            TextureHandle handle = { u32(list.resources.push_back(texture.resource)) };
             list.allocations.push_back(texture.allocation);
             list.srv_indices.push_back(texture.srv);
             list.uavs.push_back(texture.uav);
             list.infos.push_back(texture.info);
             list.render_target_infos.push_back(texture.render_target_info);
+            return handle;
         }
     }
 }

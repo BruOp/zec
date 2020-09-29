@@ -5,7 +5,7 @@
 #include "dx_utils.h"
 #include "dx_helpers.h"
 #include "globals.h"
-#include "DirectXTex/DirectXTex.h"
+#include "DirectXTex.h"
 
 #if _DEBUG
 #define USE_DEBUG_DEVICE 1
@@ -66,9 +66,9 @@ namespace zec
                 // RTV Descriptor heap only has one heap -> only one handle is issued
                 ASSERT(g_rtv_descriptor_heap.num_heaps == 1);
                 TextureHandle texture_handle = swap_chain.back_buffers[i];
-                RenderTargetInfo& rt_info = get_render_target_info(g_textures, texture_handle);
 
-                rt_info.rtv = allocate_persistent_descriptor(g_rtv_descriptor_heap).handles[0];
+                auto rtv = allocate_persistent_descriptor(g_rtv_descriptor_heap).handles[0];
+                set_rtv(g_textures, texture_handle, rtv);
                 ID3D12Resource* resource = get_resource(g_textures, texture_handle);
                 if (resource != nullptr) dx_destroy(&resource);
 
@@ -80,7 +80,7 @@ namespace zec
                 rtvDesc.Format = swap_chain.format;
                 rtvDesc.Texture2D.MipSlice = 0;
                 rtvDesc.Texture2D.PlaneSlice = 0;
-                g_device->CreateRenderTargetView(resource, &rtvDesc, rt_info.rtv);
+                g_device->CreateRenderTargetView(resource, &rtvDesc, rtv);
                 // TODO: Store MSAA info?
 
                 resource->SetName(make_string(L"Back Buffer %llu", i).c_str());
@@ -110,9 +110,8 @@ namespace zec
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
                 TextureHandle texture_handle = g_swap_chain.back_buffers[i];
                 get_resource(g_textures, texture_handle)->Release();
-                auto& rt_info = get_render_target_info(g_textures, texture_handle);
-                free_persistent_alloc(g_rtv_descriptor_heap, rt_info.rtv);
-                rt_info = {};
+                free_persistent_alloc(g_rtv_descriptor_heap, get_rtv(g_textures, texture_handle));
+                set_rtv(g_textures, texture_handle, INVALID_CPU_HANDLE);
             }
 
             set_formats(g_swap_chain, g_swap_chain.format);
@@ -496,9 +495,9 @@ namespace zec
         signal(g_frame_fence, g_gfx_queue, g_current_cpu_frame);
     }
 
-    RenderTargetHandle get_current_backbuffer_handle()
+    TextureHandle get_current_back_buffer_handle()
     {
-        return { static_cast<u32>(g_current_frame_idx) };
+        return dx12::get_current_back_buffer_handle(g_swap_chain);
     }
 
     BufferHandle create_buffer(BufferDesc desc)
@@ -654,7 +653,7 @@ namespace zec
         bool is_3d = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
 
 
-        Texture& texture = {
+        Texture texture = {
             .info = {
                 .width = u32(meta_data.width),
                 .height = u32(meta_data.height),
@@ -1033,10 +1032,9 @@ namespace zec
         g_cmd_list->DrawIndexedInstanced(mesh.index_count, 1, 0, 0, 0);
     }
 
-    void clear_render_target(const RenderTargetHandle render_target, const float* clear_color)
+    void clear_render_target(const TextureHandle texture_handle, const float* clear_color)
     {
-        RenderTarget& rt = g_render_targets[render_target];
-        g_cmd_list->ClearRenderTargetView(rt.rtv, clear_color, 0, nullptr);
+        g_cmd_list->ClearRenderTargetView(get_rtv(g_textures, texture_handle), clear_color, 0, nullptr);
     }
 
     void set_viewports(const Viewport* viewports, const u32 num_viewports)
@@ -1056,11 +1054,11 @@ namespace zec
         g_cmd_list->RSSetScissorRects(num_scissors, rects);
     }
 
-    void set_render_targets(RenderTargetHandle* render_targets, const u32 num_render_targets)
+    void set_render_targets(TextureHandle* render_textures, const u32 num_render_targets)
     {
         D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
         for (size_t i = 0; i < num_render_targets; i++) {
-            rtvs[i] = g_render_targets[render_targets[i]].rtv;
+            rtvs[i] = get_rtv(g_textures, render_textures[i]);
         }
         g_cmd_list->OMSetRenderTargets(num_render_targets, rtvs, 0, nullptr);
     }
