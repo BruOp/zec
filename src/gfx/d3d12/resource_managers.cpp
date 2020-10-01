@@ -27,7 +27,21 @@ namespace zec
             list.rtvs.push_back(texture.rtv);
             list.infos.push_back(texture.info);
             list.render_target_infos.push_back(texture.render_target_info);
+
+            if (texture.dsv != INVALID_CPU_HANDLE) {
+                list.dsv_infos.push_back({ handle, texture.dsv });
+            };
+
             return handle;
+        }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE get_dsv(TextureList& texture_list, TextureHandle handle)
+        {
+            for (size_t i = 0; i < texture_list.dsv_infos.size; i++) {
+                const auto& dsv_info = texture_list.dsv_infos[i];
+                if (dsv_info.handle == handle) { return dsv_info.dsv; }
+            }
+            throw std::runtime_error("This texture was not created as a depth stencil buffer");
         }
     }
 }

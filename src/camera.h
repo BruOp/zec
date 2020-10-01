@@ -29,8 +29,8 @@ namespace zec
 
         void update(const float deltaTime) override final;
 
-        float yaw_sensitivity = 50.0f;
-        float pitch_sensitivity = 50.0f;
+        float yaw_sensitivity = 100.0f;
+        float pitch_sensitivity = 100.0f;
         float zoom_sensitivity = 0.1f;
         float movement_sensitivity = 50.0f;
         float pitch = k_half_pi;

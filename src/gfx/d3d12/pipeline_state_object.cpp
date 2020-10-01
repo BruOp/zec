@@ -139,12 +139,14 @@ namespace zec
         pso_desc.DepthStencilState = to_d3d_depth_stencil_desc(desc.depth_stencil_state);
         pso_desc.SampleMask = UINT_MAX;
         pso_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-        pso_desc.NumRenderTargets = 1;
         pso_desc.SampleDesc.Count = 1;
-
+        if (desc.depth_buffer_format != BufferFormat::INVALID) {
+            pso_desc.DSVFormat = to_d3d_format(desc.depth_buffer_format);
+        }
         for (size_t i = 0; i < ARRAY_SIZE(desc.rtv_formats); i++) {
             if (desc.rtv_formats[i] == BufferFormat::INVALID) break;
             pso_desc.RTVFormats[i] = to_d3d_format(desc.rtv_formats[i]);
+            pso_desc.NumRenderTargets = i + 1;
         }
 
         ID3DBlob* vertex_shader = nullptr;

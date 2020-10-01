@@ -95,6 +95,12 @@ namespace zec
         //    ska::bytell_hash_map<ResourceHandle, T, Hasher> map;
         //};
 
+        struct DepthStencilInfo
+        {
+            TextureHandle handle;
+            D3D12_CPU_DESCRIPTOR_HANDLE dsv;
+        };
+
         struct TextureList
         {
             TextureList() = default;
@@ -111,6 +117,10 @@ namespace zec
             Array<D3D12_CPU_DESCRIPTOR_HANDLE> rtvs = {};
             Array<TextureInfo> infos = {};
             Array<RenderTargetInfo> render_target_infos = {};
+            // Note, this is not 1-1 like other arrays in this structure.
+            // Instead, we loop through and find the dsv_info with matching TextureHandle.
+            // Since we have so few DSVs, this should be pretty cheap.
+            Array<DepthStencilInfo> dsv_infos = {};
         };
 
         TextureHandle push_back(TextureList& list, Texture& texture);
@@ -124,6 +134,8 @@ namespace zec
         {
             return texture_list.rtvs[handle.idx];
         };
+
+        D3D12_CPU_DESCRIPTOR_HANDLE get_dsv(TextureList& texture_list, TextureHandle handle);
 
         inline void set_rtv(TextureList& texture_list, TextureHandle handle, D3D12_CPU_DESCRIPTOR_HANDLE rtv)
         {

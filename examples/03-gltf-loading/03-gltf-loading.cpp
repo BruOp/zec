@@ -40,15 +40,17 @@ public:
 
     Camera camera = {};
     OrbitCameraController camera_controller = OrbitCameraController{ input_manager };
-    MeshHandle cube_mesh = {};
+
+    ViewConstantData view_constant_data = {};
+    Array<DrawConstantData> draw_constant_data;
+    gltf::Context gltf_context;
+
     BufferHandle view_cb_handle = {};
-    BufferHandle draw_cb_handle = {};
-    TextureHandle albedo_map = {};
-    TextureHandle normal_map = {};
+    Array<BufferHandle> draw_data_buffer_handles = {};
     ResourceLayoutHandle resource_layout = {};
     PipelineStateHandle pso_handle = {};
-    ViewConstantData view_constant_data = {};
-    DrawConstantData draw_constant_data = {};
+
+    TextureHandle depth_target = {};
 
 protected:
     void init() override final
@@ -99,11 +101,14 @@ protected:
                 { MESH_ATTRIBUTE_NORMAL, 0, BufferFormat::FLOAT_3, 1 },
                 { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::FLOAT_2, 2 },
             } };
-            pipeline_desc.shader_file_path = L"shaders/normal_mapping.hlsl";
+            pipeline_desc.shader_file_path = L"shaders/gltf_shader.hlsl";
             pipeline_desc.rtv_formats[0] = BufferFormat::R8G8B8A8_UNORM_SRGB;
+            pipeline_desc.depth_buffer_format = BufferFormat::D32;
             pipeline_desc.resource_layout = resource_layout;
-            pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CCW;
-            pipeline_desc.depth_stencil_state.depth_write = FALSE;
+            pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CW;
+            pipeline_desc.raster_state_desc.flags |= DEPTH_CLIP_ENABLED;
+            pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::LESS;
+            pipeline_desc.depth_stencil_state.depth_write = TRUE;
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
             pso_handle = create_pipeline_state_object(pipeline_desc);
@@ -111,145 +116,7 @@ protected:
 
         begin_upload();
 
-        gltf::Context context;
-        gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", context);
-
-        // Create the vertex buffer.
-        {
-            // Define the geometry for a cube.
-            constexpr float cube_positions[] = {
-                 0.5f,  0.5f,  0.5f, // +Y (Top face)
-                -0.5f,  0.5f,  0.5f,
-                -0.5f,  0.5f, -0.5f,
-                 0.5f,  0.5f, -0.5f,
-                 0.5f,  0.5f,  0.5f, // +X (Right face)
-                 0.5f,  0.5f, -0.5f,
-                 0.5f, -0.5f, -0.5f,
-                 0.5f, -0.5f,  0.5f,
-                -0.5f,  0.5f, -0.5f, // -X (Left face)
-                -0.5f,  0.5f,  0.5f,
-                -0.5f, -0.5f,  0.5f,
-                -0.5f, -0.5f, -0.5f,
-                 0.5f,  0.5f, -0.5f, // -Z (Back face)
-                -0.5f,  0.5f, -0.5f,
-                -0.5f, -0.5f, -0.5f,
-                 0.5f, -0.5f, -0.5f,
-                -0.5f,  0.5f,  0.5f, // +Z (Front face)
-                 0.5f,  0.5f,  0.5f,
-                 0.5f, -0.5f,  0.5f,
-                -0.5f, -0.5f,  0.5f,
-                -0.5f, -0.5f,  0.5f, // -Y (Bottom face)
-                 0.5f, -0.5f,  0.5f,
-                 0.5f, -0.5f, -0.5f,
-                -0.5f, -0.5f, -0.5f,
-            };
-
-            constexpr float cube_normals[] = {
-                 0.0f,  1.0f,  0.0f, // +Y (Top face)
-                 0.0f,  1.0f,  0.0f,
-                 0.0f,  1.0f,  0.0f,
-                 0.0f,  1.0f,  0.0f,
-                 1.0f,  0.0f,  0.0f, // +X (Right face)
-                 1.0f,  0.0f,  0.0f,
-                 1.0f,  0.0f,  0.0f,
-                 1.0f,  0.0f,  0.0f,
-                -1.0f,  0.0f,  0.0f, // -X (Left face)
-                -1.0f,  0.0f,  0.0f,
-                -1.0f,  0.0f,  0.0f,
-                -1.0f,  0.0f,  0.0f,
-                 0.0f,  0.0f, -1.0f, // -Z (Back face)
-                 0.0f,  0.0f, -1.0f,
-                 0.0f,  0.0f, -1.0f,
-                 0.0f,  0.0f, -1.0f,
-                 0.0f,  0.0f,  1.0f, // +Z (Front face)
-                 0.0f,  0.0f,  1.0f,
-                 0.0f,  0.0f,  1.0f,
-                 0.0f,  0.0f,  1.0f,
-                 0.0f, -1.0f,  0.0f, // -Y (Bottom face)
-                 0.0f, -1.0f,  0.0f,
-                 0.0f, -1.0f,  0.0f,
-                 0.0f, -1.0f,  0.0f,
-            };
-
-            constexpr float cube_uvs[] = {
-                0.0f, 0.0f, // +Y (Top face)
-                1.0f, 0.0f,
-                1.0f, 1.0f,
-                0.0f, 1.0f,
-                0.0f, 0.0f, // +X (Right face)
-                1.0f, 0.0f,
-                1.0f, 1.0f,
-                0.0f, 1.0f,
-                0.0f, 0.0f, // -Y (Left face)
-                1.0f, 0.0f,
-                1.0f, 1.0f,
-                0.0f, 1.0f,
-                0.0f, 0.0f, // -Z (Back face)
-                1.0f, 0.0f,
-                1.0f, 1.0f,
-                0.0f, 1.0f,
-                0.0f, 0.0f, // +Z (Front face)
-                1.0f, 0.0f,
-                1.0f, 1.0f,
-                0.0f, 1.0f,
-                0.0f, 0.0f, // -Y (Bottom face)
-                1.0f, 0.0f,
-                1.0f, 1.0f,
-                0.0f, 1.0f,
-            };
-
-            constexpr uint16_t cube_indices[] = {
-                 0,  2,  1, // Top
-                 3,  2,  0,
-                 4,  6,  5, // Right
-                 7,  6,  4,
-                 8, 10,  9, // Left
-                11, 10,  8,
-                12, 14, 13, // Back
-                15, 14, 12,
-                16, 18, 17, // Front
-                19, 18, 16,
-                20, 22, 21, // Bottom
-                23, 22, 20,
-            };
-
-            MeshDesc mesh_desc{};
-            mesh_desc.index_buffer_desc.usage = RESOURCE_USAGE_INDEX;
-            mesh_desc.index_buffer_desc.type = BufferType::DEFAULT;
-            mesh_desc.index_buffer_desc.byte_size = sizeof(cube_indices);
-            mesh_desc.index_buffer_desc.stride = sizeof(cube_indices[0]);
-            mesh_desc.index_buffer_desc.data = (void*)cube_indices;
-
-            mesh_desc.vertex_buffer_descs[0] = {
-                    .usage = RESOURCE_USAGE_VERTEX,
-                    .type = BufferType::DEFAULT,
-                    .byte_size = sizeof(cube_positions),
-                    .stride = 3 * sizeof(cube_positions[0]),
-                    .data = (void*)(cube_positions)
-            };
-            mesh_desc.vertex_buffer_descs[1] = {
-               .usage = RESOURCE_USAGE_VERTEX,
-               .type = BufferType::DEFAULT,
-               .byte_size = sizeof(cube_normals),
-               .stride = 3 * sizeof(cube_normals[0]),
-               .data = (void*)(cube_normals)
-            };
-            mesh_desc.vertex_buffer_descs[2] = {
-               .usage = RESOURCE_USAGE_VERTEX,
-               .type = BufferType::DEFAULT,
-               .byte_size = sizeof(cube_uvs),
-               .stride = 2 * sizeof(cube_uvs[0]),
-               .data = (void*)(cube_uvs)
-            };
-
-            cube_mesh = create_mesh(mesh_desc);
-        }
-
-        // Texture creation
-        {
-            albedo_map = load_texture_from_file("textures/stone01.dds");
-            normal_map = load_texture_from_file("textures/bump01.dds");
-        }
+        gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", gltf_context);
 
         end_upload();
 
@@ -260,21 +127,43 @@ protected:
             100.0f // far
         );
 
-        // Create constant buffers
-        {
-            BufferDesc cb_desc = {
-                .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
-                .type = BufferType::DEFAULT,
-                .byte_size = sizeof(ViewConstantData),
-                .stride = 0,
-                .data = nullptr,
-            };
+        BufferDesc cb_desc = {
+            .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
+            .type = BufferType::DEFAULT,
+            .byte_size = sizeof(ViewConstantData),
+            .stride = 0,
+            .data = nullptr,
+        };
 
-            view_cb_handle = create_buffer(cb_desc);
+        view_cb_handle = create_buffer(cb_desc);
 
-            // Same size and usage etc, so we can use the same desc
-            draw_cb_handle = create_buffer(cb_desc);
+        const size_t num_draws = gltf_context.draw_calls.size;
+        draw_constant_data.reserve(num_draws);
+        draw_data_buffer_handles.reserve(num_draws);
+        for (size_t i = 0; i < num_draws; i++) {
+            const size_t node_idx = draw_data_buffer_handles.push_back(
+                create_buffer(cb_desc)
+            );
+
+            const auto& draw_call = gltf_context.draw_calls[i];
+            const auto& transform = gltf_context.scene_graph.global_transforms[draw_call.scene_node_idx];
+            size_t data_idx = draw_constant_data.push_back({
+                .model = transform,
+                .inv_model = invert(transform),
+                });
         }
+
+        TextureDesc depth_texture_desc = {
+            .width = width,
+            .height = height,
+            .depth = 1,
+            .num_mips = 1,
+            .array_size = 1,
+            .is_3d = false,
+            .format = BufferFormat::D32,
+            .usage = RESOURCE_USAGE_DEPTH_STENCIL,
+        };
+        depth_target = create_texture(depth_texture_desc);
     }
 
     void shutdown() override final
@@ -290,12 +179,9 @@ protected:
         view_constant_data.time = time_data.elapsed_seconds_f;
         update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
 
-        draw_constant_data.model = identity_mat4();
-        draw_constant_data.inv_model = identity_mat4();
-        // TODO: Actually grab the relevant descriptors?
-        draw_constant_data.albedo_map_idx = get_shader_readable_texture_index(albedo_map);
-        draw_constant_data.normal_map_idx = get_shader_readable_texture_index(normal_map);
-        update_buffer(draw_cb_handle, &draw_constant_data, sizeof(draw_constant_data));
+        for (size_t i = 0; i < gltf_context.draw_calls.size; i++) {
+            update_buffer(draw_data_buffer_handles[i], &draw_constant_data[i], sizeof(DrawConstantData));
+        }
     }
 
     void render() override final
@@ -305,17 +191,22 @@ protected:
 
         TextureHandle backbuffer = get_current_back_buffer_handle();
         clear_render_target(backbuffer, clear_color);
+        clear_depth_target(depth_target, 1.0f, 0);
 
         set_active_resource_layout(resource_layout);
         set_pipeline_state(pso_handle);
-        bind_resource_table(2);
-        bind_constant_buffer(draw_cb_handle, 0);
-        bind_constant_buffer(view_cb_handle, 1);
         set_viewports(&viewport, 1);
         set_scissors(&scissor, 1);
 
-        set_render_targets(&backbuffer, 1);
-        draw_mesh(cube_mesh);
+        set_render_targets(&backbuffer, 1, depth_target);
+
+        bind_resource_table(2);
+        bind_constant_buffer(view_cb_handle, 1);
+
+        for (size_t i = 0; i < gltf_context.draw_calls.size; i++) {
+            bind_constant_buffer(draw_data_buffer_handles[i], 0);
+            draw_mesh(gltf_context.draw_calls[i].mesh);
+        }
     }
 
     void before_reset() override final

@@ -31,6 +31,22 @@ namespace zec
             u32 parent_idx = UINT32_MAX;
         };
 
+        struct MeshArrayView
+        {
+            u32 offset = 0;
+            u32 count = 1;
+        };
+
+        void traverse_scene_graph(const tinygltf::Model& model, const u32 parent_idx, const u32 node_idx, Array<ChildParentPair>& node_processing_list)
+        {
+            u32 new_parent_idx = u32(node_processing_list.push_back({ node_idx, parent_idx }));
+
+            const tinygltf::Node& node = model.nodes[node_idx];
+            for (i32 child_idx : node.children) {
+                traverse_scene_graph(model, new_parent_idx, child_idx, node_processing_list);
+            }
+        }
+
         // Process the GLTF scene graph to get a flat list of nodes wherein the parent nodes
         // are always before the child nodes. We need to do this so we can compute global
         // transforms in a single pass.
@@ -42,24 +58,8 @@ namespace zec
             node_processing_list.reserve(model.nodes.size());
 
             // Push root of scene tree into queue
-            for (i32 parent_idx : scene.nodes) {
-                node_processing_list.push_back({ u32(parent_idx), UINT32_MAX });
-
-                const tinygltf::Node& node = model.nodes[parent_idx];
-                for (i32 child_idx : node.children) {
-                    node_queue.push_back({ u32(child_idx), u32(parent_idx) });
-                }
-            }
-
-            // Use queue to do a depth-first traversal of the tree and construct the list of child parent pairs.
-            while (node_queue.size > 0) {
-                auto pair = node_queue.pop_back();
-                node_processing_list.push_back({ pair.child_idx, pair.parent_idx });
-
-                const tinygltf::Node& node = model.nodes[pair.child_idx];
-                for (i32 child_idx : node.children) {
-                    node_queue.push_back({ u32(child_idx), u32(pair.child_idx) });
-                }
+            for (i32 root_idx : scene.nodes) {
+                traverse_scene_graph(model, UINT32_MAX, root_idx, node_processing_list);
             }
         }
 
@@ -79,39 +79,150 @@ namespace zec
                 ChildParentPair pair = node_processing_list[node_idx];
 
                 const tinygltf::Node& node = model.nodes[pair.child_idx];
-
+                mat4& global_transform = scene_graph.global_transforms[node_idx];
                 scene_graph.parent_ids[node_idx] = pair.parent_idx;
-                // Translation
-                for (size_t i = 0; i < node.translation.size(); i++) {
-                    scene_graph.positions[node_idx][i] = float(node.translation[i]);
-                }
-                // Rotation
-                for (size_t i = 0; i < node.rotation.size(); i++) {
-                    scene_graph.rotations[node_idx][i] = float(node.rotation[i]);
-                }
                 // Scale
-                for (size_t i = 0; i < node.scale.size(); i++) {
-                    scene_graph.scales[node_idx][i] = float(node.scale[i]);
+                if (node.scale.size() > 0) {
+                    for (size_t i = 0; i < node.scale.size(); i++) {
+                        scene_graph.scales[node_idx][i] = float(node.scale[i]);
+                    }
+                }
+                else {
+                    scene_graph.scales[node_idx] = vec3{ 1.0f, 1.0f, 1.0f };
+                }
+                set_scale(global_transform, scene_graph.scales[node_idx]);
+
+                // Rotation
+                if (node.rotation.size() > 0) {
+                    for (size_t i = 0; i < node.rotation.size(); i++) {
+                        scene_graph.rotations[node_idx][i] = float(node.rotation[i]);
+                    }
+                    rotate(global_transform, scene_graph.rotations[node_idx]);
+                }
+
+                // Translation
+                if (node.translation.size() > 0) {
+                    for (size_t i = 0; i < node.translation.size(); i++) {
+                        scene_graph.positions[node_idx][i] = float(node.translation[i]);
+                    }
+                    set_translation(global_transform, scene_graph.positions[node_idx]);
+                }
+
+                const u32 parent_idx = scene_graph.parent_ids[node_idx];
+                if (parent_idx != UINT32_MAX) {
+                    const auto& parent_transform = scene_graph.global_transforms[parent_idx];
+                    global_transform = parent_transform * global_transform;
                 }
             }
-
-
         }
 
 
-        void process_textures(const tinygltf::Model& model, Context& out_context)
+        void process_textures(const tinygltf::Model& model, const std::string& gltf_file, Context& out_context)
+        {
+            const std::filesystem::path file_path{ gltf_file };
+            const std::filesystem::path folder_path = file_path.parent_path();
+
+            const size_t num_textures = model.textures.size();
+            out_context.textures.reserve(num_textures);
+
+            for (const auto& texture : model.textures) {
+                const auto& image = model.images[texture.source];
+                std::filesystem::path image_path = folder_path / std::filesystem::path{ image.uri };
+                TextureHandle& texture = load_texture_from_file(image_path.string().c_str());
+                out_context.textures.push_back(texture);
+
+                // TODO: Process Samplers?
+            }
+        }
+
+        void process_primitives(const tinygltf::Model& model, Array<MeshArrayView>& mesh_to_mesh_mapping, Context& out_context)
+        {
+            for (size_t their_mesh_idx = 0; their_mesh_idx < model.meshes.size(); ++their_mesh_idx) {
+                const auto& mesh = model.meshes[their_mesh_idx];
+                // New entry for each gltf mesh
+                mesh_to_mesh_mapping.push_back({ .offset = u32(out_context.meshes.size), .count = u32(mesh.primitives.size()) });
+                for (const auto& primitive : mesh.primitives) {
+                    MeshDesc mesh_desc{};
+
+                    // Indices
+                    {
+                        const auto& accessor = model.accessors[primitive.indices];
+                        const auto& buffer_view = model.bufferViews[accessor.bufferView];
+                        const auto& buffer = model.buffers[buffer_view.buffer];
+                        size_t offset = accessor.byteOffset + buffer_view.byteOffset;
+
+                        if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
+                            throw std::runtime_error("TODO: Allow byte sized indices");
+                        }
+
+                        mesh_desc.index_buffer_desc = {
+                            .usage = RESOURCE_USAGE_INDEX,
+                            .type = BufferType::DEFAULT,
+                            .byte_size = u32(buffer_view.byteLength),
+                            .stride = u32(accessor.ByteStride(buffer_view)),
+                            .data = (void*)(&buffer.data.at(offset)),
+                        };
+                    }
+
+                    const auto& attributes = primitive.attributes;
+                    constexpr char* attr_names[] = {
+                        "POSITION",
+                        "NORMAL",
+                        "TEXCOORD_0"
+                    };
+
+                    for (size_t i = 0; i < ARRAY_SIZE(attr_names); ++i) {
+                        const auto& attr_idx = attributes.at(attr_names[i]);
+                        const auto& accessor = model.accessors[attr_idx];
+                        const auto& buffer_view = model.bufferViews[accessor.bufferView];
+                        const auto& buffer = model.buffers[buffer_view.buffer];
+                        size_t offset = accessor.byteOffset + buffer_view.byteOffset;
+
+                        ASSERT_MSG(buffer_view.byteStride == 0, "We only allow tightly packed vertex attributes (sorry)");
+
+                        mesh_desc.vertex_buffer_descs[i] = {
+                            .usage = RESOURCE_USAGE_VERTEX,
+                            .type = BufferType::DEFAULT,
+                            .byte_size = u32(buffer_view.byteLength),
+                            .stride = u32(accessor.ByteStride(buffer_view)),
+                            .data = (void*)(&buffer.data.at(offset)),
+                        };
+                    }
+
+                    // Create mesh
+                    out_context.meshes.push_back(create_mesh(mesh_desc));
+                }
+            }
+        }
+
+
+        void process_materials(const tinygltf::Model& model, Context& out_context)
         {
 
         }
 
-        void process_primitives(const tinygltf::Model& model, Context& out_context)
+        void process_draw_calls(
+            const tinygltf::Model& model,
+            const Array<ChildParentPair>& node_processing_list,
+            const Array<MeshArrayView>& mesh_to_mesh_mapping,
+            Context& out_context
+        )
         {
+            for (size_t our_node_idx = 0; our_node_idx < node_processing_list.size; ++our_node_idx) {
+                const auto& pair = node_processing_list[our_node_idx];
 
-        }
+                const auto& node = model.nodes[pair.child_idx];
+                if (node.mesh >= 0) {
+                    const auto& mesh_info = mesh_to_mesh_mapping[node.mesh];
 
-        void process_draw_calls(const tinygltf::Model& model, Context& out_context)
-        {
-
+                    for (size_t primitive_offset = 0; primitive_offset < mesh_info.count; ++primitive_offset) {
+                        out_context.draw_calls.push_back(DrawCall{
+                            .mesh = out_context.meshes[mesh_info.offset + primitive_offset],
+                            .scene_node_idx = u32(our_node_idx)
+                            });
+                    }
+                }
+            }
         }
 
         void load_gltf_file(const std::string& gltf_file, Context& out_context)
@@ -140,7 +251,7 @@ namespace zec
             }
 
             // Flatten gltf node graph
-            Array<ChildParentPair> node_processing_list{ model.nodes.size() };
+            Array<ChildParentPair> node_processing_list{};
             flatten_gltf_scene_graph(model, node_processing_list);
 
             // Copy Node List
@@ -149,16 +260,17 @@ namespace zec
             // todo: Mark Joint Nodes?
 
             // Process Textures
-            process_textures(model, out_context);
+            //process_textures(model, gltf_file, out_context);
 
             // Process Primitives
-            process_primitives(model, out_context);
+            Array<MeshArrayView> mesh_to_mesh_mapping = {};
+            process_primitives(model, mesh_to_mesh_mapping, out_context);
 
             // Process Materials
-            process_primitives(model, out_context);
+            //process_materials(model, out_context);
 
             // Process Draw calls
-            process_draw_calls(model, out_context);
+            process_draw_calls(model, node_processing_list, mesh_to_mesh_mapping, out_context);
         };
     }
 }

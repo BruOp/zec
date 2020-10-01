@@ -59,6 +59,7 @@ namespace zec
             DescriptorHeap& srv_descriptor_heap,
             DescriptorHeap& uav_descriptor_heap,
             DescriptorHeap& rtv_descriptor_heap,
+            DescriptorHeap& dsv_descriptor_heap,
             TextureList& texture_list
         );
 

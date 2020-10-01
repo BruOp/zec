@@ -394,6 +394,7 @@ namespace zec
             g_srv_descriptor_heap,
             g_srv_descriptor_heap,
             g_rtv_descriptor_heap,
+            g_dsv_descriptor_heap,
             g_textures
         );
         destroy(g_destruction_queue, g_buffers);
@@ -595,7 +596,18 @@ namespace zec
             }
         };
 
+        D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COMMON;
+
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
+        D3D12_CLEAR_VALUE optimized_clear_value = { };
+
+        if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
+            optimized_clear_value.Format = DXGI_FORMAT_D32_FLOAT;
+            optimized_clear_value.DepthStencil = { 1.0f, 0 };
+            flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+            initial_state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+        }
+
 
         D3D12_RESOURCE_DESC d3d_desc = {
             .Dimension = desc.is_3d ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -620,12 +632,11 @@ namespace zec
         DXCall(g_allocator->CreateResource(
             &alloc_desc,
             &d3d_desc,
-            D3D12_RESOURCE_STATE_COMMON,
-            nullptr,
+            initial_state,
+            (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) ? &optimized_clear_value : nullptr,
             &texture.allocation,
             IID_PPV_ARGS(&texture.resource)
         ));
-
 
         if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
 
@@ -646,6 +657,26 @@ namespace zec
             for (u32 i = 0; i < g_srv_descriptor_heap.num_heaps; ++i) {
                 g_device->CreateShaderResourceView(texture.resource, &srv_desc, srv_alloc.handles[i]);
             }
+        }
+
+        if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
+            ASSERT(false);
+        }
+
+        if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
+            PersistentDescriptorAlloc  dsv_alloc = allocate_persistent_descriptor(g_dsv_descriptor_heap);
+            texture.dsv = dsv_alloc.handles[0];
+
+            D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {
+                .Format = texture.info.format,
+                .ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D,
+                .Flags = D3D12_DSV_FLAG_NONE,
+                .Texture2D = {
+                    .MipSlice = 0,
+                },
+            };
+
+            g_device->CreateDepthStencilView(texture.resource, &dsv_desc, texture.dsv);
         }
 
         return push_back(g_textures, texture);
@@ -924,6 +955,11 @@ namespace zec
         g_cmd_list->ClearRenderTargetView(get_rtv(g_textures, texture_handle), clear_color, 0, nullptr);
     }
 
+    void clear_depth_target(const TextureHandle depth_stencil_buffer, const float depth_value, const u8 stencil_value)
+    {
+        g_cmd_list->ClearDepthStencilView(get_dsv(g_textures, depth_stencil_buffer), D3D12_CLEAR_FLAG_DEPTH, depth_value, stencil_value, 0, nullptr);
+    }
+
     void set_viewports(const Viewport* viewports, const u32 num_viewports)
     {
         g_cmd_list->RSSetViewports(num_viewports, reinterpret_cast<const D3D12_VIEWPORT*>(viewports));
@@ -941,13 +977,14 @@ namespace zec
         g_cmd_list->RSSetScissorRects(num_scissors, rects);
     }
 
-    void set_render_targets(TextureHandle* render_textures, const u32 num_render_targets)
+    void set_render_targets(TextureHandle* render_textures, const u32 num_render_targets, TextureHandle depth_target)
     {
+        D3D12_CPU_DESCRIPTOR_HANDLE dsv = get_dsv(g_textures, depth_target);
         D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
         for (size_t i = 0; i < num_render_targets; i++) {
             rtvs[i] = get_rtv(g_textures, render_textures[i]);
         }
-        g_cmd_list->OMSetRenderTargets(num_render_targets, rtvs, 0, nullptr);
+        g_cmd_list->OMSetRenderTargets(num_render_targets, rtvs, FALSE, &dsv);
     }
 }
 #endif // USE_D3D_RENDERER

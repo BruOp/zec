@@ -9,7 +9,8 @@ namespace zec
     // Copied from BGFX and others
 #define RESOURCE_HANDLE(_name)      \
 	struct _name { u32 idx = k_invalid_handle; }; \
-    inline bool is_valid(_name _handle) { return _handle.idx != zec::k_invalid_handle; };
+    inline bool is_valid(_name _handle) { return _handle.idx != zec::k_invalid_handle; }; \
+    inline bool operator==(_name handle1, _name handle2) { return handle1.idx == handle2.idx; };
 
 #define INVALID_HANDLE \
     { zec::k_invalid_handle };
@@ -31,6 +32,8 @@ namespace zec
         RESOURCE_USAGE_SHADER_READABLE = (1 << 3),
         RESOURCE_USAGE_COMPUTE_WRITABLE = (1 << 4),
         RESOURCE_USAGE_DYNAMIC = (1 << 5),
+        RESOURCE_USAGE_RENDER_TARGET = (1 << 6),
+        RESOURCE_USAGE_DEPTH_STENCIL = (1 << 7),
     };
 
     enum MeshAttribute : u16
@@ -55,6 +58,8 @@ namespace zec
     enum struct BufferFormat : u16
     {
         INVALID = 0,
+        UNKOWN,
+        D32,
         UINT16,
         UINT32,
         UNORM8_2,
@@ -409,6 +414,7 @@ namespace zec
         RasterStateDesc raster_state_desc = {};
         BlendStateDesc blend_state = {};
         BufferFormat rtv_formats[8] = {};
+        BufferFormat depth_buffer_format = BufferFormat::INVALID;
         u8 used_stages = PIPELINE_STAGE_INVALID;
         std::wstring shader_file_path = L"";
     };

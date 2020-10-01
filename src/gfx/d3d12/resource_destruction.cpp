@@ -46,7 +46,14 @@ namespace zec
             swap_chain.output->Release();
         }
 
-        void destroy(ResourceDestructionQueue& destruction_queue, DescriptorHeap& srv_descriptor_heap, DescriptorHeap& uav_descriptor_heap, DescriptorHeap& rtv_descriptor_heap, TextureList& texture_list)
+        void destroy(
+            ResourceDestructionQueue& destruction_queue,
+            DescriptorHeap& srv_descriptor_heap,
+            DescriptorHeap& uav_descriptor_heap,
+            DescriptorHeap& rtv_descriptor_heap,
+            DescriptorHeap& dsv_descriptor_heap,
+            TextureList& texture_list
+        )
         {
             for (size_t i = 0; i < texture_list.resources.size; i++) {
                 if (texture_list.resources[i]) {
@@ -55,6 +62,11 @@ namespace zec
                 free_persistent_alloc(srv_descriptor_heap, texture_list.srv_indices[i]);
                 free_persistent_alloc(uav_descriptor_heap, texture_list.uavs[i]);
                 free_persistent_alloc(rtv_descriptor_heap, texture_list.rtvs[i]);
+            }
+
+            for (size_t i = 0; i < texture_list.dsv_infos.size; i++) {
+                const auto& dsv_info = texture_list.dsv_infos[i];
+                free_persistent_alloc(dsv_descriptor_heap, dsv_info.dsv);
             }
 
             texture_list.resources.empty();

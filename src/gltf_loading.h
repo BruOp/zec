@@ -30,9 +30,9 @@ namespace zec
             Array<mat4> global_transforms = {};
         };
 
-        struct DrawCalls
+        struct DrawCall
         {
-            u32 mesh_idx = UINT32_MAX;
+            MeshHandle mesh = INVALID_HANDLE;
             u32 scene_node_idx = UINT32_MAX;
             u32 material_data = UINT32_MAX;
         };
@@ -43,7 +43,7 @@ namespace zec
             Array<TextureHandle> textures = {};
             Array<MeshHandle> meshes = {};
             Array<MaterialData> materials = {};
-            Array<DrawCalls> draw_calls = {};
+            Array<DrawCall> draw_calls = {};
         };
 
         void load_gltf_file(const std::string& gltf_file, Context& context);

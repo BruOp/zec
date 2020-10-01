@@ -379,6 +379,13 @@ namespace zec
         mat[1][3] = translation.y;
         mat[2][3] = translation.z;
     };
+
+    inline void set_scale(mat4& mat, const vec3& scale)
+    {
+        mat[0][0] = scale.x;
+        mat[1][1] = scale.y;
+        mat[2][2] = scale.z;
+    };
     //mat44 orthogonal_projection(float left, float right, float near, float far, float top, float bottom)
 
     // Aspect ratio is in radians, please

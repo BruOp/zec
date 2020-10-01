@@ -44,7 +44,9 @@ namespace zec
     {
         clear_render_target(render_texture, clear_color.data);
     };
+    void clear_depth_target(const TextureHandle depth_stencil_buffer, const float depth_value, const u8 stencil_value);
+
     void set_viewports(const Viewport* viewport, const u32 num_viewports);
     void set_scissors(const Scissor* scissor, const u32 num_scissors);
-    void set_render_targets(TextureHandle* render_textures, const u32 num_render_targets);
+    void set_render_targets(TextureHandle* render_textures, const u32 num_render_targets, const TextureHandle depth_texture);
 }

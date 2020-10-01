@@ -45,6 +45,10 @@ namespace zec
         DXGI_FORMAT to_d3d_format(const BufferFormat format)
         {
             switch (format) {
+            case BufferFormat::UNKOWN:
+                return DXGI_FORMAT_UNKNOWN;
+            case BufferFormat::D32:
+                return DXGI_FORMAT_D32_FLOAT;
             case BufferFormat::UINT16:
                 return DXGI_FORMAT_R16_UINT;
             case BufferFormat::UINT32:
@@ -85,6 +89,10 @@ namespace zec
         BufferFormat from_d3d_format(const DXGI_FORMAT format)
         {
             switch (format) {
+            case DXGI_FORMAT_UNKNOWN:
+                return BufferFormat::UNKOWN;
+            case DXGI_FORMAT_D32_FLOAT:
+                return BufferFormat::D32;
             case DXGI_FORMAT_R16_UINT:
                 return BufferFormat::UINT16;
             case DXGI_FORMAT_R32_UINT:
@@ -199,7 +207,7 @@ namespace zec
         {
             //d3d12_blend_mode
             return  D3D12_RENDER_TARGET_BLEND_DESC{
-                desc.blend_mode == BlendMode::OPAQUE, FALSE,
+                desc.blend_mode != BlendMode::OPAQUE, FALSE,
                 to_d3d_blend(desc.src_blend), to_d3d_blend(desc.dst_blend), to_d3d_blend_op(desc.blend_op),
                 to_d3d_blend(desc.src_blend_alpha), to_d3d_blend(desc.dst_blend_alpha), to_d3d_blend_op(desc.blend_op_alpha),
                 D3D12_LOGIC_OP_NOOP,
