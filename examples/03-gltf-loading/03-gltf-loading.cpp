@@ -105,7 +105,7 @@ protected:
             pipeline_desc.rtv_formats[0] = BufferFormat::R8G8B8A8_UNORM_SRGB;
             pipeline_desc.depth_buffer_format = BufferFormat::D32;
             pipeline_desc.resource_layout = resource_layout;
-            pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CW;
+            pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CCW;
             pipeline_desc.raster_state_desc.flags |= DEPTH_CLIP_ENABLED;
             pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::LESS;
             pipeline_desc.depth_stencil_state.depth_write = TRUE;
@@ -147,7 +147,7 @@ protected:
 
             const auto& draw_call = gltf_context.draw_calls[i];
             const auto& transform = gltf_context.scene_graph.global_transforms[draw_call.scene_node_idx];
-            size_t data_idx = draw_constant_data.push_back({
+            draw_constant_data.push_back({
                 .model = transform,
                 .inv_model = invert(transform),
                 });

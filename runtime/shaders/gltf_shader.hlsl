@@ -85,7 +85,7 @@ PSInput VSMain(float3 position : POSITION, float3 normal : NORMAL, float2 uv : T
     PSInput result;
 
     result.position_ws = mul(model, float4(position, 1.0));
-    result.position_cs = mul(proj, mul(view, float4(position, 1.0)));
+    result.position_cs = mul(VP, result.position_ws);
     result.normal_ws = normalize(mul(model, float4(normal, 0.0)).xyz);
     result.uv = uv;
 
@@ -109,14 +109,14 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     // float3 base_color = albedo_texture.Sample(default_sampler, input.uv).rgb;
     // float3 normal = perturb_normal(normal_texture, input.normal_ws, view_dir, input.uv);
-    float3 normal = input.normal_ws;
+    float3 normal = normalize(input.normal_ws);
 
     float3 light_dir = light_pos - input.position_ws.xyz;
     float light_dist = length(light_dir);
     light_dir = light_dir / light_dist;
 
     float attenuation = light_intensity / (light_dist * light_dist);
-    float3 light_out = attenuation * light_color * clamp_dot(normal, light_dir);
+    float3 light_in = attenuation * light_color * clamp_dot(normal, light_dir);
 
-    return float4(light_out, 1.0);
+    return float4(light_in, 1.0);
 }

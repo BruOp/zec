@@ -80,17 +80,18 @@ namespace zec
 
                 const tinygltf::Node& node = model.nodes[pair.child_idx];
                 mat4& global_transform = scene_graph.global_transforms[node_idx];
+                global_transform = identity_mat4();
                 scene_graph.parent_ids[node_idx] = pair.parent_idx;
                 // Scale
                 if (node.scale.size() > 0) {
                     for (size_t i = 0; i < node.scale.size(); i++) {
                         scene_graph.scales[node_idx][i] = float(node.scale[i]);
                     }
+                    set_scale(global_transform, scene_graph.scales[node_idx]);
                 }
                 else {
                     scene_graph.scales[node_idx] = vec3{ 1.0f, 1.0f, 1.0f };
                 }
-                set_scale(global_transform, scene_graph.scales[node_idx]);
 
                 // Rotation
                 if (node.rotation.size() > 0) {

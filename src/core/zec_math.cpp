@@ -13,7 +13,7 @@ namespace zec
         return mat4{
             { w, 0.0f, 0.0f, 0.0f },
             { 0.0f, h, 0.0f, 0.0f },
-            { 0.0f, 0.0f, -(z_far) / (z_near - z_far) - 1, -(z_near * z_far) / (z_near - z_far) },
+            { 0.0f, 0.0f, -(z_far) / (z_far - z_near), -(z_near * z_far) / (z_far - z_near) },
             { 0.0f, 0.0f, -1.0f, 0.0f },
         };
     };
@@ -76,24 +76,31 @@ namespace zec
         return res;
     }
 
+    bool operator==(const mat4& m1, const mat4& m2)
+    {
+        constexpr size_t N = _countof(m1.rows);
+
+        for (size_t i = 0; i < N; i++) {
+            for (size_t j = 0; j < N; j++) {
+                if (m1[i][j] != m2[i][j]) return false;
+            }
+        }
+        return true;
+    }
+
     mat4 operator*(const mat4& m1, const mat4& m2)
     {
-        const vec4& src_a0 = m1.rows[0];
-        const vec4& src_a1 = m1.rows[1];
-        const vec4& src_a2 = m1.rows[2];
-        const vec4& src_a3 = m1.rows[3];
+        constexpr size_t N = _countof(m1.rows);
 
-        const vec4& src_b0 = m2.rows[0];
-        const vec4& src_b1 = m2.rows[1];
-        const vec4& src_b2 = m2.rows[2];
-        const vec4& src_b3 = m2.rows[3];
-
-        return mat4{
-            src_a0 * src_b0[0] + src_a1 * src_b0[1] + src_a2 * src_b0[2] + src_a3 * src_b0[3],
-            src_a0 * src_b1[0] + src_a1 * src_b1[1] + src_a2 * src_b1[2] + src_a3 * src_b1[3],
-            src_a0 * src_b2[0] + src_a1 * src_b2[1] + src_a2 * src_b2[2] + src_a3 * src_b2[3],
-            src_a0 * src_b3[0] + src_a1 * src_b3[1] + src_a2 * src_b3[2] + src_a3 * src_b3[3]
-        };
+        mat4 res{};
+        for (size_t i = 0; i < N; i++) {
+            for (size_t j = 0; j < N; j++) {
+                for (size_t k = 0; k < N; k++) {
+                    res[i][j] += m1[i][k] * m2[k][j];
+                }
+            }
+        }
+        return res;
     }
 
     mat4& operator/=(mat4& m, const float s)
@@ -154,50 +161,50 @@ namespace zec
     mat4 invert(const mat4& m)
     {
         // Code based on inversion code in GLM
-        float s00 = m[2][2] * m[3][3] - m[3][2] * m[2][3];
-        float s01 = m[2][1] * m[3][3] - m[3][1] * m[2][3];
-        float s02 = m[2][1] * m[3][2] - m[3][1] * m[2][2];
-        float s03 = m[2][0] * m[3][3] - m[3][0] * m[2][3];
-        float s04 = m[2][0] * m[3][2] - m[3][0] * m[2][2];
-        float s05 = m[2][0] * m[3][1] - m[3][0] * m[2][1];
-        float s06 = m[1][2] * m[3][3] - m[3][2] * m[1][3];
-        float s07 = m[1][1] * m[3][3] - m[3][1] * m[1][3];
-        float s08 = m[1][1] * m[3][2] - m[3][1] * m[1][2];
-        float s09 = m[1][0] * m[3][3] - m[3][0] * m[1][3];
-        float s10 = m[1][0] * m[3][2] - m[3][0] * m[1][2];
-        float s11 = m[1][0] * m[3][1] - m[3][0] * m[1][1];
-        float s12 = m[1][2] * m[2][3] - m[2][2] * m[1][3];
-        float s13 = m[1][1] * m[2][3] - m[2][1] * m[1][3];
-        float s14 = m[1][1] * m[2][2] - m[2][1] * m[1][2];
-        float s15 = m[1][0] * m[2][3] - m[2][0] * m[1][3];
-        float s16 = m[1][0] * m[2][2] - m[2][0] * m[1][2];
-        float s17 = m[1][0] * m[2][1] - m[2][0] * m[1][1];
+        float s00 = m[2][2] * m[3][3] - m[2][3] * m[3][2];
+        float s01 = m[1][2] * m[3][3] - m[1][3] * m[3][2];
+        float s02 = m[1][2] * m[2][3] - m[1][3] * m[2][2];
+        float s03 = m[0][2] * m[3][3] - m[0][3] * m[3][2];
+        float s04 = m[0][2] * m[2][3] - m[0][3] * m[2][2];
+        float s05 = m[0][2] * m[1][3] - m[0][3] * m[1][2];
+        float s06 = m[2][1] * m[3][3] - m[2][3] * m[3][1];
+        float s07 = m[1][1] * m[3][3] - m[1][3] * m[3][1];
+        float s08 = m[1][1] * m[2][3] - m[1][3] * m[2][1];
+        float s09 = m[0][1] * m[3][3] - m[0][3] * m[3][1];
+        float s10 = m[0][1] * m[2][3] - m[0][3] * m[2][1];
+        float s11 = m[0][1] * m[1][3] - m[0][3] * m[1][1];
+        float s12 = m[2][1] * m[3][2] - m[2][2] * m[3][1];
+        float s13 = m[1][1] * m[3][2] - m[1][2] * m[3][1];
+        float s14 = m[1][1] * m[2][2] - m[1][2] * m[2][1];
+        float s15 = m[0][1] * m[3][2] - m[0][2] * m[3][1];
+        float s16 = m[0][1] * m[2][2] - m[0][2] * m[2][1];
+        float s17 = m[0][1] * m[1][2] - m[0][2] * m[1][1];
 
         mat4 inv{};
-        inv[0][0] = +(m[1][1] * s00 - m[1][2] * s01 + m[1][3] * s02);
-        inv[0][1] = -(m[1][0] * s00 - m[1][2] * s03 + m[1][3] * s04);
-        inv[0][2] = +(m[1][0] * s01 - m[1][1] * s03 + m[1][3] * s05);
-        inv[0][3] = -(m[1][0] * s02 - m[1][1] * s04 + m[1][2] * s05);
+        inv[0][0] = +(m[1][1] * s00 - m[2][1] * s01 + m[3][1] * s02);
+        inv[0][1] = -(m[0][1] * s00 - m[2][1] * s03 + m[3][1] * s04);
+        inv[0][2] = +(m[0][1] * s01 - m[1][1] * s03 + m[3][1] * s05);
+        inv[0][3] = -(m[0][1] * s02 - m[1][1] * s04 + m[2][1] * s05);
 
-        inv[1][0] = +(m[0][1] * s00 - m[0][2] * s01 + m[0][3] * s02);
-        inv[1][1] = -(m[0][0] * s00 - m[0][2] * s03 + m[0][3] * s04);
-        inv[1][2] = +(m[0][0] * s01 - m[0][1] * s03 + m[0][3] * s05);
-        inv[1][3] = -(m[0][0] * s02 - m[0][1] * s04 + m[0][2] * s05);
+        inv[1][0] = +(m[1][0] * s00 - m[2][0] * s01 + m[3][0] * s02);
+        inv[1][1] = -(m[0][0] * s00 - m[2][0] * s03 + m[3][0] * s04);
+        inv[1][2] = +(m[0][0] * s01 - m[1][0] * s03 + m[3][0] * s05);
+        inv[1][3] = -(m[0][0] * s02 - m[1][0] * s04 + m[2][0] * s05);
 
-        inv[2][0] = +(m[0][1] * s06 - m[0][2] * s07 + m[0][3] * s08);
-        inv[2][1] = -(m[0][0] * s06 - m[0][2] * s09 + m[0][3] * s10);
-        inv[2][2] = +(m[0][0] * s07 - m[0][1] * s09 + m[0][3] * s11);
-        inv[2][3] = -(m[0][0] * s08 - m[0][1] * s10 + m[0][2] * s11);
+        inv[2][0] = +(m[1][0] * s06 - m[2][0] * s07 + m[3][0] * s08);
+        inv[2][1] = -(m[0][0] * s06 - m[2][0] * s09 + m[3][0] * s10);
+        inv[2][2] = +(m[0][0] * s07 - m[1][0] * s09 + m[3][0] * s11);
+        inv[2][3] = -(m[0][0] * s08 - m[1][0] * s10 + m[2][0] * s11);
 
-        inv[3][0] = +(m[0][1] * s12 - m[0][2] * s13 + m[0][3] * s14);
-        inv[3][1] = -(m[0][0] * s12 - m[0][2] * s15 + m[0][3] * s16);
-        inv[3][2] = +(m[0][0] * s13 - m[0][1] * s15 + m[0][3] * s17);
-        inv[3][3] = -(m[0][0] * s14 - m[0][1] * s16 + m[0][2] * s17);
+        inv[3][0] = +(m[1][0] * s12 - m[2][0] * s13 + m[3][0] * s14);
+        inv[3][1] = -(m[0][0] * s12 - m[2][0] * s15 + m[3][0] * s16);
+        inv[3][2] = +(m[0][0] * s13 - m[1][0] * s15 + m[3][0] * s17);
+        inv[3][3] = -(m[0][0] * s14 - m[1][0] * s16 + m[2][0] * s17);
 
         float det = +m[0][0] * inv[0][0]
-            + m[0][1] * inv[0][1]
-            + m[0][2] * inv[0][2]
-            + m[0][3] * inv[0][3];
+            + m[1][0] * inv[1][0]
+            + m[2][0] * inv[2][0]
+            + m[3][0] * inv[3][0];
 
         inv /= det;
         return inv;

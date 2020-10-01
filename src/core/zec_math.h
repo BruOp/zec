@@ -158,6 +158,11 @@ namespace zec
         }
     };
 
+    inline std::ostream& operator<<(std::ostream& os, const vec4& v)
+    {
+        return os << v.x << ' ' << v.y << ' ' << v.z << ' ' << v.w;
+    };
+
     inline vec4 operator+(const vec4& v1, const vec4& v2)
     {
         return { v1.x + v2.x, v1.y + v2.y, v1.z + v2.z, v1.w + v2.w };
@@ -229,7 +234,7 @@ namespace zec
 
     vec3 operator*(const mat3& m, const vec3& v);
 
-    // ---------- mat44 ----------
+    // ---------- mat4 ----------
 
     struct mat4
     {
@@ -279,8 +284,17 @@ namespace zec
         }
     };
 
+    bool operator==(const mat4& m1, const mat4& m2);
     mat4 operator*(const mat4& m1, const mat4& m2);
     mat4& operator/=(mat4& m, const float s);
+
+    inline std::ostream& operator<<(std::ostream& os, const mat4& mat)
+    {
+        for (size_t i = 0; i < 4; i++) {
+            os << mat.rows[i] << '\n';
+        }
+        return os;
+    };
 
     vec4 operator*(const mat4& m, const vec4& v);
 
