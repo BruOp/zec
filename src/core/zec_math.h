@@ -107,6 +107,13 @@ namespace zec
         v1.z += v2.z;
         return v1;
     }
+    inline vec3& operator-=(vec3& v1, const vec3& v2)
+    {
+        v1.x -= v2.x;
+        v1.y -= v2.y;
+        v1.z -= v2.z;
+        return v1;
+    }
     inline vec3& operator*=(vec3& v1, const float s)
     {
         v1.x *= s;
@@ -313,7 +320,7 @@ namespace zec
     vec3 get_dir(const mat4& m);
     vec3 get_translation(const mat4& m);
 
-    mat4 look_at(vec3 pos, vec3 origin, vec3 up);
+    mat4 look_at(const vec3& pos, const vec3& origin, const vec3& up);
 
     mat4 invert(const mat4& m);
 

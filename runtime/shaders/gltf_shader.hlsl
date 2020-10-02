@@ -10,13 +10,28 @@
 //*********************************************************
 #pragma pack_matrix( row_major )
 
+
+static const uint INVALID_TEXTURE_IDX = 0xffffffff;
+static const float DIELECTRIC_SPECULAR = 0.04;
+static const float MIN_ROUGHNESS = 0.045;
+static const float PI = 3.141592653589793;
+
+
 cbuffer draw_constants_buffer : register(b0)
 {
     float4x4 model;
     float4x4 inv_model;
-    uint albedo_texture_idx;
+    uint base_color_texture_idx;
+    uint metallic_roughness_texture_idx;
     uint normal_texture_idx;
+    uint occlusion_texture_idx;
+    uint emissive_texture_idx;
+    float3 emissive_factor;
+    float4 base_color_factor;
+    float metallic_factor;
+    float roughness_factor;
 };
+
 
 cbuffer view_constants_buffer : register(b1)
 {
@@ -29,7 +44,7 @@ cbuffer view_constants_buffer : register(b1)
 
 SamplerState default_sampler : register(s0);
 
-// Texture2D tex2D_table[4096] : register(t0, space1);
+Texture2D tex2D_table[4096] : register(t0, space1);
 
 struct PSInput
 {
@@ -42,6 +57,17 @@ struct PSInput
 //=================================================================================================
 // Helper Functions
 //=================================================================================================
+
+float3 float3Splat(float x)
+{
+    return float3(x, x, x);
+}
+
+float clamp_dot(float3 A, float3 B)
+{
+    return clamp(dot(A, B), 0.0, 1.0f);
+}
+
 // Taken from http://www.thetenthplanet.de/archives/1180
 // And https://github.com/microsoft/DirectXTK12/blob/master/Src/Shaders/Utilities.fxh#L20
 float3x3 cotangent_frame(float3 N, float3 p, float2 uv)
@@ -58,7 +84,7 @@ float3x3 cotangent_frame(float3 N, float3 p, float2 uv)
     float3 t = normalize(mul(float2(duv1.x, duv2.x), inverse_M));
     float3 b = normalize(mul(float2(duv1.y, duv2.y), inverse_M));
     
-    // Construct a scale-invari�ant frame 
+    // Construct a scale-invariant frame 
     return float3x3(t, b, N);
 }
 
@@ -71,10 +97,52 @@ float3 perturb_normal(Texture2D normal_map, float3 N, float3 V, float2 texcoord)
     return normalize(mul(map, TBN));
 }
 
-float clamp_dot(float3 A, float3 B)
+
+float D_GGX(float NoH, float roughness)
 {
-    return clamp(dot(A, B), 0.0, 1.0f);
+    float alpha = roughness * roughness;
+    float a = NoH * alpha;
+    float k = alpha / (1.0 - NoH * NoH + a * a);
+    return k * k * (1.0 / PI);
 }
+
+float3 F_Schlick(float VoH, float3 f0)
+{
+    float f = pow(1.0 - VoH, 5.0);
+    return f + f0 * (1.0 - f);
+}
+
+// From the filament docs. Geometric Shadowing function
+// https://google.github.io/filament/Filament.html#toc4.4.2
+float V_SmithGGXCorrelated(float NoV, float NoL, float roughness)
+{
+    float a2 = pow(roughness, 4.0);
+    float GGXV = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
+    float GGXL = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
+    return 0.5 / (GGXV + GGXL);
+}
+
+float3 calc_diffuse(float3 base_color, float metallic)
+{
+    return base_color * (1.0 - DIELECTRIC_SPECULAR) * (1.0 - metallic);
+}
+
+float3 calc_specular(float3 light_dir, float3 view_dir, float3 f0, float3 normal, float roughness)
+{
+    float3 h = normalize(light_dir + view_dir);
+    float NoV = clamp(dot(normal, view_dir), 0.00005, 1.0);
+    float NoL = clamp_dot(normal, light_dir);
+    float NoH = clamp_dot(normal, h);
+    float VoH = clamp_dot(view_dir, h);
+
+    // Needs to be a uniform
+
+    float D = D_GGX(NoH, roughness);
+    float3 F = F_Schlick(VoH, f0);
+    float V = V_SmithGGXCorrelated(NoV, NoL, roughness);
+    return D * V * F;
+}
+
 
 //=================================================================================================
 // Vertex Shader
@@ -98,18 +166,41 @@ PSInput VSMain(float3 position : POSITION, float3 normal : NORMAL, float2 uv : T
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    // Texture2D albedo_texture = tex2D_table[albedo_texture_idx];
-    // Texture2D normal_texture = tex2D_table[normal_texture_idx];
+    float3 view_dir = normalize(camera_pos - input.position_ws.xyz);
 
-    float3 view_dir = camera_pos - input.position_ws.xyz;
+    const float3 light_pos = float3(10.0 * sin(time), 10.0, 10.0 * cos(time));
+    const float light_intensity = 100.0f;
+    const float3 light_color = float3Splat(1.0);
 
-    const float3 light_pos = float3(5.0 * sin(time), 6.0, 5.0 * cos(time));
-    const float light_intensity = 30.0f;
-    const float3 light_color = float3(1.0, 1.0, 1.0);
+    float4 base_color = base_color_factor;
+    if (base_color_texture_idx != INVALID_TEXTURE_IDX) {
+        Texture2D base_color_texture = tex2D_table[base_color_texture_idx];
+        base_color *= base_color_texture.Sample(default_sampler, input.uv);
+    }
+    
+    float3 normal = input.normal_ws;
+    if (normal_texture_idx != INVALID_TEXTURE_IDX) {
+        Texture2D normal_texture = tex2D_table[normal_texture_idx];
+        normal = perturb_normal(normal_texture, normal, view_dir, input.uv);
+    } else {
+        normal = normalize(input.normal_ws);
+    }
 
-    // float3 base_color = albedo_texture.Sample(default_sampler, input.uv).rgb;
-    // float3 normal = perturb_normal(normal_texture, input.normal_ws, view_dir, input.uv);
-    float3 normal = normalize(input.normal_ws);
+    float occlusion = 0.0f;
+    float roughness = roughness_factor;
+    float metallic = metallic_factor;
+    
+    if (metallic_roughness_texture_idx != INVALID_TEXTURE_IDX) {
+        Texture2D metallic_roughness_texture = tex2D_table[metallic_roughness_texture_idx];
+        float4 mr_texture_read = metallic_roughness_texture.Sample(default_sampler, input.uv);
+        metallic *= mr_texture_read.b;
+        roughness *= mr_texture_read.g;
+    }
+
+    if (occlusion_texture_idx != INVALID_TEXTURE_IDX) {
+        Texture2D occlusion_texture = tex2D_table[occlusion_texture_idx];
+        occlusion = occlusion_texture.Sample(default_sampler, input.uv).r;
+    }
 
     float3 light_dir = light_pos - input.position_ws.xyz;
     float light_dist = length(light_dir);
@@ -118,5 +209,12 @@ float4 PSMain(PSInput input) : SV_TARGET
     float attenuation = light_intensity / (light_dist * light_dist);
     float3 light_in = attenuation * light_color * clamp_dot(normal, light_dir);
 
-    return float4(light_in, 1.0);
+
+    float3 f0 = lerp(float3Splat(DIELECTRIC_SPECULAR), base_color.rgb, metallic);
+    float3 diffuse = calc_diffuse(base_color.xyz, metallic);
+    float3 specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
+
+    float3 light_out = occlusion * light_in * (diffuse + PI * specular);
+
+    return float4(light_out, 1.0);
 }

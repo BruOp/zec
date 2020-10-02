@@ -10,6 +10,7 @@ namespace zec
         mat4 view;
         mat4 invView;
         mat4 projection;
+        vec3 position;
     };
 
     class ICameraController
@@ -29,10 +30,10 @@ namespace zec
 
         void update(const float deltaTime) override final;
 
-        float yaw_sensitivity = 100.0f;
-        float pitch_sensitivity = 100.0f;
+        float yaw_sensitivity = 5.0f;
+        float pitch_sensitivity = 5.0f;
         float zoom_sensitivity = 0.1f;
-        float movement_sensitivity = 50.0f;
+        float movement_sensitivity = 10.0f;
         float pitch = k_half_pi;
         float yaw = k_half_pi;
         float radius = 1.0f;

@@ -144,7 +144,7 @@ namespace zec
         return { m[0][3], m[1][3], m[2][3] };
     }
 
-    mat4 look_at(vec3 pos, vec3 target, vec3 world_up)
+    mat4 look_at(const vec3& pos, const vec3& target, const vec3& world_up)
     {
         vec3 dir = normalize(pos - target);
         vec3 right = normalize(cross(world_up, dir));

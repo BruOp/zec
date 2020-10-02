@@ -10,11 +10,11 @@ namespace zec
     {
         struct MaterialData
         {
-            u32 base_color_texture = UINT32_MAX;
-            u32 metallic_roughness_texture = UINT32_MAX;
-            u32 normal_texture = UINT32_MAX;
-            u32 occlusion_texture = UINT32_MAX;
-            u32 emissive_texture = UINT32_MAX;
+            u32 base_color_texture_idx = UINT32_MAX;
+            u32 metallic_roughness_texture_idx = UINT32_MAX;
+            u32 normal_texture_idx = UINT32_MAX;
+            u32 occlusion_texture_idx = UINT32_MAX;
+            u32 emissive_texture_idx = UINT32_MAX;
             vec3 emissive_factor = { 0.0f, 0.0f, 0.0f };
             vec4 base_color_factor = { 1.0f, 1.0f, 1.0f, 1.0f };
             float metallic_factor = 1.0f;
@@ -34,7 +34,7 @@ namespace zec
         {
             MeshHandle mesh = INVALID_HANDLE;
             u32 scene_node_idx = UINT32_MAX;
-            u32 material_data = UINT32_MAX;
+            u32 material_index = UINT32_MAX;
         };
 
         struct Context

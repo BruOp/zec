@@ -23,9 +23,8 @@ struct DrawConstantData
 {
     mat4 model;
     mat4 inv_model;
-    u32 albedo_map_idx;
-    u32 normal_map_idx;
-    float padding[30];
+    gltf::MaterialData material_data;
+    float padding[18];
 };
 
 static_assert(sizeof(DrawConstantData) == 256);
@@ -59,7 +58,15 @@ protected:
         camera_controller.set_camera(&camera);
 
         camera_controller.origin = vec3{ 0.0f, 0.0f, 0.0f };
-        camera_controller.radius = 2.0f;
+        camera_controller.radius = 7.0f;
+
+        camera.projection = perspective_projection(
+            float(width) / float(height),
+            deg_to_rad(65.0f),
+            0.1f, // near
+            100.0f // far
+        );
+
         // Create a root signature consisting of a descriptor table with a single CBV.
         {
             constexpr u32 num_textures = 1024;
@@ -120,13 +127,6 @@ protected:
 
         end_upload();
 
-        camera.projection = perspective_projection(
-            float(width) / float(height),
-            deg_to_rad(65.0f),
-            0.1f, // near
-            100.0f // far
-        );
-
         BufferDesc cb_desc = {
             .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
             .type = BufferType::DEFAULT,
@@ -150,6 +150,7 @@ protected:
             draw_constant_data.push_back({
                 .model = transform,
                 .inv_model = invert(transform),
+                .material_data = gltf_context.materials[draw_call.material_index],
                 });
         }
 
@@ -175,7 +176,7 @@ protected:
         view_constant_data.view = camera.view;
         view_constant_data.projection = camera.projection;
         view_constant_data.VP = camera.projection * camera.view;
-        view_constant_data.camera_position = get_translation(camera.view);
+        view_constant_data.camera_position = camera.position;
         view_constant_data.time = time_data.elapsed_seconds_f;
         update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
 

@@ -45,16 +45,16 @@ namespace zec
 
         if (input_map.is_down(CAMERA_ROTATE_MODE)) {
             // Handle rotation
-            yaw -= delta_time * yaw_sensitivity * delta_x;
-            pitch += delta_time * pitch_sensitivity * delta_y;
+            yaw -= yaw_sensitivity * delta_x;
+            pitch += pitch_sensitivity * delta_y;
         }
 
         if (input_map.is_down(CAMERA_PAN_MODE)) {
 
             vec3 right = get_right(camera->view);
             vec3 up = get_up(camera->view);
-            origin += movement_sensitivity * delta_time * delta_x * right;
-            origin += movement_sensitivity * delta_time * delta_y * up;
+            origin -= movement_sensitivity * delta_x * right;
+            origin += movement_sensitivity * delta_y * up;
         }
 
         if (input_map.is_down(CAMERA_ZOOM_IN)) {
@@ -76,12 +76,12 @@ namespace zec
             yaw += k_2_pi;
         }
 
-        vec3 pos_on_sphere = {
+        camera->position = {
             sinf(pitch) * cosf(yaw),
             cosf(pitch),
             sinf(pitch) * sinf(yaw),
         };
-        pos_on_sphere *= radius;
-        set_camera_view(*camera, look_at(pos_on_sphere + origin, origin, k_up));
+        camera->position *= radius;
+        set_camera_view(*camera, look_at(camera->position + origin, origin, k_up));
     }
 }
