@@ -10,15 +10,15 @@ namespace zec
     {
         struct MaterialData
         {
+            vec4 base_color_factor = { 1.0f, 1.0f, 1.0f, 1.0f };
+            vec3 emissive_factor = { 0.0f, 0.0f, 0.0f };
+            float metallic_factor = 1.0f;
+            float roughness_factor = 1.0f;
             u32 base_color_texture_idx = UINT32_MAX;
             u32 metallic_roughness_texture_idx = UINT32_MAX;
             u32 normal_texture_idx = UINT32_MAX;
             u32 occlusion_texture_idx = UINT32_MAX;
             u32 emissive_texture_idx = UINT32_MAX;
-            vec3 emissive_factor = { 0.0f, 0.0f, 0.0f };
-            vec4 base_color_factor = { 1.0f, 1.0f, 1.0f, 1.0f };
-            float metallic_factor = 1.0f;
-            float roughness_factor = 1.0f;
         };
 
         struct SceneGraph
@@ -28,6 +28,7 @@ namespace zec
             Array<quaternion> rotations = {};
             Array<vec3> scales = {};
             Array<mat4> global_transforms = {};
+            Array<mat3> normal_transforms = {};
         };
 
         struct DrawCall

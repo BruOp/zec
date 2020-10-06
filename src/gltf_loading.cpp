@@ -74,6 +74,7 @@ namespace zec
             scene_graph.rotations.grow(node_processing_list.size);
             scene_graph.scales.grow(node_processing_list.size);
             scene_graph.global_transforms.grow(node_processing_list.size);
+            scene_graph.normal_transforms.grow(node_processing_list.size);
 
             for (size_t node_idx = 0; node_idx < node_processing_list.size; node_idx++) {
                 ChildParentPair pair = node_processing_list[node_idx];
@@ -83,11 +84,14 @@ namespace zec
                 global_transform = identity_mat4();
                 scene_graph.parent_ids[node_idx] = pair.parent_idx;
                 // Scale
+                bool uses_uniform_scale = true;
                 if (node.scale.size() > 0) {
+                    vec3& scale = scene_graph.scales[node_idx];
                     for (size_t i = 0; i < node.scale.size(); i++) {
-                        scene_graph.scales[node_idx][i] = float(node.scale[i]);
+                        scale[i] = float(node.scale[i]);
                     }
-                    set_scale(global_transform, scene_graph.scales[node_idx]);
+                    uses_uniform_scale = scale.x != scale.y || scale.x != scale.z;
+                    set_scale(global_transform, scale);
                 }
                 else {
                     scene_graph.scales[node_idx] = vec3{ 1.0f, 1.0f, 1.0f };
@@ -99,6 +103,22 @@ namespace zec
                         scene_graph.rotations[node_idx][i] = float(node.rotation[i]);
                     }
                     rotate(global_transform, scene_graph.rotations[node_idx]);
+
+                    if (uses_uniform_scale) {
+                        scene_graph.normal_transforms[node_idx] = to_mat3(quat_to_mat(scene_graph.rotations[node_idx]));
+                    }
+                    else {
+                        const auto& scale = scene_graph.scales[node_idx];
+                        mat4 m = {
+                            { -scale.x, 0.0f, 0.0f, 0.0f },
+                            { 0.0f, -scale.y, 0.0f, 0.0f },
+                            { 0.0f, 0.0f, -scale.z, 0.0f },
+                            { 0.0f, 0.0f, 0.0f, 1.0f },
+                        };
+                        quaternion q = scene_graph.rotations[node_idx];
+                        rotate(m, q);
+                        scene_graph.normal_transforms[node_idx] = to_mat3(m);
+                    }
                 }
 
                 // Translation

@@ -79,6 +79,7 @@ TEST_CASE("Can set a scale on a matrix")
 
 TEST_CASE("Matrices can be inverted")
 {
+    vec4 pos = { 1.0f, 2.0f, 3.0f, 1.0 };
     vec3 translation = { 1.0f, 1.0f, -2.0f };
     quaternion q = { 0.0f, 1.0f, 0.0f, cos(k_half_pi) };
     mat4 m = identity_mat4();
@@ -87,10 +88,12 @@ TEST_CASE("Matrices can be inverted")
     mat4 res = invert(m);
 
     quaternion q2 = { 0.0f, -1.0f, 0.0f, cos(k_half_pi) };
-    mat4 expected = identity_mat4();
-    rotate(expected, q2);
-    set_translation(expected, -translation);
-    REQUIRE(res == expected);
+    mat4 reverse_transform = identity_mat4();
+    rotate(reverse_transform, q2);
+    set_translation(reverse_transform, -translation);
+    vec4 expected = reverse_transform * pos;
+    //REQUIRE(res * pos == expected);
+    REQUIRE(res * m * pos == pos);
 }
 
 //TEST_CASE("Projection matrices match what we expect")

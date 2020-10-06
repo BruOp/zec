@@ -19,17 +19,17 @@ static const float PI = 3.141592653589793;
 
 cbuffer draw_constants_buffer : register(b0)
 {
-    float4x4 model;
-    float4x4 inv_model;
+    float4 base_color_factor;
+    float3 emissive_factor;
+    float metallic_factor;
+    float roughness_factor;
     uint base_color_texture_idx;
     uint metallic_roughness_texture_idx;
     uint normal_texture_idx;
     uint occlusion_texture_idx;
     uint emissive_texture_idx;
-    float3 emissive_factor;
-    float4 base_color_factor;
-    float metallic_factor;
-    float roughness_factor;
+    float4x4 model;
+    float3x3 normal_transform;
 };
 
 
@@ -154,7 +154,7 @@ PSInput VSMain(float3 position : POSITION, float3 normal : NORMAL, float2 uv : T
 
     result.position_ws = mul(model, float4(position, 1.0));
     result.position_cs = mul(VP, result.position_ws);
-    result.normal_ws = normalize(mul(model, float4(normal, 0.0)).xyz);
+    result.normal_ws = normalize(mul(normal_transform, normal));
     result.uv = uv;
 
     return result;
@@ -202,6 +202,12 @@ float4 PSMain(PSInput input) : SV_TARGET
         occlusion = occlusion_texture.Sample(default_sampler, input.uv).r;
     }
 
+    float3 emissive = emissive_factor;
+    if (emissive_texture_idx != INVALID_TEXTURE_IDX) {
+        Texture2D emissive_texture = tex2D_table[emissive_texture_idx];
+        emissive *= emissive_texture.Sample(default_sampler, input.uv).rgb;        
+    }
+
     float3 light_dir = light_pos - input.position_ws.xyz;
     float light_dist = length(light_dir);
     light_dir = light_dir / light_dist;
@@ -214,7 +220,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     float3 diffuse = calc_diffuse(base_color.xyz, metallic);
     float3 specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
 
-    float3 light_out = occlusion * light_in * (diffuse + PI * specular);
+    float3 light_out = emissive + occlusion * light_in * (diffuse + PI * specular);
 
     return float4(light_out, 1.0);
 }

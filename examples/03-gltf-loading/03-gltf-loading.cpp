@@ -21,13 +21,13 @@ static_assert(sizeof(ViewConstantData) == 256);
 
 struct DrawConstantData
 {
-    mat4 model;
-    mat4 inv_model;
-    gltf::MaterialData material_data;
-    float padding[18];
+    gltf::MaterialData material_data = {};
+    mat4 model = {};
+    mat3 normal_transform = {};
+    //float padding[25] = {};
 };
 
-static_assert(sizeof(DrawConstantData) == 256);
+//static_assert(sizeof(DrawConstantData) == 256);
 
 
 class NormalMappingApp : public zec::App
@@ -123,6 +123,7 @@ protected:
 
         begin_upload();
 
+        //gltf::load_gltf_file("models/damaged_helmet/DamagedHelmet.gltf", gltf_context);
         gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", gltf_context);
 
         end_upload();
@@ -147,10 +148,12 @@ protected:
 
             const auto& draw_call = gltf_context.draw_calls[i];
             const auto& transform = gltf_context.scene_graph.global_transforms[draw_call.scene_node_idx];
+            const auto& normal_transform = gltf_context.scene_graph.normal_transforms[draw_call.scene_node_idx];
+
             draw_constant_data.push_back({
-                .model = transform,
-                .inv_model = invert(transform),
                 .material_data = gltf_context.materials[draw_call.material_index],
+                .model = transform,
+                .normal_transform = normal_transform,
                 });
         }
 

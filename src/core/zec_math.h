@@ -170,13 +170,26 @@ namespace zec
         return os << v.x << ' ' << v.y << ' ' << v.z << ' ' << v.w;
     };
 
+    inline bool operator==(const vec4& v1, const vec4& v2)
+    {
+        return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z && v1.w == v2.w;
+    };
+
     inline vec4 operator+(const vec4& v1, const vec4& v2)
     {
         return { v1.x + v2.x, v1.y + v2.y, v1.z + v2.z, v1.w + v2.w };
     }
+    inline vec4 operator-(const vec4& v1, const vec4& v2)
+    {
+        return { v1.x - v2.x, v1.y - v2.y, v1.z - v2.z, v1.w - v2.w };
+    }
     inline vec4 operator*(const vec4& v1, const float s)
     {
         return { v1.x * s, v1.y * s, v1.z * s, v1.w * s };
+    }
+    inline vec4 operator*(const vec4& v1, const vec4& v2)
+    {
+        return { v1.x * v2.x, v1.y * v2.y, v1.z * v2.z, v1.w * v2.w };
     }
     inline vec4 operator/(const vec4& v1, const float s)
     {
@@ -237,6 +250,8 @@ namespace zec
         }
     };
 
+    float determinant(const mat3& m);
+
     mat3 transpose(const mat3& m);
 
     vec3 operator*(const mat3& m, const vec3& v);
@@ -249,6 +264,7 @@ namespace zec
         {
             vec4 rows[4] = {};
             float data[4][4];
+            float linear_data[16];
         };
 
         mat4() : rows{ {}, {}, {}, {} } { };
@@ -262,6 +278,10 @@ namespace zec
         mat4(const vec4 in_rows[4])
         {
             memory::copy(data, in_rows, sizeof(data));
+        }
+        mat4(const float in_data[16])
+        {
+            memory::copy(linear_data, in_data, sizeof(linear_data));
         }
         mat4(const mat3& rotation, const vec3& translation)
         {
@@ -278,7 +298,6 @@ namespace zec
         {
             return { rows[0][col_idx], rows[1][col_idx], rows[2][col_idx], rows[3][col_idx] };
         }
-
 
         inline float* operator[](const size_t index)
         {
@@ -321,6 +340,8 @@ namespace zec
     vec3 get_translation(const mat4& m);
 
     mat4 look_at(const vec3& pos, const vec3& origin, const vec3& up);
+
+    float determinant(const mat4& m);
 
     mat4 invert(const mat4& m);
 
