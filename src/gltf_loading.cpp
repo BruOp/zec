@@ -82,16 +82,21 @@ namespace zec
                 const tinygltf::Node& node = model.nodes[pair.child_idx];
                 mat4& global_transform = scene_graph.global_transforms[node_idx];
                 global_transform = identity_mat4();
+                mat3& normal_transform = scene_graph.normal_transforms[node_idx];
+                normal_transform = identity_mat3();
+
                 scene_graph.parent_ids[node_idx] = pair.parent_idx;
                 // Scale
-                bool uses_uniform_scale = true;
                 if (node.scale.size() > 0) {
                     vec3& scale = scene_graph.scales[node_idx];
                     for (size_t i = 0; i < node.scale.size(); i++) {
                         scale[i] = float(node.scale[i]);
                     }
-                    uses_uniform_scale = scale.x != scale.y || scale.x != scale.z;
                     set_scale(global_transform, scale);
+
+                    if (scale.x != scale.y || scale.x != scale.z) {
+                        set_scale(normal_transform, normalize(-scale));
+                    };
                 }
                 else {
                     scene_graph.scales[node_idx] = vec3{ 1.0f, 1.0f, 1.0f };
@@ -102,24 +107,11 @@ namespace zec
                     for (size_t i = 0; i < node.rotation.size(); i++) {
                         scene_graph.rotations[node_idx][i] = float(node.rotation[i]);
                     }
-                    rotate(global_transform, scene_graph.rotations[node_idx]);
-
-                    if (uses_uniform_scale) {
-                        scene_graph.normal_transforms[node_idx] = to_mat3(quat_to_mat(scene_graph.rotations[node_idx]));
-                    }
-                    else {
-                        const auto& scale = scene_graph.scales[node_idx];
-                        mat4 m = {
-                            { -scale.x, 0.0f, 0.0f, 0.0f },
-                            { 0.0f, -scale.y, 0.0f, 0.0f },
-                            { 0.0f, 0.0f, -scale.z, 0.0f },
-                            { 0.0f, 0.0f, 0.0f, 1.0f },
-                        };
-                        quaternion q = scene_graph.rotations[node_idx];
-                        rotate(m, q);
-                        scene_graph.normal_transforms[node_idx] = to_mat3(m);
-                    }
+                    mat4 rotation_matrix = quat_to_mat4(scene_graph.rotations[node_idx]);
+                    global_transform = rotation_matrix * global_transform;
+                    normal_transform = to_mat3(rotation_matrix) * normal_transform;
                 }
+
 
                 // Translation
                 if (node.translation.size() > 0) {
@@ -133,6 +125,7 @@ namespace zec
                 if (parent_idx != UINT32_MAX) {
                     const auto& parent_transform = scene_graph.global_transforms[parent_idx];
                     global_transform = parent_transform * global_transform;
+                    normal_transform = scene_graph.normal_transforms[parent_idx] * normal_transform;
                 }
             }
         }

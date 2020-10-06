@@ -18,7 +18,7 @@ namespace zec
         };
     };
 
-    mat4 quat_to_mat(const quaternion& q)
+    mat4 quat_to_mat4(const quaternion& q)
     {
         quaternion nq = normalize(q);
         float qx2 = nq.x * nq.x;
@@ -32,10 +32,10 @@ namespace zec
         float qzw = nq.z * nq.w;
 
         return {
-            { 1 - 2 * (qy2 + qz2), 2 * (qxy - qzw), 2 * (qxz + qyw), 0 },
-            { 2 * (qxy + qzw), 1 - 2 * (qx2, qz2), 2 * (qyz - qxw), 0 },
-            { 2 * (qxz - qyw), 2 * (qyz + qxw), 1 - 2 * (qx2 + qy2), 0 },
-            { 0,  0, 0, 1 },
+            { 1 - 2 * (qy2 + qz2),  2 * (qxy - qzw),        2 * (qxz + qyw),        0 },
+            { 2 * (qxy + qzw),      1 - 2 * (qx2 + qz2),     2 * (qyz - qxw),        0 },
+            { 2 * (qxz - qyw),      2 * (qyz + qxw),        1 - 2 * (qx2 + qy2),    0 },
+            { 0,                    0,                      0,                      1 },
         };
     }
 
@@ -65,12 +65,37 @@ namespace zec
         };
     }
 
+    boolean operator==(const mat3& m1, const mat3& m2)
+    {
+        for (size_t i = 0; i < 3; i++) {
+            for (size_t j = 0; j < 3; j++) {
+                if (m1[i][j] != m2[i][j]) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     vec3 operator*(const mat3& m, const vec3& v)
     {
         vec3 res{};
         for (size_t i = 0; i < 3; i++) {
             for (size_t j = 0; j < 3; j++) {
                 res[i] = m[i][j] * v[j];
+            }
+        }
+        return res;
+    }
+
+    mat3 operator*(const mat3& m1, const mat3& m2)
+    {
+        mat3 res{};
+        for (size_t i = 0; i < 3; i++) {
+            for (size_t j = 0; j < 3; j++) {
+                for (size_t k = 0; k < 3; k++) {
+                    res[i][j] += m1[i][k] * m2[k][j];
+                }
             }
         }
         return res;

@@ -13,7 +13,7 @@ namespace zec
     inline bool operator==(_name handle1, _name handle2) { return handle1.idx == handle2.idx; };
 
 #define INVALID_HANDLE \
-    { zec::k_invalid_handle };
+    { zec::k_invalid_handle }
 
     // ---------- Handles ----------
     RESOURCE_HANDLE(BufferHandle);

@@ -194,7 +194,6 @@ namespace zec
                 src.pResource = upload.resource;
                 src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
                 src.PlacedFootprint = layouts[subresource_idx];
-                src.PlacedFootprint.Offset += upload.allocation->GetOffset();
 
                 cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
             }

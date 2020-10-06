@@ -6,9 +6,10 @@ using namespace zec;
 
 struct DrawData
 {
-    mat4 model_view_transform;
+    mat4 model_transform;
+    mat4 view_transform;
     mat4 projection_matrix;
-    float padding[32];
+    mat4 VP;
 };
 
 static_assert(sizeof(DrawData) == 256);
@@ -128,14 +129,15 @@ protected:
 
         end_upload();
 
-        mesh_transform.model_view_transform = identity_mat4();
-        set_translation(mesh_transform.model_view_transform, vec3{ 0.0f, 0.0f, -2.0f });
+        mesh_transform.model_transform = identity_mat4();
+        mesh_transform.view_transform = look_at({ 0.0f, 0.0f, -2.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
         mesh_transform.projection_matrix = perspective_projection(
             float(width) / float(height),
             deg_to_rad(65.0f),
             0.1f, // near
             100.0f // far
         );
+        mesh_transform.VP = mesh_transform.projection_matrix * mesh_transform.view_transform;
 
         // Create constant buffer
         {
@@ -158,7 +160,7 @@ protected:
         clear_color[2] = 0.5f * sinf(float(time_data.elapsed_seconds_f)) + 0.5f;
 
         quaternion q = from_axis_angle(vec3{ 0.0f, 1.0f, -1.0f }, time_data.delta_seconds_f);
-        rotate(mesh_transform.model_view_transform, q);
+        rotate(mesh_transform.model_transform, q);
 
         update_buffer(cb_handle, &mesh_transform, sizeof(mesh_transform));
     }

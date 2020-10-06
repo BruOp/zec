@@ -979,12 +979,17 @@ namespace zec
 
     void set_render_targets(TextureHandle* render_textures, const u32 num_render_targets, TextureHandle depth_target)
     {
-        D3D12_CPU_DESCRIPTOR_HANDLE dsv = get_dsv(g_textures, depth_target);
+        D3D12_CPU_DESCRIPTOR_HANDLE dsv;
+        D3D12_CPU_DESCRIPTOR_HANDLE* dsv_ptr = nullptr;
+        if (is_valid(depth_target)) {
+            dsv = get_dsv(g_textures, depth_target);
+            dsv_ptr = &dsv;
+        }
         D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
         for (size_t i = 0; i < num_render_targets; i++) {
             rtvs[i] = get_rtv(g_textures, render_textures[i]);
         }
-        g_cmd_list->OMSetRenderTargets(num_render_targets, rtvs, FALSE, &dsv);
+        g_cmd_list->OMSetRenderTargets(num_render_targets, rtvs, FALSE, dsv_ptr);
     }
 }
 #endif // USE_D3D_RENDERER

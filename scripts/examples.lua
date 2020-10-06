@@ -13,7 +13,6 @@ function exampleProject(...)
       path.join(EXAMPLES_DIR, name, "**.bin.h")
     }
 
-    debugenvs { "PATH=%PATH%;%{EXTERNAL_LIB_DIR};" }
     debugdir(RUNTIME_DIR)
 
     includedirs {
@@ -31,7 +30,6 @@ function exampleProject(...)
     }
 
     links {
-      "gainput-d",
       "zec_lib"
     }
 
@@ -39,6 +37,11 @@ function exampleProject(...)
     linkoptions {
       "/ignore:4199" -- LNK4199: /DELAYLOAD:*.dll ignored; no imports found from *.dll
     }
+
+    configuration { "Release" }
+      defines {
+        "_ITERATOR_DEBUG_LEVEL=0"
+      }
 
     configuration{}
   end

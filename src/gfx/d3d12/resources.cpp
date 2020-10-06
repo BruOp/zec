@@ -2,6 +2,7 @@
 #include "resources.h"
 #include "utils/utils.h"
 #include "dx_utils.h"
+#include "globals.h"
 
 namespace zec
 {
@@ -52,7 +53,7 @@ namespace zec
             D3D12MA::ALLOCATION_DESC alloc_desc = {};
             alloc_desc.HeapType = heap_type;
 
-            DXCall(allocator->CreateResource(
+            HRESULT res = (allocator->CreateResource(
                 &alloc_desc,
                 &resource_desc,
                 initial_resource_state,
@@ -60,7 +61,11 @@ namespace zec
                 &buffer.allocation,
                 IID_PPV_ARGS(&buffer.resource)
             ));
-
+            if (res == DXGI_ERROR_DEVICE_REMOVED) {
+                HRESULT error = g_device->GetDeviceRemovedReason();
+                DXCall(res);
+            }
+            DXCall(res);
             buffer.gpu_address = buffer.resource->GetGPUVirtualAddress();
 
             if (desc.usage & RESOURCE_USAGE_DYNAMIC) {

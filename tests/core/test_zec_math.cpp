@@ -1,7 +1,30 @@
 #include "catch2/catch.hpp"
 #include "core/zec_math.h"
+#include "utils/utils.h"
 
 using namespace zec;
+
+
+TEST_CASE("3x3 Matricies can be multiplied")
+{
+    mat3 m1 = {
+        { 1.0f, 2.0f, 3.0f },
+        { 5.0f, 6.0f, 7.0f },
+        { 9.0f, 10.0f, 11.0f }
+    };
+    mat3 m2 = {
+        { 2.0f, 0.0f, 3.0f },
+        { 1.0f, 6.0f, -2.0f },
+        { -1.0f, 4.0f, 2.0f },
+    };
+    mat3 res = m1 * m2;
+    mat3 expected = {
+        {1.0f, 24.0f, 5.0f },
+        {9.0f, 64.0f, 17.0f },
+        {17.0f, 104.0f, 29.0f },
+    };
+    REQUIRE(res == expected);
+}
 
 TEST_CASE("Matricies can be multiplied")
 {
@@ -45,22 +68,15 @@ TEST_CASE("Can set translation on a matrix")
 
 TEST_CASE("Can apply rotation to a matrix using a quaternion")
 {
-    quaternion q = { 0.0f, 1.0f, 0.0f, cos(k_half_pi) };
+    const float angle = k_half_pi;
+    quaternion q = from_axis_angle({ 0.0f, 1.0f, 0.0f }, angle);
     mat4 m = identity_mat4();
     rotate(m, q);
-    mat4 expected = {
-        { -1.0f, 0.0f, 0.0f, 0.0f },
-        { 0.0f, 1.0f, 0.0f, 0.0f },
-        { 0.0f, 0.0f, -1.0f, 0.0f },
-        { 0.0f, 0.0f, 0.0f, 1.0f },
-    };
-    for (size_t i = 0; i < _countof(m.rows); i++) {
-        for (size_t j = 0; j < _countof(m.rows); j++) {
-            constexpr float epsilon = 8.74228e-08;
-            REQUIRE(m[i][j] < (expected[i][j] + epsilon));
-            REQUIRE(m[i][j] > (expected[i][j] - epsilon));
-        }
-    }
+
+    vec4 output = m * vec4{ 1.0f, 0.0f, 0.0f, 1.0f };
+    vec4 expected = { cosf(angle), 0.0f, -sinf(angle), 1.0f };
+    REQUIRE(output == expected);
+
 }
 
 TEST_CASE("Can set a scale on a matrix")
@@ -92,7 +108,6 @@ TEST_CASE("Matrices can be inverted")
     rotate(reverse_transform, q2);
     set_translation(reverse_transform, -translation);
     vec4 expected = reverse_transform * pos;
-    //REQUIRE(res * pos == expected);
     REQUIRE(res * m * pos == pos);
 }
 

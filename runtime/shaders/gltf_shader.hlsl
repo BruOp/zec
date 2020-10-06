@@ -19,6 +19,8 @@ static const float PI = 3.141592653589793;
 
 cbuffer draw_constants_buffer : register(b0)
 {
+    float4x4 model;
+    float3x3 normal_transform;
     float4 base_color_factor;
     float3 emissive_factor;
     float metallic_factor;
@@ -28,8 +30,6 @@ cbuffer draw_constants_buffer : register(b0)
     uint normal_texture_idx;
     uint occlusion_texture_idx;
     uint emissive_texture_idx;
-    float4x4 model;
-    float3x3 normal_transform;
 };
 
 
@@ -58,7 +58,7 @@ struct PSInput
 // Helper Functions
 //=================================================================================================
 
-float3 float3Splat(float x)
+float3 float3_splat(float x)
 {
     return float3(x, x, x);
 }
@@ -83,8 +83,8 @@ float3x3 cotangent_frame(float3 N, float3 p, float2 uv)
     float2x3 inverse_M = float2x3(cross(M[1], M[2]), cross(M[2], M[0]));
     float3 t = normalize(mul(float2(duv1.x, duv2.x), inverse_M));
     float3 b = normalize(mul(float2(duv1.y, duv2.y), inverse_M));
-    
-    // Construct a scale-invariant frame 
+
+    // Construct a scale-invariant frame
     return float3x3(t, b, N);
 }
 
@@ -170,14 +170,14 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     const float3 light_pos = float3(10.0 * sin(time), 10.0, 10.0 * cos(time));
     const float light_intensity = 100.0f;
-    const float3 light_color = float3Splat(1.0);
+    const float3 light_color = float3_splat(1.0);
 
     float4 base_color = base_color_factor;
     if (base_color_texture_idx != INVALID_TEXTURE_IDX) {
         Texture2D base_color_texture = tex2D_table[base_color_texture_idx];
         base_color *= base_color_texture.Sample(default_sampler, input.uv);
     }
-    
+
     float3 normal = input.normal_ws;
     if (normal_texture_idx != INVALID_TEXTURE_IDX) {
         Texture2D normal_texture = tex2D_table[normal_texture_idx];
@@ -189,14 +189,14 @@ float4 PSMain(PSInput input) : SV_TARGET
     float occlusion = 0.0f;
     float roughness = roughness_factor;
     float metallic = metallic_factor;
-    
+
     if (metallic_roughness_texture_idx != INVALID_TEXTURE_IDX) {
         Texture2D metallic_roughness_texture = tex2D_table[metallic_roughness_texture_idx];
         float4 mr_texture_read = metallic_roughness_texture.Sample(default_sampler, input.uv);
         metallic *= mr_texture_read.b;
         roughness *= mr_texture_read.g;
     }
-
+    roughness = max(MIN_ROUGHNESS, roughness);
     if (occlusion_texture_idx != INVALID_TEXTURE_IDX) {
         Texture2D occlusion_texture = tex2D_table[occlusion_texture_idx];
         occlusion = occlusion_texture.Sample(default_sampler, input.uv).r;
@@ -205,7 +205,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     float3 emissive = emissive_factor;
     if (emissive_texture_idx != INVALID_TEXTURE_IDX) {
         Texture2D emissive_texture = tex2D_table[emissive_texture_idx];
-        emissive *= emissive_texture.Sample(default_sampler, input.uv).rgb;        
+        emissive *= emissive_texture.Sample(default_sampler, input.uv).rgb;
     }
 
     float3 light_dir = light_pos - input.position_ws.xyz;
@@ -216,10 +216,9 @@ float4 PSMain(PSInput input) : SV_TARGET
     float3 light_in = attenuation * light_color * clamp_dot(normal, light_dir);
 
 
-    float3 f0 = lerp(float3Splat(DIELECTRIC_SPECULAR), base_color.rgb, metallic);
+    float3 f0 = lerp(float3_splat(DIELECTRIC_SPECULAR), base_color.rgb, metallic);
     float3 diffuse = calc_diffuse(base_color.xyz, metallic);
     float3 specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
-
     float3 light_out = emissive + occlusion * light_in * (diffuse + PI * specular);
 
     return float4(light_out, 1.0);

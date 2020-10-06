@@ -48,5 +48,5 @@ namespace zec
 
     void set_viewports(const Viewport* viewport, const u32 num_viewports);
     void set_scissors(const Scissor* scissor, const u32 num_scissors);
-    void set_render_targets(TextureHandle* render_textures, const u32 num_render_targets, const TextureHandle depth_texture);
+    void set_render_targets(TextureHandle* render_textures, const u32 num_render_targets, const TextureHandle depth_texture = INVALID_HANDLE);
 }

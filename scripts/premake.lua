@@ -31,7 +31,6 @@ workspace "zec"
     "directxtex_desktop_win10:2020.8.15.1"
   }
 
-  libdirs { EXTERNAL_LIB_DIR }
   targetdir (BUILD_DIR .. "bin/%{prj.name}/%{cfg.longname}")
   objdir (BUILD_DIR .. "obj/%{prj.name}/%{cfg.longname}")
 
@@ -83,8 +82,6 @@ project("zec_lib")
     "FatalWarnings"
   }
 
-  debugenvs { "PATH=%PATH%;../external/lib/;" }
-
   includedirs {
     ZEC_SRC_DIR,
     EXTERNAL_DIR,
@@ -98,10 +95,28 @@ project("zec_lib")
     "d3d12",
     "dxguid",
     "D3DCompiler",
-    "gainput-d",
     "Xinput9_1_0",
     "ws2_32"
   }
+
+  configuration {"Release"}
+    libdirs { path.join(EXTERNAL_LIB_DIR, "release") }
+
+    defines {
+      "_ITERATOR_DEBUG_LEVEL=0"
+    }
+
+    links {
+      "gainputstatic",
+    }
+
+  configuration {"Debug"}
+    libdirs { path.join(EXTERNAL_LIB_DIR, "debug") }
+
+    links {
+      "gainputstatic-d",
+    }
+
 
   configuration {}
 

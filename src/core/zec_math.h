@@ -217,20 +217,17 @@ namespace zec
     {
         union
         {
-            vec3 rows[3] = {};
-            float data[3][3];
+            // We need each row to be 16 bytes, since that's how it's packed in HLSL
+            vec4 rows[3] = {};
+            float data[3][4];
         };
 
         mat3() : rows{ {}, {}, {} } { };
-        mat3(const vec3& r1, const vec3& r2, const vec3& r3)
+        mat3(const vec3& r1, const vec3& r2, const vec3& r3) : mat3()
         {
             memory::copy(&rows[0], &r1, sizeof(r1));
             memory::copy(&rows[1], &r2, sizeof(r1));
             memory::copy(&rows[2], &r3, sizeof(r1));
-        }
-        mat3(const vec3 in_rows[3])
-        {
-            memory::copy(data, in_rows, sizeof(data));
         }
 
         inline vec3 column(const size_t col_idx) const
@@ -250,11 +247,32 @@ namespace zec
         }
     };
 
-    float determinant(const mat3& m);
+    inline mat3 identity_mat3()
+    {
+        return mat3{
+            { 1.0f, 0.0f, 0.0f },
+            { 0.0f, 1.0f, 0.0f },
+            { 0.0f, 0.0f, 1.0f },
+        };
+    };
 
     mat3 transpose(const mat3& m);
 
+    inline std::ostream& operator<<(std::ostream& os, const mat3& m)
+    {
+        for (size_t i = 0; i < 3; i++) {
+            for (size_t j = 0; j < 3; j++) {
+                os << m[i][j] << ' ';
+            }
+            os << '\n';
+        }
+        return os;
+    };
+
+    boolean operator==(const mat3& m1, const mat3& m2);
+
     vec3 operator*(const mat3& m, const vec3& v);
+    mat3 operator*(const mat3& m1, const mat3& m2);
 
     // ---------- mat4 ----------
 
@@ -341,8 +359,6 @@ namespace zec
 
     mat4 look_at(const vec3& pos, const vec3& origin, const vec3& up);
 
-    float determinant(const mat4& m);
-
     mat4 invert(const mat4& m);
 
     mat4 transpose(const mat4& m);
@@ -406,13 +422,13 @@ namespace zec
         return v / length(v);
     }
 
-    mat4 quat_to_mat(const quaternion& q);
+    mat4 quat_to_mat4(const quaternion& q);
 
     // ---------- Transformation helpers ----------
 
     inline void rotate(mat4& mat, const quaternion& q)
     {
-        mat = quat_to_mat(q) * mat;
+        mat = quat_to_mat4(q) * mat;
     }
 
     inline void set_translation(mat4& mat, const vec3& translation)
@@ -422,6 +438,12 @@ namespace zec
         mat[2][3] = translation.z;
     };
 
+    inline void set_scale(mat3& mat, const vec3& scale)
+    {
+        mat[0][0] = scale.x;
+        mat[1][1] = scale.y;
+        mat[2][2] = scale.z;
+    }
     inline void set_scale(mat4& mat, const vec3& scale)
     {
         mat[0][0] = scale.x;
