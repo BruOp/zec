@@ -48,37 +48,35 @@ namespace zec
 
         void destroy(
             ResourceDestructionQueue& destruction_queue,
-            DescriptorHeap& srv_descriptor_heap,
-            DescriptorHeap& uav_descriptor_heap,
-            DescriptorHeap& rtv_descriptor_heap,
-            DescriptorHeap& dsv_descriptor_heap,
+            DescriptorHeap* heaps,
             TextureList& texture_list
         )
         {
+            DescriptorHeap& srv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
+            DescriptorHeap& rtv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_RTV];
             for (size_t i = 0; i < texture_list.resources.size; i++) {
                 if (texture_list.resources[i]) {
                     queue_destruction(destruction_queue, texture_list.resources[i], texture_list.allocations[i]);
                 }
-                free_persistent_alloc(srv_descriptor_heap, texture_list.srv_indices[i]);
-                free_persistent_alloc(uav_descriptor_heap, texture_list.uavs[i]);
-                free_persistent_alloc(rtv_descriptor_heap, texture_list.rtvs[i]);
+
+                DescriptorUtils::free_descriptor(srv_heap, texture_list.srv_indices[i]);
+                DescriptorUtils::free_descriptor(srv_heap, texture_list.uav_indices[i]);
+                DescriptorUtils::free_descriptor(rtv_heap, texture_list.rtv_indices[i]);
             }
 
+            DescriptorHeap& dsv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_DSV];
             for (size_t i = 0; i < texture_list.dsv_infos.size; i++) {
                 const auto& dsv_info = texture_list.dsv_infos[i];
-                free_persistent_alloc(dsv_descriptor_heap, dsv_info.dsv);
+                DescriptorUtils::free_descriptor(dsv_heap, dsv_info.dsv);
             }
 
             texture_list.resources.empty();
             texture_list.allocations.empty();
             texture_list.srv_indices.empty();
-            texture_list.uavs.empty();
+            texture_list.uav_indices.empty();
+            texture_list.rtv_indices.empty();
             texture_list.infos.empty();
             texture_list.render_target_infos.empty();
         }
-
-        void destroy_resources(ResourceDestructionQueue& destruction_queue, TextureList& texture_list)
-        { }
-
     }
 }

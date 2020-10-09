@@ -4,6 +4,9 @@
 
 namespace zec
 {
+
+    // ---------- Constants ----------
+
     constexpr u32 k_invalid_handle = UINT32_MAX;
 
     // Copied from BGFX and others
@@ -21,6 +24,7 @@ namespace zec
     RESOURCE_HANDLE(MeshHandle);
     RESOURCE_HANDLE(ResourceLayoutHandle);
     RESOURCE_HANDLE(PipelineStateHandle);
+
 
     // ---------- Enums ----------
     enum ResourceUsage : u16
@@ -229,7 +233,7 @@ namespace zec
         MIRROR_ONCE
     };
 
-    // ---------- Creation Descriptors ---------- 
+    // ---------- Creation Descriptions ---------- 
     struct RendererDesc
     {
         u32 width = 0;

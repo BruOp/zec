@@ -95,12 +95,12 @@ namespace zec
         {
             ASSERT(heap.heaps[0] != nullptr);
 
-            // Aquire lock so we can't accidentally allocate from several threads at once
+
             ASSERT(heap.num_allocated_persistent < heap.num_persistent);
             u32 idx = heap.dead_list[heap.num_allocated_persistent];
             heap.num_allocated_persistent++;
 
-            // Release Lock
+            // TODO: Release Lock
 
             PersistentDescriptorAlloc alloc{ };
             alloc.idx = idx;

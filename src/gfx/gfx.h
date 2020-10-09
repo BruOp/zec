@@ -24,6 +24,7 @@ namespace zec
     MeshHandle create_mesh(MeshDesc mesh_desc);
     TextureHandle create_texture(TextureDesc texture_desc);
     ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
+    DescriptorRangeHandle create_descriptor_range(const DescriptorRangeDesc& desc);
     PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
 
     TextureHandle load_texture_from_file(const char* file_path);

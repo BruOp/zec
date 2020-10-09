@@ -33,10 +33,10 @@ namespace zec
         {
             ID3D12Resource* resource = nullptr;
             D3D12MA::Allocation* allocation = nullptr;
-            u32 srv = INVALID_SRV;
-            D3D12_CPU_DESCRIPTOR_HANDLE uav = INVALID_CPU_HANDLE;
-            D3D12_CPU_DESCRIPTOR_HANDLE rtv = INVALID_CPU_HANDLE;
-            D3D12_CPU_DESCRIPTOR_HANDLE dsv = INVALID_CPU_HANDLE;
+            u32 srv = INVALID_DESCRIPTOR_INDEX;
+            u32 uav = INVALID_DESCRIPTOR_INDEX;
+            u32 rtv = INVALID_DESCRIPTOR_INDEX;
+            u32 dsv = INVALID_DESCRIPTOR_INDEX;
             TextureInfo info = {};
             RenderTargetInfo render_target_info = {};
         };

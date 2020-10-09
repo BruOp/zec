@@ -4,6 +4,7 @@
 #include "gfx/constants.h"
 #include "dx_helpers.h"
 #include "wrappers.h"
+#include "descriptor_heap.h"
 #include "resources.h"
 #include "resource_managers.h"
 #include "upload_manager.h"
@@ -29,9 +30,8 @@ namespace zec
         extern UploadManager g_upload_manager;
 
         extern SwapChain g_swap_chain;
-        extern DescriptorHeap g_rtv_descriptor_heap;
-        extern DescriptorHeap g_dsv_descriptor_heap;
-        extern DescriptorHeap g_srv_descriptor_heap;
+
+        extern DescriptorHeap g_descriptor_heaps[size_t(D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES)];
 
         // Resources
         extern Array<Fence> g_fences;

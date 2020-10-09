@@ -63,18 +63,15 @@ namespace zec
         {
             // Re-create an RTV for each back buffer
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
-                // RTV Descriptor heap only has one heap -> only one handle is issued
-                ASSERT(g_rtv_descriptor_heap.num_heaps == 1);
                 TextureHandle texture_handle = swap_chain.back_buffers[i];
-
-                auto rtv = allocate_persistent_descriptor(g_rtv_descriptor_heap).handles[0];
-                set_rtv(g_textures, texture_handle, rtv);
                 ID3D12Resource* resource = get_resource(g_textures, texture_handle);
                 if (resource != nullptr) dx_destroy(&resource);
 
                 DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&resource)));
                 set_resource(g_textures, resource, texture_handle);
 
+                u32 rtv_idx = TextureUtils::get_rtv_index(g_textures, texture_handle);
+                D3D12_CPU_DESCRIPTOR_HANDLE rtv = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv_idx);
                 D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = { };
                 rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
                 rtvDesc.Format = swap_chain.format;
@@ -86,7 +83,7 @@ namespace zec
                 resource->SetName(make_string(L"Back Buffer %llu", i).c_str());
 
                 // Copy properties from swap chain to backbuffer textures, in case we need em
-                TextureInfo& texture_info = get_texture_info(g_textures, texture_handle);
+                TextureInfo& texture_info = TextureUtils::get_texture_info(g_textures, texture_handle);
                 texture_info.width = swap_chain.width;
                 texture_info.height = swap_chain.height;
                 texture_info.depth = 1;
@@ -110,8 +107,9 @@ namespace zec
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
                 TextureHandle texture_handle = g_swap_chain.back_buffers[i];
                 get_resource(g_textures, texture_handle)->Release();
-                free_persistent_alloc(g_rtv_descriptor_heap, get_rtv(g_textures, texture_handle));
-                set_rtv(g_textures, texture_handle, INVALID_CPU_HANDLE);
+                // TODO: Is this still necessary? Why not simply keep the current rtv and just re-create it? 
+                // free_persistent_alloc(g_rtv_descriptor_heap, get_rtv(g_textures, texture_handle));
+                // set_rtv(g_textures, texture_handle, INVALID_CPU_HANDLE);
             }
 
             set_formats(g_swap_chain, g_swap_chain.format);
@@ -295,36 +293,17 @@ namespace zec
             DXCall(g_cmd_list->Reset(current_cmd_allocator, nullptr));
         }
 
-        // RTV Descriptor Heap initialization
-        DescriptorHeapDesc rtv_descriptor_heap_desc{ };
-        rtv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-        rtv_descriptor_heap_desc.num_persistent = 256;
-        rtv_descriptor_heap_desc.num_temporary = 0;
-        rtv_descriptor_heap_desc.is_shader_visible = false;
-        init(g_rtv_descriptor_heap, rtv_descriptor_heap_desc, g_device);
+        // Initialize descriptor heaps
+        DescriptorUtils::init_descriptor_heaps();
 
-        // Descriptor Heap for depth texture views
-        DescriptorHeapDesc dsv_descriptor_heap_desc{ };
-        dsv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-        dsv_descriptor_heap_desc.num_persistent = 256;
-        dsv_descriptor_heap_desc.num_temporary = 0;
-        dsv_descriptor_heap_desc.is_shader_visible = false;
-        init(g_dsv_descriptor_heap, dsv_descriptor_heap_desc, g_device);
-
-        // Descriptor Heap for SRV, CBV and UAV resources
-        DescriptorHeapDesc srv_descriptor_heap_desc{ };
-        srv_descriptor_heap_desc.heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        srv_descriptor_heap_desc.num_persistent = 1024;
-        srv_descriptor_heap_desc.num_temporary = 1024;
-        srv_descriptor_heap_desc.is_shader_visible = true;
-        init(g_srv_descriptor_heap, srv_descriptor_heap_desc, g_device);
-
-        // Swapchain initializaiton
+        // Swapchain initialization
         {
             ASSERT(g_swap_chain.swap_chain == nullptr);
 
             for (size_t i = 0; i < NUM_BACK_BUFFERS; i++) {
-                g_swap_chain.back_buffers[i] = push_back(g_textures, Texture{});
+                g_swap_chain.back_buffers[i] = TextureUtils::push_back(g_textures, Texture{});
+                u32 rtv_idx = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+                TextureUtils::set_rtv_index(g_textures, g_swap_chain.back_buffers[i], rtv_idx);
             }
 
             SwapChainDesc swap_chain_desc{ };
@@ -383,7 +362,8 @@ namespace zec
         wait(g_frame_fence, g_current_cpu_frame);
 
         // Swap Chain Destruction
-        destroy(g_destruction_queue, g_textures, g_rtv_descriptor_heap, g_swap_chain);
+        DescriptorHeap& rtv_heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_RTV];
+        destroy(g_destruction_queue, g_textures, rtv_heap, g_swap_chain);
 
         g_root_signatures.destroy();
         g_pipelines.destroy();
@@ -391,18 +371,13 @@ namespace zec
         g_upload_manager.destroy();
         destroy(
             g_destruction_queue,
-            g_srv_descriptor_heap,
-            g_srv_descriptor_heap,
-            g_rtv_descriptor_heap,
-            g_dsv_descriptor_heap,
+            g_descriptor_heaps,
             g_textures
         );
         destroy(g_destruction_queue, g_buffers);
         destroy(g_destruction_queue, g_fences);
 
-        destroy(g_rtv_descriptor_heap);
-        destroy(g_dsv_descriptor_heap);
-        destroy(g_srv_descriptor_heap);
+        DescriptorUtils::destroy_descriptor_heaps();
 
         dx_destroy(&g_cmd_list);
         for (u64 i = 0; i < RENDER_LATENCY; i++) {
@@ -501,7 +476,7 @@ namespace zec
 
     u32 get_shader_readable_texture_index(const TextureHandle handle)
     {
-        return get_srv_index(g_textures, handle);
+        return TextureUtils::get_srv_index(g_textures, handle);
     }
 
     TextureHandle get_current_back_buffer_handle()
@@ -640,8 +615,8 @@ namespace zec
 
         if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
 
-            PersistentDescriptorAlloc srv_alloc = allocate_persistent_descriptor(g_srv_descriptor_heap);
-            texture.srv = srv_alloc.idx;
+            u32 srv_index = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+            texture.srv = srv_index;
 
             D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = { };
 
@@ -807,6 +782,11 @@ namespace zec
         signature != nullptr && signature->Release();
 
         return g_root_signatures.push_back(root_signature);
+    }
+
+    DescriptorRangeHandle create_descriptor_range(const DescriptorRangeDesc& desc)
+    {
+        return DescriptorRangeHandle();
     }
 
     TextureHandle zec::load_texture_from_file(const char* file_path)

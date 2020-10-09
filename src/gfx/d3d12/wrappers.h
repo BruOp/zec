@@ -8,7 +8,7 @@ namespace zec
 {
     namespace dx12
     {
-        constexpr u32 INVALID_SRV = UINT32_MAX;
+        constexpr u32 INVALID_DESCRIPTOR_INDEX = UINT32_MAX;
         constexpr D3D12_CPU_DESCRIPTOR_HANDLE INVALID_CPU_HANDLE = { 0 };
         constexpr D3D12_GPU_DESCRIPTOR_HANDLE INVALID_GPU_HANDLE = { 0 };
 
@@ -21,51 +21,6 @@ namespace zec
         {
             return a.ptr == b.ptr;
         }
-
-        // ---------- Descriptor Heap Wrapper ----------
-        struct PersistentDescriptorAlloc
-        {
-            D3D12_CPU_DESCRIPTOR_HANDLE handles[RENDER_LATENCY] = { };
-            u32 idx = UINT32_MAX;
-        };
-
-        struct DescriptorHeapDesc
-        {
-            u32 num_persistent = 0;
-            u32 num_temporary = 0;
-            D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-            boolean is_shader_visible = false;
-        };
-
-        struct DescriptorHeap
-        {
-            ID3D12DescriptorHeap* heaps[RENDER_LATENCY] = {  };
-            u32 num_persistent = 0;
-            u32 num_allocated_persistent = 0;
-            Array<u32> dead_list = {};
-
-            u32 num_temporary = 0;
-            volatile i64 num_allocated_temporary = 0;
-
-            u32 heap_idx = 0;
-            u32 num_heaps = 0;
-            u32 descriptor_size = 0;
-            boolean is_shader_visible = false;
-            D3D12_DESCRIPTOR_HEAP_TYPE heap_type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-            D3D12_CPU_DESCRIPTOR_HANDLE cpu_start[RENDER_LATENCY] = { };
-            D3D12_GPU_DESCRIPTOR_HANDLE gpu_start[RENDER_LATENCY] = { };
-        };
-
-        void init(DescriptorHeap& descriptor_heap, const DescriptorHeapDesc& desc, ID3D12Device* device);
-        void destroy(DescriptorHeap& descriptor_heap);
-
-        PersistentDescriptorAlloc allocate_persistent_descriptor(DescriptorHeap& descriptor_heap);
-        void free_persistent_alloc(DescriptorHeap& descriptor_heap, const u32 alloc_indx);
-        void free_persistent_alloc(DescriptorHeap& descriptor_heap, const D3D12_CPU_DESCRIPTOR_HANDLE& handle);
-        void free_persistent_alloc(DescriptorHeap& descriptor_heap, const D3D12_GPU_DESCRIPTOR_HANDLE& handle);
-
-        template<typename T>
-        void free_persistent_allocs(DescriptorHeap& descriptor_heap, const T* alloc_indices, const u64 num_indices);
 
         // ---------- Swap Chain Wrapper ----------
         struct SwapChainDesc
@@ -80,8 +35,6 @@ namespace zec
 
         struct SwapChain
         {
-            // Non-owning ptr, no need to release on destruction
-            DescriptorHeap* rtv_descriptor_heap = nullptr;
             IDXGISwapChain4* swap_chain = nullptr;
             u32 back_buffer_idx = 0;
             TextureHandle back_buffers[NUM_BACK_BUFFERS] = {};

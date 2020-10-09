@@ -3,6 +3,7 @@
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 #include "core/array.h"
 #include "gfx/public_resources.h"
+#include "descriptor_heap.h"
 #include "wrappers.h"
 #include "resources.h"
 #include "resource_managers.h"
@@ -56,10 +57,7 @@ namespace zec
         // Destroys only the texture list, the heaps are used to free allocated SRVs, UAVs, etc.
         void destroy(
             ResourceDestructionQueue& destruction_queue,
-            DescriptorHeap& srv_descriptor_heap,
-            DescriptorHeap& uav_descriptor_heap,
-            DescriptorHeap& rtv_descriptor_heap,
-            DescriptorHeap& dsv_descriptor_heap,
+            DescriptorHeap* heaps,
             TextureList& texture_list
         );
 

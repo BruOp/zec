@@ -21,9 +21,6 @@ namespace zec
         UploadManager g_upload_manager = { };
 
         SwapChain g_swap_chain = {};
-        DescriptorHeap g_rtv_descriptor_heap = {};
-        DescriptorHeap g_dsv_descriptor_heap = {};
-        DescriptorHeap g_srv_descriptor_heap = {};
 
         // Resources
         Array<Fence> g_fences = {};
