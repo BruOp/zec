@@ -110,14 +110,3 @@ TEST_CASE("Matrices can be inverted")
     vec4 expected = reverse_transform * pos;
     REQUIRE(res * m * pos == pos);
 }
-
-//TEST_CASE("Projection matrices match what we expect")
-//{
-//
-//}
-//
-//
-//TEST_CASE("Look at function returns expected matrix")
-//{
-//
-//}

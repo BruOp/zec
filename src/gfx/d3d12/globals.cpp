@@ -22,6 +22,8 @@ namespace zec
 
         SwapChain g_swap_chain = {};
 
+        DescriptorHeap g_descriptor_heaps[size_t(D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES)] = {};
+
         // Resources
         Array<Fence> g_fences = {};
         Fence g_frame_fence = { };

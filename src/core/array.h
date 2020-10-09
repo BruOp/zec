@@ -1,3 +1,4 @@
+
 #pragma once
 #include "pch.h"
 #include "utils/utils.h"
@@ -32,6 +33,16 @@ namespace zec
                 memory::virtual_free((void*)data);
             }
         };
+
+        T* begin()
+        {
+            return data;
+        }
+
+        T* end()
+        {
+            return data + size;
+        }
 
         UNCOPIABLE(Array);
         UNMOVABLE(Array);

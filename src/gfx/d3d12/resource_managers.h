@@ -98,7 +98,7 @@ namespace zec
         struct DepthStencilInfo
         {
             TextureHandle handle;
-            u32 dsv;
+            DescriptorHandle dsv;
         };
 
         struct TextureList
@@ -112,9 +112,9 @@ namespace zec
 
             Array<ID3D12Resource*> resources = {};
             Array<D3D12MA::Allocation*> allocations = {};
-            Array<u32> srv_indices = {};
-            Array<u32> uav_indices = {};
-            Array<u32> rtv_indices = {};
+            Array<DescriptorHandle> srvs = {};
+            Array<DescriptorHandle> uavs = {};
+            Array<DescriptorHandle> rtvs = {};
             Array<TextureInfo> infos = {};
             Array<RenderTargetInfo> render_target_infos = {};
             // Note, this is not 1-1 like other arrays in this structure.
@@ -129,19 +129,19 @@ namespace zec
 
             inline u32 get_srv_index(TextureList& texture_list, TextureHandle handle)
             {
-                return texture_list.srv_indices[handle.idx];
+                return texture_list.srvs[handle.idx].idx;
             };
 
-            inline u32 get_rtv_index(TextureList& texture_list, TextureHandle handle)
+            inline DescriptorHandle get_rtv(TextureList& texture_list, TextureHandle handle)
             {
-                return texture_list.rtv_indices[handle.idx];
+                return texture_list.rtvs[handle.idx];
             };
 
-            u32 get_dsv_index(TextureList& texture_list, TextureHandle handle);
+            DescriptorHandle get_dsv(TextureList& texture_list, TextureHandle handle);
 
-            inline void set_rtv_index(TextureList& texture_list, TextureHandle handle, u32 rtv_index)
+            inline void set_rtv(TextureList& texture_list, TextureHandle handle, DescriptorHandle rtv)
             {
-                texture_list.rtv_indices[handle.idx] = rtv_index;
+                texture_list.rtvs[handle.idx] = rtv;
             };
 
             inline TextureInfo& get_texture_info(TextureList& texture_list, TextureHandle texture_handle)

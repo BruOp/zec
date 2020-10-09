@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "gfx/public_resources.h"
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
+#include "descriptor_heap.h"
 #include "wrappers.h"
 
 namespace zec
@@ -33,10 +34,10 @@ namespace zec
         {
             ID3D12Resource* resource = nullptr;
             D3D12MA::Allocation* allocation = nullptr;
-            u32 srv = INVALID_DESCRIPTOR_INDEX;
-            u32 uav = INVALID_DESCRIPTOR_INDEX;
-            u32 rtv = INVALID_DESCRIPTOR_INDEX;
-            u32 dsv = INVALID_DESCRIPTOR_INDEX;
+            DescriptorHandle srv = INVALID_HANDLE;
+            DescriptorHandle uav = INVALID_HANDLE;
+            DescriptorHandle rtv = INVALID_HANDLE;
+            DescriptorHandle dsv = INVALID_HANDLE;
             TextureInfo info = {};
             RenderTargetInfo render_target_info = {};
         };

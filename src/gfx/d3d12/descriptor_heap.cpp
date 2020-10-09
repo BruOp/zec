@@ -6,24 +6,6 @@
 
 namespace zec::dx12::DescriptorUtils
 {
-    u16 get_heap_idx(ResourceLayoutRangeUsage usage)
-    {
-        switch (usage) {
-        case zec::ResourceLayoutRangeUsage::READ:
-        case zec::ResourceLayoutRangeUsage::WRITE:
-            return u16(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        case zec::ResourceLayoutRangeUsage::RENDER_TARGET:
-            return u16(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-        case zec::ResourceLayoutRangeUsage::DEPTH_STENCIL:
-            return u16(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-        case zec::ResourceLayoutRangeUsage::SAMPLER:
-            return u16(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
-        case zec::ResourceLayoutRangeUsage::UNUSED:
-        default:
-            throw std::runtime_error("There is not heap for unused usage...");
-        }
-    }
-
     void init(ID3D12Device* device, DescriptorHeap& heap, const DescriptorHeapDesc& desc)
     {
         ASSERT(desc.size > 0 && desc.size <= desc.MAX_SIZE);
@@ -32,9 +14,7 @@ namespace zec::dx12::DescriptorUtils
         heap.capacity = desc.size;
         heap.is_shader_visible = desc.type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 
-        heap.num_per_frame_ranges = heap.is_shader_visible ? RENDER_LATENCY : 1;
-
-        u32 total_num_descriptors = heap.capacity * heap.num_per_frame_ranges;
+        u32 total_num_descriptors = heap.capacity;
         D3D12_DESCRIPTOR_HEAP_DESC d3d_desc{ };
         d3d_desc.NumDescriptors = total_num_descriptors;
         d3d_desc.Type = desc.type;
@@ -49,23 +29,13 @@ namespace zec::dx12::DescriptorUtils
             &d3d_desc, IID_PPV_ARGS(&heap.heap)
         ));
 
-        heap.cpu_starts[0] = heap.heap->GetCPUDescriptorHandleForHeapStart();
+        heap.cpu_start = heap.heap->GetCPUDescriptorHandleForHeapStart();
 
         if (heap.is_shader_visible) {
-            heap.gpu_starts[0] = heap.heap->GetGPUDescriptorHandleForHeapStart();
+            heap.gpu_start = heap.heap->GetGPUDescriptorHandleForHeapStart();
         }
 
         heap.descriptor_size = device->GetDescriptorHandleIncrementSize(desc.type);
-
-        for (size_t i = 1; i < heap.num_per_frame_ranges; i++) {
-            heap.cpu_starts[i] = heap.cpu_starts[0];
-            heap.cpu_starts[i].ptr += i * heap.capacity * heap.descriptor_size;
-
-            if (heap.is_shader_visible) {
-                heap.gpu_starts[i] = heap.gpu_starts[0];
-                heap.gpu_starts[i].ptr += i * heap.capacity * heap.descriptor_size;
-            }
-        }
     }
 
     void destroy(DescriptorHeap& heap)
@@ -74,75 +44,36 @@ namespace zec::dx12::DescriptorUtils
         heap.heap->Release();
     }
 
-    DescriptorRangeHandle allocate_range(const DescriptorRangeDesc& range_desc)
+    DescriptorHandle allocate_descriptor(DescriptorHeap& heap, D3D12_CPU_DESCRIPTOR_HANDLE* in_handle)
     {
-        u16 heap_idx = get_heap_idx(range_desc.usage);
-        DescriptorHeap& heap = g_descriptor_heaps[heap_idx];
-        // First check if there is enough room on the deadlist:
-        ASSERT(range_desc.size < heap.capacity - heap.num_allocated);
-        DescriptorHeapRange range{
-            .size = 0,
-            .capacity = range_desc.size,
-            .offset = heap.num_allocated,
-            .dead_list = {}
-        };
-        heap.num_allocated += range.capacity;
-
-        size_t range_idx = heap.ranges.push_back(range);
-        ASSERT(range_idx < UINT16_MAX);
-
-        return DescriptorRangeHandle{
-            .heap_idx = heap_idx,
-            .idx = range_idx,
-        };
-    }
-
-    void free_range(const DescriptorRangeHandle& range_handle)
-    {
-        DescriptorHeap& heap = g_descriptor_heaps[range_handle.heap_idx];
-        DescriptorHeapRange& range = heap.ranges[range_handle.idx];
-
-        // If last range in heap
-        // Then we can just adjust the 
-
-        // If not, add it to the dead list
-        // If so, "merge" the ranges
-        // If not
-    }
-
-    u32 allocate_descriptor(DescriptorHeapRange& range)
-    {
-        if (range.size < range.capacity) {
-            // TODO: Atomically increment and return size
-            return range.size++;
+        // First check if there is an entry in the dead list:
+        if (heap.dead_list.size > 0) {
+            ++heap.num_allocated;
+            return heap.dead_list.pop_back();
         }
-        else {
-            throw std::runtime_error("TODO: Use our freelist here");
+
+        ASSERT(heap.capacity - heap.num_allocated > 0);
+        in_handle->ptr = heap.cpu_start.ptr + heap.descriptor_size * heap.num_allocated;
+        return { u32(heap.num_allocated++) };
+    }
+
+    void free_descriptor(DescriptorHeap& heap, const DescriptorHandle descriptor, u64 current_frame_idx)
+    {
+        if (is_valid(descriptor)) {
+            heap.destruction_queue.push_back({ .handle = descriptor, .frame_index = u32(current_frame_idx) });
         }
     }
 
-    u32 allocate_descriptor(DescriptorHeap& heap)
+    void process_destruction_queue(DescriptorHeap& heap, u64 current_frame_idx)
     {
-        if (heap.num_allocated < heap.capacity) {
-            return heap.num_allocated++;
-        }
-        else {
-            throw std::runtime_error("TODO: Use our freelist here");
+        for (const auto element : heap.destruction_queue) {
+            if (element.frame_index == current_frame_idx) {
+                --heap.num_allocated;
+                heap.dead_list.push_back(element.handle);
+            }
         }
     }
 
-    void free_descriptor(DescriptorHeapRange& range, const u32 descriptor_idx)
-    {
-        // TODO: Allow freeing of descriptors from ranges
-    }
-    void free_descriptor(DescriptorHeap& heap, const u32 descriptor_idx)
-    {
-        // TODO: Allow freeing of descriptors from ranges
-    }
-    void free_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE heap_type, const u32 descriptor_idx)
-    {
-        free_descriptor(g_descriptor_heaps[heap_type], descriptor_idx);
-    }
 
     void init_descriptor_heaps()
     {
@@ -174,33 +105,41 @@ namespace zec::dx12::DescriptorUtils
     void destroy_descriptor_heaps()
     {
         for (auto& heap : g_descriptor_heaps) {
+            process_destruction_queue(heap, g_current_frame_idx);
             destroy(heap);
         }
     }
 
-    u32 allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE heap_type)
-    {
-        ASSERT(heap_type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
-        return allocate_descriptor(g_descriptor_heaps[heap_type]);
-    }
-
-    D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE type, u32 index)
+    D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle)
     {
         ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
         const DescriptorHeap& heap = g_descriptor_heaps[type];
-        ASSERT(index < heap.num_allocated);
-        D3D12_CPU_DESCRIPTOR_HANDLE handle = heap.cpu_starts[g_current_frame_idx];
-        handle.ptr += heap.descriptor_size * index;
+
+        D3D12_CPU_DESCRIPTOR_HANDLE handle = heap.cpu_start;
+        handle.ptr += heap.descriptor_size * descriptor_handle.idx;
         return handle;
     }
 
-    D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE type, u32 index)
+    D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle)
     {
         ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
         const DescriptorHeap& heap = g_descriptor_heaps[type];
-        ASSERT(index < heap.num_allocated);
-        D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_starts[g_current_frame_idx];
-        handle.ptr += heap.descriptor_size * index;
+
+        D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
+        handle.ptr += heap.descriptor_size * descriptor_handle.idx;
         return handle;
     }
+
+    DescriptorHandle allocate_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, D3D12_CPU_DESCRIPTOR_HANDLE* handle)
+    {
+        ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
+        return allocate_descriptor(g_descriptor_heaps[type], handle);
+    }
+
+    void free_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle)
+    {
+        ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
+        free_descriptor(g_descriptor_heaps[type], descriptor_handle, g_current_frame_idx);
+    }
+
 }

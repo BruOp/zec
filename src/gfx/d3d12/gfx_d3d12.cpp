@@ -67,17 +67,22 @@ namespace zec
                 ID3D12Resource* resource = get_resource(g_textures, texture_handle);
                 if (resource != nullptr) dx_destroy(&resource);
 
+                const auto rtv_handle = TextureUtils::get_rtv(g_textures, texture_handle);
+                DescriptorUtils::free_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv_handle);
+
                 DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&resource)));
                 set_resource(g_textures, resource, texture_handle);
 
-                u32 rtv_idx = TextureUtils::get_rtv_index(g_textures, texture_handle);
-                D3D12_CPU_DESCRIPTOR_HANDLE rtv = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv_idx);
+                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle;
+                DescriptorHandle rtv = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, &cpu_handle);
+                TextureUtils::set_rtv(g_textures, g_swap_chain.back_buffers[i], rtv);
+
                 D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = { };
                 rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
                 rtvDesc.Format = swap_chain.format;
                 rtvDesc.Texture2D.MipSlice = 0;
                 rtvDesc.Texture2D.PlaneSlice = 0;
-                g_device->CreateRenderTargetView(resource, &rtvDesc, rtv);
+                g_device->CreateRenderTargetView(resource, &rtvDesc, cpu_handle);
                 // TODO: Store MSAA info?
 
                 resource->SetName(make_string(L"Back Buffer %llu", i).c_str());
@@ -302,8 +307,6 @@ namespace zec
 
             for (size_t i = 0; i < NUM_BACK_BUFFERS; i++) {
                 g_swap_chain.back_buffers[i] = TextureUtils::push_back(g_textures, Texture{});
-                u32 rtv_idx = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-                TextureUtils::set_rtv_index(g_textures, g_swap_chain.back_buffers[i], rtv_idx);
             }
 
             SwapChainDesc swap_chain_desc{ };
@@ -372,7 +375,8 @@ namespace zec
         destroy(
             g_destruction_queue,
             g_descriptor_heaps,
-            g_textures
+            g_textures,
+            g_current_frame_idx
         );
         destroy(g_destruction_queue, g_buffers);
         destroy(g_destruction_queue, g_fences);
@@ -426,6 +430,10 @@ namespace zec
 
         // Process resources queued for destruction
         process_destruction_queue(g_destruction_queue);
+
+        for (auto& descriptor_heap : g_descriptor_heaps) {
+            DescriptorUtils::process_destruction_queue(descriptor_heap, g_current_frame_idx);
+        }
 
         // TODO: Provide interface for creating barriers? Maybe that needs to be handled as part of the render graph though
 
@@ -615,8 +623,9 @@ namespace zec
 
         if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
 
-            u32 srv_index = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-            texture.srv = srv_index;
+            D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
+            DescriptorHandle srv = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &cpu_handle);
+            texture.srv = srv;
 
             D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = { };
 
@@ -629,18 +638,18 @@ namespace zec
                 srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
             }
 
-            for (u32 i = 0; i < g_srv_descriptor_heap.num_heaps; ++i) {
-                g_device->CreateShaderResourceView(texture.resource, &srv_desc, srv_alloc.handles[i]);
-            }
+
+            g_device->CreateShaderResourceView(texture.resource, &srv_desc, cpu_handle);
         }
 
         if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
-            ASSERT(false);
+            ASSERT_FAIL("TODO");
         }
 
         if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
-            PersistentDescriptorAlloc  dsv_alloc = allocate_persistent_descriptor(g_dsv_descriptor_heap);
-            texture.dsv = dsv_alloc.handles[0];
+            D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
+            DescriptorHandle dsv = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, &cpu_handle);
+            texture.dsv = dsv;
 
             D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {
                 .Format = texture.info.format,
@@ -651,10 +660,10 @@ namespace zec
                 },
             };
 
-            g_device->CreateDepthStencilView(texture.resource, &dsv_desc, texture.dsv);
+            g_device->CreateDepthStencilView(texture.resource, &dsv_desc, cpu_handle);
         }
 
-        return push_back(g_textures, texture);
+        return TextureUtils::push_back(g_textures, texture);
     }
 
     ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc)
@@ -784,11 +793,6 @@ namespace zec
         return g_root_signatures.push_back(root_signature);
     }
 
-    DescriptorRangeHandle create_descriptor_range(const DescriptorRangeDesc& desc)
-    {
-        return DescriptorRangeHandle();
-    }
-
     TextureHandle zec::load_texture_from_file(const char* file_path)
     {
         std::wstring path = ansi_to_wstring(file_path);
@@ -843,8 +847,9 @@ namespace zec
             IID_PPV_ARGS(&texture.resource)
         ));
 
-        PersistentDescriptorAlloc srv_alloc = allocate_persistent_descriptor(g_srv_descriptor_heap);
-        texture.srv = srv_alloc.idx;
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle{};
+        DescriptorHandle srv = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &cpu_handle);
+        texture.srv = srv;
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
             .Format = texture.info.format,
@@ -866,9 +871,7 @@ namespace zec
             srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
         }
 
-        for (u32 i = 0; i < g_srv_descriptor_heap.num_heaps; ++i) {
-            g_device->CreateShaderResourceView(texture.resource, &srv_desc, srv_alloc.handles[i]);
-        }
+        g_device->CreateShaderResourceView(texture.resource, &srv_desc, cpu_handle);
 
         texture.resource->SetName(path.c_str());
 
@@ -880,7 +883,7 @@ namespace zec
         };
         g_upload_manager.queue_upload(texture_upload_desc, texture);
 
-        return push_back(g_textures, texture);
+        return TextureUtils::push_back(g_textures, texture);
     }
 
     void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size)
@@ -903,9 +906,10 @@ namespace zec
 
     void bind_resource_table(const u32 resource_layout_entry_idx)
     {
-        ID3D12DescriptorHeap* ppHeaps[] = { g_srv_descriptor_heap.heaps[g_srv_descriptor_heap.heap_idx] };
+        const DescriptorHeap& heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
+        ID3D12DescriptorHeap* ppHeaps[] = { heap.heap };
         g_cmd_list->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-        D3D12_GPU_DESCRIPTOR_HANDLE handle = g_srv_descriptor_heap.gpu_start[g_srv_descriptor_heap.heap_idx];
+        D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
         g_cmd_list->SetGraphicsRootDescriptorTable(resource_layout_entry_idx, handle);
     }
 
@@ -932,12 +936,16 @@ namespace zec
 
     void clear_render_target(const TextureHandle texture_handle, const float* clear_color)
     {
-        g_cmd_list->ClearRenderTargetView(get_rtv(g_textures, texture_handle), clear_color, 0, nullptr);
+        DescriptorHandle rtv = TextureUtils::get_rtv(g_textures, texture_handle);
+        auto cpu_handle = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv);
+        g_cmd_list->ClearRenderTargetView(cpu_handle, clear_color, 0, nullptr);
     }
 
     void clear_depth_target(const TextureHandle depth_stencil_buffer, const float depth_value, const u8 stencil_value)
     {
-        g_cmd_list->ClearDepthStencilView(get_dsv(g_textures, depth_stencil_buffer), D3D12_CLEAR_FLAG_DEPTH, depth_value, stencil_value, 0, nullptr);
+        DescriptorHandle dsv = TextureUtils::get_dsv(g_textures, depth_stencil_buffer);
+        auto cpu_handle = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, dsv);
+        g_cmd_list->ClearDepthStencilView(cpu_handle, D3D12_CLEAR_FLAG_DEPTH, depth_value, stencil_value, 0, nullptr);
     }
 
     void set_viewports(const Viewport* viewports, const u32 num_viewports)
@@ -962,12 +970,14 @@ namespace zec
         D3D12_CPU_DESCRIPTOR_HANDLE dsv;
         D3D12_CPU_DESCRIPTOR_HANDLE* dsv_ptr = nullptr;
         if (is_valid(depth_target)) {
-            dsv = get_dsv(g_textures, depth_target);
+            DescriptorHandle descriptor_handle = TextureUtils::get_dsv(g_textures, depth_target);
+            dsv = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, descriptor_handle);
             dsv_ptr = &dsv;
         }
         D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
         for (size_t i = 0; i < num_render_targets; i++) {
-            rtvs[i] = get_rtv(g_textures, render_textures[i]);
+            DescriptorHandle descriptor_handle = TextureUtils::get_rtv(g_textures, render_textures[i]);
+            rtvs[i] = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, descriptor_handle);
         }
         g_cmd_list->OMSetRenderTargets(num_render_targets, rtvs, FALSE, dsv_ptr);
     }

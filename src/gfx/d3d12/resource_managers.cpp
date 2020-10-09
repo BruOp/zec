@@ -22,20 +22,20 @@ namespace zec::dx12
             ASSERT(list.resources.size < UINT32_MAX);
             TextureHandle handle = { u32(list.resources.push_back(texture.resource)) };
             list.allocations.push_back(texture.allocation);
-            list.srv_indices.push_back(texture.srv);
-            list.uav_indices.push_back(texture.uav);
-            list.rtv_indices.push_back(texture.rtv);
+            list.srvs.push_back(texture.srv);
+            list.uavs.push_back(texture.uav);
+            list.rtvs.push_back(texture.rtv);
             list.infos.push_back(texture.info);
             list.render_target_infos.push_back(texture.render_target_info);
 
-            if (texture.dsv != INVALID_DESCRIPTOR_INDEX) {
+            if (is_valid(texture.dsv)) {
                 list.dsv_infos.push_back({ handle, texture.dsv });
             };
 
             return handle;
         }
 
-        u32 get_dsv_index(TextureList& texture_list, TextureHandle handle)
+        DescriptorHandle get_dsv(TextureList& texture_list, TextureHandle handle)
         {
             for (size_t i = 0; i < texture_list.dsv_infos.size; i++) {
                 const auto& dsv_info = texture_list.dsv_infos[i];

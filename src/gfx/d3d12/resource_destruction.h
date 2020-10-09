@@ -58,7 +58,8 @@ namespace zec
         void destroy(
             ResourceDestructionQueue& destruction_queue,
             DescriptorHeap* heaps,
-            TextureList& texture_list
+            TextureList& texture_list,
+            u64 current_frame_idx
         );
 
         template<typename Resource, typename ResourceHandle>
