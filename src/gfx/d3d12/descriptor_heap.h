@@ -15,7 +15,7 @@ namespace zec
 
         struct DescriptorHeapDesc
         {
-            static constexpr u64 MAX_SIZE = MAX_DESCRIPTOR_HEAP_SIZE / 4u;
+            static constexpr u64 MAX_SIZE = 16384; // arbitrary
             u64 size = 0;
             D3D12_DESCRIPTOR_HEAP_TYPE type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         };
