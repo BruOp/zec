@@ -34,16 +34,14 @@ namespace zec
         destroy();
     }
 
-    void Window::message_loop(InputManager* input_manager)
+    void Window::message_loop()
     {
         MSG msg;
 
-        while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+        while (PeekMessage(&msg, hwnd, 0, 0, PM_REMOVE)) {
             ::TranslateMessage(&msg);
             ::DispatchMessage(&msg);
-            if (input_manager != nullptr) {
-                input_manager->handle_window_message(msg);
-            }
+            input::handle_msg(msg);
         }
     }
 
@@ -95,6 +93,11 @@ namespace zec
     {
         ::DestroyWindow(hwnd);
         ::UnregisterClass(app_name.c_str(), hinstance);
+    }
+
+    void Window::register_message_callback(MsgFunction msgFunction, void* context)
+    {
+        message_callbacks.push_back({ .function = msgFunction, .context = context });
     }
 
     void Window::make_window(LPCWSTR icon_resource, LPCWSTR small_icon_resource, LPCWSTR menu_resource)

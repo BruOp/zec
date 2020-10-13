@@ -16,8 +16,6 @@
 
 namespace zec
 {
-    class InputManager;
-
     class Window
     {
 
@@ -41,7 +39,7 @@ namespace zec
         //HWND get_hwnd() const;
         //HMENU get_menu() const;
         //HINSTANCE get_hinstance() const;
-        void message_loop(InputManager* input_manager = nullptr);
+        void message_loop();
 
         boolean is_alive() const;
         boolean is_minimized() const;
@@ -65,7 +63,7 @@ namespace zec
 
         //INT	create_message_box(LPCWSTR message, LPCWSTR title = NULL, UINT type = MB_OK);
 
-        //void register_message_callback(MsgFunction msgFunction, void* context);
+        void register_message_callback(MsgFunction msgFunction, void* context);
 
         operator HWND() { return hwnd; }		//conversion operator
 

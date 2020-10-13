@@ -3,8 +3,8 @@
 #include "utils/exceptions.h"
 #include "camera.h"
 #include "gltf_loading.h"
+#include "gfx/d3d12/globals.h"
 
-// TODO: Remove this once no longer using DXCall directly
 using namespace zec;
 
 struct ViewConstantData
@@ -35,10 +35,11 @@ class NormalMappingApp : public zec::App
 public:
     NormalMappingApp() : App{ L"Basic GLTF Loading and Rendering" } { }
 
+    float frame_times[120] = { 0.0f };
     float clear_color[4] = { 0.2f, 0.2f, 0.2f, 1.0f };
 
     Camera camera = {};
-    OrbitCameraController camera_controller = OrbitCameraController{ input_manager };
+    OrbitCameraController camera_controller = OrbitCameraController{};
 
     ViewConstantData view_constant_data = {};
     Array<DrawConstantData> draw_constant_data;
@@ -66,6 +67,9 @@ protected:
             0.1f, // near
             100.0f // far
         );
+
+        // Initialize UI
+        ui::initialize(window);
 
         // Create a root signature consisting of a descriptor table with a single CBV.
         {
@@ -171,10 +175,14 @@ protected:
     }
 
     void shutdown() override final
-    { }
+    {
+        ui::destroy();
+    }
 
     void update(const zec::TimeData& time_data) override final
     {
+        frame_times[dx12::g_current_cpu_frame % 120] = time_data.delta_milliseconds_f;
+
         camera_controller.update(time_data.delta_seconds_f);
         view_constant_data.view = camera.view;
         view_constant_data.projection = camera.projection;
@@ -190,6 +198,20 @@ protected:
 
     void render() override final
     {
+        ui::begin_frame();
+
+        {
+            const auto framerate = ImGui::GetIO().Framerate;
+
+            ImGui::Begin("GLTF Loader");                          // Create a window called "Hello, world!" and append into it.
+
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / framerate, framerate);
+
+            ImGui::PlotHistogram("Frame Times", frame_times, IM_ARRAYSIZE(frame_times), 0, 0, 0, D3D12_FLOAT32_MAX, ImVec2(240.0f, 80.0f));
+
+            ImGui::End();
+        }
+
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         Scissor scissor{ 0, 0, width, height };
 
@@ -211,6 +233,8 @@ protected:
             bind_constant_buffer(draw_data_buffer_handles[i], 0);
             draw_mesh(gltf_context.draw_calls[i].mesh);
         }
+
+        ui::end_frame(dx12::g_cmd_list);
     }
 
     void before_reset() override final

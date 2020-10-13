@@ -5,7 +5,7 @@ namespace zec
 {
     struct SysInfo
     {
-        bool initialized = false;
+        bool is_initialized = false;
         size_t page_size = 0;
     };
 

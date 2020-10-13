@@ -1,6 +1,8 @@
 #include "app.h"
 #include "core/zec_math.h"
 #include "utils/exceptions.h"
+#include "imgui/imgui.h"
+#include "gfx/d3d12/globals.h"
 
 using namespace zec;
 
@@ -26,6 +28,8 @@ public:
     ResourceLayoutHandle resource_layout = {};
     PipelineStateHandle pso_handle = {};
     DrawData mesh_transform = {};
+
+    float frame_times[120] = { 0.0f };
 
 protected:
     void init() override final
@@ -58,6 +62,9 @@ protected:
 
             pso_handle = create_pipeline_state_object(pipeline_desc);
         }
+
+        // Initialize UI
+        ui::initialize(window);
 
         begin_upload();
 
@@ -153,11 +160,13 @@ protected:
     }
 
     void shutdown() override final
-    { }
+    {
+        ui::destroy();
+    }
 
     void update(const zec::TimeData& time_data) override final
     {
-        clear_color[2] = 0.5f * sinf(float(time_data.elapsed_seconds_f)) + 0.5f;
+        frame_times[dx12::g_current_cpu_frame % 120] = time_data.delta_milliseconds_f;
 
         quaternion q = from_axis_angle(vec3{ 0.0f, 1.0f, -1.0f }, time_data.delta_seconds_f);
         rotate(mesh_transform.model_transform, q);
@@ -167,6 +176,24 @@ protected:
 
     void render() override final
     {
+        ui::begin_frame();
+
+        {
+            const auto framerate = ImGui::GetIO().Framerate;
+
+            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+
+            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / framerate, framerate);
+
+            ImGui::PlotHistogram("Frame Times", frame_times, IM_ARRAYSIZE(frame_times), 0, 0, 0, D3D12_FLOAT32_MAX, ImVec2(240.0f, 80.0f));
+
+            ImGui::End();
+        }
+
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         Scissor scissor{ 0, 0, width, height };
 
@@ -181,6 +208,8 @@ protected:
 
         set_render_targets(&render_target, 1);
         draw_mesh(cube_mesh);
+
+        ui::end_frame(dx12::g_cmd_list);
     }
 
     void before_reset() override final

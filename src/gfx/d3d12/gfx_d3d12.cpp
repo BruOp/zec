@@ -424,8 +424,6 @@ namespace zec
 
             DXCall(g_cmd_allocators[g_current_frame_idx]->Reset());
             DXCall(g_cmd_list->Reset(g_cmd_allocators[g_current_frame_idx], nullptr));
-
-            // Reset Heaps
         }
 
         // Process resources queued for destruction
@@ -434,6 +432,10 @@ namespace zec
         for (auto& descriptor_heap : g_descriptor_heaps) {
             DescriptorUtils::process_destruction_queue(descriptor_heap, g_current_frame_idx);
         }
+
+        auto& heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
+
+        g_cmd_list->SetDescriptorHeaps(1, &heap.heap);
 
         // TODO: Provide interface for creating barriers? Maybe that needs to be handled as part of the render graph though
 
@@ -907,8 +909,6 @@ namespace zec
     void bind_resource_table(const u32 resource_layout_entry_idx)
     {
         const DescriptorHeap& heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
-        ID3D12DescriptorHeap* ppHeaps[] = { heap.heap };
-        g_cmd_list->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
         D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
         g_cmd_list->SetGraphicsRootDescriptorTable(resource_layout_entry_idx, handle);
     }

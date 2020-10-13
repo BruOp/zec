@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "app.h"
 #include "gfx/gfx.h"
+// TODO: Remove this
+#include "gfx/d3d12/globals.h"
 
 namespace zec
 {
@@ -14,9 +16,7 @@ namespace zec
             WS_OVERLAPPEDWINDOW,
             WS_EX_APPWINDOW,
             width,
-            height
-    },
-        input_manager{ }
+            height }
     {
     }
 
@@ -31,13 +31,13 @@ namespace zec
         after_reset_internal();
 
         while (window.is_alive()) {
-            window.message_loop(&input_manager);
 
             if (!window.is_minimized()) {
                 update_internal();
                 render_internal();
             }
 
+            window.message_loop();
         }
 
         shutdown_internal();
@@ -65,7 +65,7 @@ namespace zec
         renderer_desc.window = window.hwnd;
         init_renderer(renderer_desc);
 
-        input_manager.init(width, height);
+        input::initialize(width, height);
         init();
     }
 
@@ -77,7 +77,7 @@ namespace zec
 
     void App::update_internal()
     {
-        input_manager.update();
+        input::update(time_data);
         update_time_data(time_data);
 
         update(time_data);
@@ -89,6 +89,7 @@ namespace zec
 
         render();
 
+        // TODO: Use command context instead
         end_frame();
     }
 

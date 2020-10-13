@@ -7,7 +7,7 @@ namespace zec
 
     const SysInfo& get_sys_info()
     {
-        if (g_sys_info.initialized) {
+        if (g_sys_info.is_initialized) {
             return g_sys_info;
         }
 
@@ -15,7 +15,7 @@ namespace zec
         GetSystemInfo(&system_info);
 
         g_sys_info.page_size = u32(system_info.dwPageSize);
-        g_sys_info.initialized = true;
+        g_sys_info.is_initialized = true;
         return g_sys_info;
     };
 }

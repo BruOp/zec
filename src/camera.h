@@ -22,7 +22,7 @@ namespace zec
     class OrbitCameraController : ICameraController
     {
     public:
-        OrbitCameraController(InputManager& input_manager) : input_map{ input_manager.create_mapping() }
+        OrbitCameraController() : input_map{ input::create_mapping() }
         { };
 
         void init();
@@ -40,6 +40,6 @@ namespace zec
         vec3 origin = {};
     private:
         Camera* camera = nullptr;
-        InputMapping input_map;
+        input::InputMapping input_map;
     };
 }

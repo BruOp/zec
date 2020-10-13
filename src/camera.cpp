@@ -4,6 +4,9 @@
 
 namespace zec
 {
+    using input::MouseInput;
+    using input::Key;
+
     enum CameraMovement : u32
     {
         CAMERA_ROTATE_MODE,
@@ -25,31 +28,31 @@ namespace zec
 
     void OrbitCameraController::init()
     {
-        input_map.map_bool(CAMERA_ROTATE_MODE, MouseInput::LEFT);
-        input_map.map_bool(CAMERA_PAN_MODE, MouseInput::RIGHT);
-        input_map.map_bool(CAMERA_ZOOM_IN, MouseInput::SCROLL_UP);
-        input_map.map_bool(CAMERA_ZOOM_OUT, MouseInput::SCROLL_DOWN);
-        input_map.map_bool(CAMERA_ZOOM_IN, Key::W);
-        input_map.map_bool(CAMERA_ZOOM_OUT, Key::S);
+        input::map_bool(input_map, CAMERA_ROTATE_MODE, MouseInput::LEFT);
+        input::map_bool(input_map, CAMERA_PAN_MODE, MouseInput::RIGHT);
+        input::map_bool(input_map, CAMERA_ZOOM_IN, MouseInput::SCROLL_UP);
+        input::map_bool(input_map, CAMERA_ZOOM_OUT, MouseInput::SCROLL_DOWN);
+        input::map_bool(input_map, CAMERA_ZOOM_IN, Key::W);
+        input::map_bool(input_map, CAMERA_ZOOM_OUT, Key::S);
 
-        input_map.map_float(CAMERA_YAW, MouseInput::AXIS_X);
-        input_map.map_float(CAMERA_PITCH, MouseInput::AXIS_Y);
+        input::map_float(input_map, CAMERA_YAW, MouseInput::AXIS_X);
+        input::map_float(input_map, CAMERA_PITCH, MouseInput::AXIS_Y);
     }
 
     void OrbitCameraController::update(const float delta_time)
     {
         ASSERT(camera != nullptr);
 
-        float delta_x = input_map.get_delta(CAMERA_YAW);
-        float delta_y = input_map.get_delta(CAMERA_PITCH);
+        float delta_x = input::get_axis_delta(input_map, CAMERA_YAW);
+        float delta_y = input::get_axis_delta(input_map, CAMERA_PITCH);
 
-        if (input_map.is_down(CAMERA_ROTATE_MODE)) {
+        if (input::button_is_down(input_map, CAMERA_ROTATE_MODE)) {
             // Handle rotation
             yaw -= yaw_sensitivity * delta_x;
             pitch += pitch_sensitivity * delta_y;
         }
 
-        if (input_map.is_down(CAMERA_PAN_MODE)) {
+        if (input::button_is_down(input_map, CAMERA_PAN_MODE)) {
 
             vec3 right = get_right(camera->view);
             vec3 up = get_up(camera->view);
@@ -57,11 +60,11 @@ namespace zec
             origin += movement_sensitivity * delta_y * up;
         }
 
-        if (input_map.is_down(CAMERA_ZOOM_IN)) {
+        if (input::button_is_down(input_map, CAMERA_ZOOM_IN)) {
             radius -= zoom_sensitivity;
         }
 
-        if (input_map.is_down(CAMERA_ZOOM_OUT)) {
+        if (input::button_is_down(input_map, CAMERA_ZOOM_OUT)) {
             radius += zoom_sensitivity;
         }
         constexpr float radiusLimit = 0.1f;

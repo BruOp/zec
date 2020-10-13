@@ -3,8 +3,8 @@
 #include "window.h"
 #include "timer.h"
 #include "input_manager.h"
-
 #include "gfx/gfx.h"
+#include "gfx/ui.h"
 
 namespace zec
 {
@@ -35,8 +35,6 @@ namespace zec
 
         TimeData time_data = {};
         std::wstring app_name;
-
-        InputManager input_manager;
 
     private:
 
