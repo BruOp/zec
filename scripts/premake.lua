@@ -61,6 +61,18 @@ workspace "zec"
 ---
 --- Projects
 ---
+project("imgui")
+  uuid(os.uuid("imgui"))
+  kind "StaticLib"
+
+  files {
+    path.join(ZEC_DIR, "external/src/imgui/*.cpp"),
+    path.join(EXTERNAL_DIR, "imgui/**.h"),
+  }
+
+  includedirs {
+    path.join(EXTERNAL_DIR, "imgui/"),
+  }
 
 ZEC_SRC_DIR = path.join(ZEC_DIR, "src")
 project("zec_lib")
@@ -71,7 +83,7 @@ project("zec_lib")
     path.join(ZEC_SRC_DIR, "shaders/**.hlsl"),
     path.join(ZEC_SRC_DIR, "**.cpp"),
     path.join(ZEC_SRC_DIR, "**.h"),
-    path.join(ZEC_DIR, "external/src/**.cpp"),
+    path.join(ZEC_DIR, "external/src/*.cpp"),
   }
 
   filter { "files:**.hlsl" }
@@ -96,7 +108,8 @@ project("zec_lib")
     "dxguid",
     "D3DCompiler",
     "Xinput9_1_0",
-    "ws2_32"
+    "ws2_32",
+    "imgui",
   }
 
   configuration {"Release"}
