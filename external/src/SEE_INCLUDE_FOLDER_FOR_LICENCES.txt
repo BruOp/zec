@@ -1,0 +1,1 @@
+Licences for projects are provided in their respective folders inside the external/include/ directory.
