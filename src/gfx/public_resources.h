@@ -24,7 +24,7 @@ namespace zec
     RESOURCE_HANDLE(MeshHandle);
     RESOURCE_HANDLE(ResourceLayoutHandle);
     RESOURCE_HANDLE(PipelineStateHandle);
-
+    RESOURCE_HANDLE(CommandContextHandle);
 
     // ---------- Enums ----------
     enum ResourceUsage : u16
@@ -231,6 +231,15 @@ namespace zec
         CLAMP,
         BORDER,
         MIRROR_ONCE
+    };
+
+    enum struct CommandContextType : u8
+    {
+        GRAPHICS = 0,
+        COMPUTE,
+        // UPLOAD?
+
+        NUM_COMMAND_CONTEXT_POOLS
     };
 
     // ---------- Creation Descriptions ---------- 

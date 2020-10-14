@@ -12,6 +12,8 @@ namespace zec
 
         D3D12MA::Allocator* g_allocator = nullptr;
 
+        CommandContextPool g_command_pools[size_t(CommandContextType::NUM_COMMAND_CONTEXT_POOLS)] = {};
+
         ID3D12GraphicsCommandList1* g_cmd_list = 0;
         ID3D12CommandAllocator* g_cmd_allocators[NUM_CMD_ALLOCATORS] = {};
         ID3D12CommandQueue* g_gfx_queue = 0;

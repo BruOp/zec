@@ -9,6 +9,7 @@
 #include "resource_managers.h"
 #include "upload_manager.h"
 #include "resource_destruction.h"
+#include "command_context.h"
 
 namespace zec
 {
@@ -20,6 +21,8 @@ namespace zec
         extern D3D_FEATURE_LEVEL g_supported_feature_level;
 
         extern D3D12MA::Allocator* g_allocator;
+
+        extern CommandContextPool g_command_pools[size_t(CommandContextType::NUM_COMMAND_CONTEXT_POOLS)];
 
         extern ID3D12GraphicsCommandList1* g_cmd_list;
         extern ID3D12CommandAllocator* g_cmd_allocators[NUM_CMD_ALLOCATORS];
