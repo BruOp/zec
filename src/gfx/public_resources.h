@@ -24,6 +24,7 @@ namespace zec
     RESOURCE_HANDLE(MeshHandle);
     RESOURCE_HANDLE(ResourceLayoutHandle);
     RESOURCE_HANDLE(PipelineStateHandle);
+    RESOURCE_HANDLE(CommandContextPoolHandle);
     RESOURCE_HANDLE(CommandContextHandle);
 
     // ---------- Enums ----------
@@ -107,7 +108,7 @@ namespace zec
         TABLE
     };
 
-    enum struct ResourceLayoutRangeUsage : u8
+    enum struct ResourceAccess : u8
     {
         UNUSED = 0,
         READ = 1 << 0,
@@ -233,7 +234,7 @@ namespace zec
         MIRROR_ONCE
     };
 
-    enum struct CommandContextType : u8
+    enum struct CommandQueueType : u8
     {
         GRAPHICS = 0,
         COMPUTE,
@@ -311,7 +312,7 @@ namespace zec
     struct ResourceLayoutRangeDesc
     {
         static constexpr u32 UNBOUNDED_COUNT = 4096;
-        ResourceLayoutRangeUsage usage = ResourceLayoutRangeUsage::UNUSED;
+        ResourceAccess usage = ResourceAccess::UNUSED;
         u32 count = 0;
         u32 space = 0;
     };
@@ -430,6 +431,11 @@ namespace zec
         BufferFormat depth_buffer_format = BufferFormat::INVALID;
         u8 used_stages = PIPELINE_STAGE_INVALID;
         std::wstring shader_file_path = L"";
+    };
+
+    struct CommandContextPoolDesc
+    {
+        CommandQueueType type;
     };
 
     // ---------- Other Descriptions ----------

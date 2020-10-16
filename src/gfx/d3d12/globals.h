@@ -22,12 +22,11 @@ namespace zec
 
         extern D3D12MA::Allocator* g_allocator;
 
-        extern CommandContextPool g_command_pools[size_t(CommandContextType::NUM_COMMAND_CONTEXT_POOLS)];
 
-        extern ID3D12GraphicsCommandList1* g_cmd_list;
-        extern ID3D12CommandAllocator* g_cmd_allocators[NUM_CMD_ALLOCATORS];
         extern ID3D12CommandQueue* g_gfx_queue;
         extern ID3D12CommandQueue* g_copy_queue;
+
+        extern CommandContextPool g_command_pools[size_t(CommandQueueType::NUM_COMMAND_CONTEXT_POOLS)];
 
         extern ResourceDestructionQueue g_destruction_queue;
         extern UploadManager g_upload_manager;

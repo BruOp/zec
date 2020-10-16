@@ -1,5 +1,6 @@
 #pragma once
 #include "pch.h"
+#include "core/ring_buffer.h"
 #include "gfx/constants.h"
 #include "gfx/public_resources.h"
 #include "wrappers.h"

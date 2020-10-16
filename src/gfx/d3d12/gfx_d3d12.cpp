@@ -255,22 +255,8 @@ namespace zec
             DXCall(D3D12MA::CreateAllocator(&allocatorDesc, &g_allocator));
         }
 
-        // Initialize command allocators and command list
+        // Initialize command queues and command context pools
         {
-            // We need N allocators for N frames, since we cannot reset them and reclaim the associated memory
-            // until the GPU is finished executing against them. So we have to use fences
-            for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
-                DXCall(g_device->CreateCommandAllocator(
-                    D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_cmd_allocators[i])
-                ));
-            }
-
-            // Command lists, however, can be reset as soon as we've submitted them.
-            DXCall(g_device->CreateCommandList(
-                0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_cmd_allocators[0], nullptr, IID_PPV_ARGS(&g_cmd_list)
-            ));
-            DXCall(g_cmd_list->Close());
-            g_cmd_list->SetName(L"Graphics command list");
 
             // Initialize graphics queue
             {
@@ -282,7 +268,7 @@ namespace zec
                 g_gfx_queue->SetName(L"Graphics queue");
             }
 
-            // Initialize graphics queue
+            // Initialize copy queue
             {
                 D3D12_COMMAND_QUEUE_DESC queue_desc{ };
                 queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
@@ -292,10 +278,8 @@ namespace zec
                 g_copy_queue->SetName(L"Copy Queue");
             }
 
-            // Set current frame index and reset command allocator and list appropriately
-            ID3D12CommandAllocator* current_cmd_allocator = g_cmd_allocators[0];
-            DXCall(current_cmd_allocator->Reset());
-            DXCall(g_cmd_list->Reset(current_cmd_allocator, nullptr));
+
+            dx12::CommandContextUtils::initialize_pools();
         }
 
         // Initialize descriptor heaps
@@ -383,10 +367,8 @@ namespace zec
 
         DescriptorUtils::destroy_descriptor_heaps();
 
-        dx_destroy(&g_cmd_list);
-        for (u64 i = 0; i < RENDER_LATENCY; i++) {
-            g_cmd_allocators[i]->Release();
-        }
+        CommandContextUtils::destroy_pools();
+
         dx_destroy(&g_gfx_queue);
         dx_destroy(&g_copy_queue);
 
@@ -421,9 +403,6 @@ namespace zec
             }
 
             g_current_frame_idx = g_swap_chain.swap_chain->GetCurrentBackBufferIndex();
-
-            DXCall(g_cmd_allocators[g_current_frame_idx]->Reset());
-            DXCall(g_cmd_list->Reset(g_cmd_allocators[g_current_frame_idx], nullptr));
         }
 
         // Process resources queued for destruction
@@ -434,8 +413,6 @@ namespace zec
         }
 
         auto& heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
-
-        g_cmd_list->SetDescriptorHeaps(1, &heap.heap);
 
         // TODO: Provide interface for creating barriers? Maybe that needs to be handled as part of the render graph though
 
@@ -448,7 +425,7 @@ namespace zec
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        g_cmd_list->ResourceBarrier(1, &barrier);
+        //g_cmd_list->ResourceBarrier(1, &barrier);
     }
 
     void end_frame()
@@ -462,14 +439,10 @@ namespace zec
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        g_cmd_list->ResourceBarrier(1, &barrier);
+        //g_cmd_list->ResourceBarrier(1, &barrier);
 
-        DXCall(g_cmd_list->Close());
-
-        // endframe uploads
-
-        ID3D12CommandList* command_lists[] = { g_cmd_list };
-        g_gfx_queue->ExecuteCommandLists(ARRAY_SIZE(command_lists), command_lists);
+        /*ID3D12CommandList* command_lists[] = { g_cmd_list };
+        g_gfx_queue->ExecuteCommandLists(ARRAY_SIZE(command_lists), command_lists);*/
 
         // Present the frame.
         if (g_swap_chain.swap_chain != nullptr) {
@@ -725,11 +698,11 @@ namespace zec
             u32 uav_count = 0;
             for (size_t range_idx = 0; range_idx < num_ranges; range_idx++) {
                 const ResourceLayoutRangeDesc& range_desc = desc.tables[i].ranges[range_idx];
-                if (range_desc.usage == ResourceLayoutRangeUsage::UNUSED) {
+                if (range_desc.usage == ResourceAccess::UNUSED) {
                     parameter.DescriptorTable.NumDescriptorRanges = range_idx;
                     break;
                 }
-                bool is_srv_range = range_desc.usage == ResourceLayoutRangeUsage::READ;
+                bool is_srv_range = range_desc.usage == ResourceAccess::READ;
                 auto range_type = (is_srv_range) ? D3D12_DESCRIPTOR_RANGE_TYPE_SRV : D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
                 u32 base_shader_register = is_srv_range ? srv_count : uav_count;
                 d3d_ranges[range_idx] = {
@@ -892,94 +865,6 @@ namespace zec
     {
         Buffer& buffer = g_buffers[buffer_id];
         update_buffer(buffer, data, byte_size, g_current_frame_idx);
-    }
-
-    void set_active_resource_layout(const ResourceLayoutHandle resource_layout_id)
-    {
-        ID3D12RootSignature* root_signature = g_root_signatures[resource_layout_id];
-        g_cmd_list->SetGraphicsRootSignature(root_signature);
-    }
-
-    void set_pipeline_state(const PipelineStateHandle pso_handle)
-    {
-        ID3D12PipelineState* pso = g_pipelines[pso_handle];
-        g_cmd_list->SetPipelineState(pso);
-    }
-
-    void bind_resource_table(const u32 resource_layout_entry_idx)
-    {
-        const DescriptorHeap& heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
-        D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
-        g_cmd_list->SetGraphicsRootDescriptorTable(resource_layout_entry_idx, handle);
-    }
-
-    void bind_constant_buffer(const BufferHandle& buffer_handle, u32 binding_slot)
-    {
-        const Buffer& buffer = g_buffers[buffer_handle];
-        if (buffer.cpu_accessible) {
-            g_cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer.gpu_address + (buffer.size * g_current_frame_idx));
-        }
-        else {
-            g_cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer.gpu_address);
-
-        }
-    }
-
-    void draw_mesh(const MeshHandle mesh_id)
-    {
-        const Mesh& mesh = g_meshes[mesh_id.idx];
-        g_cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        g_cmd_list->IASetIndexBuffer(&mesh.index_buffer_view);
-        g_cmd_list->IASetVertexBuffers(0, mesh.num_vertex_buffers, mesh.buffer_views);
-        g_cmd_list->DrawIndexedInstanced(mesh.index_count, 1, 0, 0, 0);
-    }
-
-    void clear_render_target(const TextureHandle texture_handle, const float* clear_color)
-    {
-        DescriptorHandle rtv = TextureUtils::get_rtv(g_textures, texture_handle);
-        auto cpu_handle = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv);
-        g_cmd_list->ClearRenderTargetView(cpu_handle, clear_color, 0, nullptr);
-    }
-
-    void clear_depth_target(const TextureHandle depth_stencil_buffer, const float depth_value, const u8 stencil_value)
-    {
-        DescriptorHandle dsv = TextureUtils::get_dsv(g_textures, depth_stencil_buffer);
-        auto cpu_handle = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, dsv);
-        g_cmd_list->ClearDepthStencilView(cpu_handle, D3D12_CLEAR_FLAG_DEPTH, depth_value, stencil_value, 0, nullptr);
-    }
-
-    void set_viewports(const Viewport* viewports, const u32 num_viewports)
-    {
-        g_cmd_list->RSSetViewports(num_viewports, reinterpret_cast<const D3D12_VIEWPORT*>(viewports));
-    }
-
-    void set_scissors(const Scissor* scissors, const u32 num_scissors)
-    {
-        D3D12_RECT rects[16];
-        for (size_t i = 0; i < num_scissors; i++) {
-            rects[i].left = LONG(scissors[i].left);
-            rects[i].right = LONG(scissors[i].right);
-            rects[i].top = LONG(scissors[i].top);
-            rects[i].bottom = LONG(scissors[i].bottom);
-        }
-        g_cmd_list->RSSetScissorRects(num_scissors, rects);
-    }
-
-    void set_render_targets(TextureHandle* render_textures, const u32 num_render_targets, TextureHandle depth_target)
-    {
-        D3D12_CPU_DESCRIPTOR_HANDLE dsv;
-        D3D12_CPU_DESCRIPTOR_HANDLE* dsv_ptr = nullptr;
-        if (is_valid(depth_target)) {
-            DescriptorHandle descriptor_handle = TextureUtils::get_dsv(g_textures, depth_target);
-            dsv = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, descriptor_handle);
-            dsv_ptr = &dsv;
-        }
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
-        for (size_t i = 0; i < num_render_targets; i++) {
-            DescriptorHandle descriptor_handle = TextureUtils::get_rtv(g_textures, render_textures[i]);
-            rtvs[i] = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, descriptor_handle);
-        }
-        g_cmd_list->OMSetRenderTargets(num_render_targets, rtvs, FALSE, dsv_ptr);
     }
 }
 #endif // USE_D3D_RENDERER

@@ -1,5 +1,5 @@
 #include "catch2/catch.hpp"
-#include "core/array.h"
+#include "core/ring_buffer.h"
 
 TEST_CASE("Ring Buffer can be initialized with a size")
 {

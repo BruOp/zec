@@ -8,35 +8,57 @@ namespace zec
     class RingBuffer
     {
     public:
-        u64 push_back(T value)
+        Array<T> elements;
+        u64 read_idx = 0;
+        u64 write_idx = 0;
+
+        RingBuffer(size_t capacity) : elements{ capacity }, read_idx{ 0 }, write_idx{ 0 } {};
+        RingBuffer() : RingBuffer(0) { };
+
+        void push_back(T item)
         {
-            ASSERT(write_idx != read_idx + capacity);
-            array[write_idx % capacity] = value;
-            return write_idx++;
-        }
+            if (write_idx - read_idx >= elements.size) {
+                // We've run out of space
+                elements.grow(elements.size ? elements.size : 16);
+            };
+            const u64 idx = (write_idx) % elements.size;
+            elements[idx] = item;
+            ++write_idx;
+        };
 
         T pop_front()
         {
             ASSERT(read_idx != write_idx);
-            return read_idx
-        }
+            T element = elements[read_idx % elements.size];
+            ++read_idx;
+            return element;
+        };
 
-
-        T& operator[](const u64 idx)
+        inline T front()
         {
-            ASSERT(idx < end);
-            return array[idx % array.capacity];
-        }
-        const T& operator[](const u64 idx) const
-        {
-            ASSERT(idx < end);
-            return array[idx % array.capacity];
+            ASSERT(write_idx > read_idx);
+            return elements[read_idx];
         }
 
-        u64 capacity;
-    private:
-        u64 read_idx;
-        u64 write_idx;
-        Array<T> array;
+        T back()
+        {
+            ASSERT(write_idx > read_idx);
+            return elements[write_idx - 1];
+        };
+
+        inline u64 size() const
+        {
+            return write_idx - read_idx;
+        }
+
+        inline u64 remaining_capacity() const
+        {
+            return elements.size - write_idx + read_idx;
+        }
+
+        inline void reset()
+        {
+            read_idx = write_idx;
+        };
     };
 }

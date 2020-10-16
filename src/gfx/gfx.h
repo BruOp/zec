@@ -33,32 +33,38 @@ namespace zec
     namespace gfx::cmd
     {
         // ---------- Command Contexts ----------
-        void return_to_pool(CommandContextHandle& command_context);
+        CommandContextHandle provision(CommandQueueType type);
 
-        CommandContextHandle provision();
+        void return_to_pool(CommandContextHandle& command_context);
 
         //--------- Resource Binding ----------
         void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
+
         void set_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle);
 
         void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
+
         void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
 
         void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
+
         void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const float* clear_color);
         inline void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const vec4 clear_color)
         {
             clear_render_target(ctx, render_texture, clear_color.data);
         };
+
         void clear_depth_target(const CommandContextHandle ctx, const TextureHandle depth_stencil_buffer, const float depth_value, const u8 stencil_value);
 
-        void set_viewports(const CommandContextHandle ctx, const Viewport* viewport, const u32 num_viewports);
-        void set_scissors(const CommandContextHandle ctx, const Scissor* scissor, const u32 num_scissors);
+        void set_viewports(const CommandContextHandle ctx, const Viewport* viewports, const u32 num_viewports);
+
+        void set_scissors(const CommandContextHandle ctx, const Scissor* scissors, const u32 num_scissors);
+
         void set_render_targets(
             const CommandContextHandle ctx,
             TextureHandle* render_textures,
             const u32 num_render_targets,
-            const TextureHandle depth_texture = INVALID_HANDLE
+            const TextureHandle depth_target = INVALID_HANDLE
         );
 
     }

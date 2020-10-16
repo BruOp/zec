@@ -70,6 +70,10 @@ namespace zec
             HANDLE fence_event = INVALID_HANDLE_VALUE;
         };
 
+        inline u64 get_completed_value(Fence& fence)
+        {
+            return fence.d3d_fence->GetCompletedValue();
+        }
         void signal(Fence& fence, ID3D12CommandQueue* queue, u64 fence_value);
         void wait(Fence& fence, u64 fence_value);
         bool is_signaled(Fence& fence, u64 fence_value);

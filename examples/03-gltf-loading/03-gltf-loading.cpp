@@ -84,7 +84,7 @@ protected:
                 .tables = {
                     {
                         .ranges = {
-                            {.usage = ResourceLayoutRangeUsage::READ, .count = ResourceLayoutRangeDesc::UNBOUNDED_COUNT },
+                            {.usage = ResourceAccess::READ, .count = ResourceLayoutRangeDesc::UNBOUNDED_COUNT },
                         },
                         .visibility = ShaderVisibility::PIXEL,
                     }
