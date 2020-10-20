@@ -1,4 +1,6 @@
 #pragma once
+#include <string>
+
 #include "pch.h"
 #include "core/array.h"
 #include "gfx.h"
@@ -13,52 +15,74 @@ namespace zec
             ABSOLUTE,
         };
 
+        enum struct PassAccess : u8
+        {
+            UNUSED = 0,
+            READ = 1 << 0,
+            WRITE = 1 << 1,
+            READ_WRITE = READ & WRITE,
+        };
         enum struct PassResourceType : u8
         {
-            Buffer = 0,
-            Texture,
+            INVALID = 0,
+            BUFFER,
+            TEXTURE,
         };
 
-        struct InputDesc
+        struct PassResourceDesc
         {
-            char name[32] = "";
+            std::string name = "";
+            PassResourceType type = PassResourceType::INVALID;
             ResourceUsage usage = RESOURCE_USAGE_UNUSED;
+            //bool needs_ping_pong = false; // For internal use...
+            // Only fill out the descs for WRITE resources
+            union
+            {
+                TextureDesc texture_desc;
+                BufferDesc buffer_desc;
+            };
         };
 
-        struct OutputDesc
+        struct ResourceListEntry
         {
-            char name[32] = "";
-            ResourceUsage usage = RESOURCE_USAGE_UNUSED;
-            BufferFormat format = BufferFormat::FLOAT_4;
-            PassResourceType type = PassResourceType::Buffer;
-            SizeClass size_class = SizeClass::RELATIVE_TO_SWAP_CHAIN;
-            float width = 1.0f;
-            float height = 1.0f;
-            u32 depth = 1;
-            u32 array_size = 1;
-            u16 is_cubemap = 0;
-            u16 is_3d = 0;
+            PassResourceType type = PassResourceType::INVALID;
+            union
+            {
+                BufferHandle buffer = INVALID_HANDLE;
+                TextureHandle texture;
+            };
         };
 
-        struct RenderList;
+        typedef void(*SetupFn)(void);
+        typedef void(*ExecuteFn)(ResourceListEntry[8]);
+        typedef void(*DestroyFn)(void);
 
         struct RenderPassDesc
         {
-            InputDesc inputs[8];
-            OutputDesc outputs[8];
+            PassResourceDesc resources[8] = {};
 
-            std::function<void()> setup;
-            std::function<void(u32 inputs[8], u32 outputs[8])> execute;
-            std::function<void()> destroy;
+            SetupFn setup = nullptr;
+            ExecuteFn execute = nullptr;
+            DestroyFn destroy = nullptr;
         };
+
+        struct RenderPass
+        {
+            ResourceListEntry resources[8];
+        };
+
+        struct RenderListResources
+        { };
 
         struct RenderList
         {
-            Array<RenderPassDesc> render_passes = {};
-            Array<BufferHandle> buffers = {};
-            Array<TextureHandle> textures = {};
+            std::unordered_map<std::string, ResourceListEntry> resource_map = {};
+            Array<ResourceListEntry[8]> resources_per_pass = {};
+            Array<SetupFn> setup_fns;
+            Array<ExecuteFn> execute_fns;
+            Array<DestroyFn> destroy_fns;
+
             // TODO: Replace with our own map?
-            std::unordered_map<char[32], u32> resource_map = {};
         };
 
         void compile_render_list(RenderList& in_render_list, RenderPassDesc* render_passes, size_t num_render_passes);
