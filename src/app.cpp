@@ -85,12 +85,7 @@ namespace zec
 
     void App::render_internal()
     {
-        begin_frame();
-
         render();
-
-        // TODO: Use command context instead
-        end_frame();
     }
 
     void App::before_reset_internal()

@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "imgui/imgui.h"
 #include "window.h"
+#include "gfx/public_resources.h"
 
 namespace zec::ui
 {
@@ -12,5 +13,5 @@ namespace zec::ui
     void begin_frame();
 
     // TODO: Switch to using a command context
-    void end_frame(ID3D12GraphicsCommandList* cmd_list);
+    void end_frame(const CommandContextHandle context_handle);
 }

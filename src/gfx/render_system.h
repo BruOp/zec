@@ -31,6 +31,8 @@ namespace zec
 
         struct PassResourceDesc
         {
+            PassResourceDesc() = default;
+
             std::string name = "";
             PassResourceType type = PassResourceType::INVALID;
             ResourceUsage usage = RESOURCE_USAGE_UNUSED;
@@ -38,7 +40,7 @@ namespace zec
             // Only fill out the descs for WRITE resources
             union
             {
-                TextureDesc texture_desc;
+                TextureDesc texture_desc = {};
                 BufferDesc buffer_desc;
             };
         };
@@ -53,8 +55,13 @@ namespace zec
             };
         };
 
+        struct PassResourceList
+        {
+            ResourceListEntry entries[8];
+        };
+
         typedef void(*SetupFn)(void);
-        typedef void(*ExecuteFn)(ResourceListEntry[8]);
+        typedef void(*ExecuteFn)(PassResourceList);
         typedef void(*DestroyFn)(void);
 
         struct RenderPassDesc
@@ -66,18 +73,10 @@ namespace zec
             DestroyFn destroy = nullptr;
         };
 
-        struct RenderPass
-        {
-            ResourceListEntry resources[8];
-        };
-
-        struct RenderListResources
-        { };
-
         struct RenderList
         {
             std::unordered_map<std::string, ResourceListEntry> resource_map = {};
-            Array<ResourceListEntry[8]> resources_per_pass = {};
+            Array<PassResourceList> resources_per_pass = {};
             Array<SetupFn> setup_fns;
             Array<ExecuteFn> execute_fns;
             Array<DestroyFn> destroy_fns;

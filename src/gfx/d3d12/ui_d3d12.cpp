@@ -4,6 +4,7 @@
 #include "imgui/imgui_impl_dx12.h"
 #include "gfx/constants.h"
 #include "globals.h"
+#include "command_context.h"
 
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -61,8 +62,9 @@ namespace zec::ui
         ImGui::NewFrame();
     }
 
-    void end_frame(ID3D12GraphicsCommandList* cmd_list)
+    void end_frame(const CommandContextHandle handle)
     {
+        ID3D12GraphicsCommandList* cmd_list = dx12::CommandContextUtils::get_command_list(handle);
         ImGui::Render();
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
     }

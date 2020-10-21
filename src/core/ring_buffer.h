@@ -37,7 +37,7 @@ namespace zec
         inline T front()
         {
             ASSERT(write_idx > read_idx);
-            return elements[read_idx];
+            return elements[read_idx % elements.size];
         }
 
         T back()

@@ -7,16 +7,19 @@
 
 namespace zec::dx12::CommandContextUtils
 {
+    constexpr u64 CMD_LIST_IDX_BIT_WIDTH = 8;
+    constexpr u64 CMD_ALLOCATOR_IDX_BIT_WIDTH = 16;
+
     CommandContextHandle encode_command_context_handle(const CommandQueueType type, const u16 cmd_allocator_idx, const u8 cmd_list_idx)
     {
         return {
-            (u32(type) << 24) & (u32(cmd_allocator_idx) << 8) & u32(cmd_list_idx)
+            (u32(type) << (CMD_LIST_IDX_BIT_WIDTH + CMD_ALLOCATOR_IDX_BIT_WIDTH)) | (u32(cmd_allocator_idx) << CMD_LIST_IDX_BIT_WIDTH) | u32(cmd_list_idx)
         };
     }
 
     CommandQueueType get_command_queue_type(const CommandContextHandle context_handle)
     {
-        return CommandQueueType(context_handle.idx >> 24);
+        return CommandQueueType(context_handle.idx >> (CMD_LIST_IDX_BIT_WIDTH + CMD_ALLOCATOR_IDX_BIT_WIDTH));
     }
 
     u8 get_command_list_idx(const CommandContextHandle context_handle)
@@ -28,7 +31,7 @@ namespace zec::dx12::CommandContextUtils
     u16 get_command_allocator_idx(const CommandContextHandle context_handle)
     {
         constexpr u32 mask = 0x00FFFF00;
-        return u16((context_handle.idx & mask) >> 16);
+        return u16((context_handle.idx & mask) >> CMD_LIST_IDX_BIT_WIDTH);
     }
 
     CommandContextPool& get_pool(const CommandQueueType type)
@@ -63,9 +66,8 @@ namespace zec::dx12::CommandContextUtils
 
     void destroy(CommandContextPool& pool)
     {
-        ASSERT(pool.free_cmd_list_indices.size == 0);
-        ASSERT(pool.free_allocator_indices.size == 0);
         ASSERT(pool.in_flight_allocator_indices.size() == 0);
+        ASSERT(pool.in_flight_fence_values.size() == 0);
 
         wait(pool.fence, pool.last_used_fence_value);
 
@@ -83,7 +85,11 @@ namespace zec::dx12::CommandContextUtils
         constexpr size_t num_pools = size_t(CommandQueueType::NUM_COMMAND_CONTEXT_POOLS);
         for (size_t i = 0; i < num_pools; i++) {
             g_command_pools[i].type = CommandQueueType(i);
+            g_command_pools[i].device = g_device;
+            g_command_pools[i].fence = create_fence(g_fences, 0);
         }
+        g_command_pools[u64(CommandQueueType::GRAPHICS)].queue = g_gfx_queue;
+        g_command_pools[u64(CommandQueueType::COMPUTE)].queue = g_gfx_queue;
     };
 
     void destroy_pools()
@@ -93,6 +99,12 @@ namespace zec::dx12::CommandContextUtils
             auto& pool = g_command_pools[i];
             destroy(pool);
         }
+    }
+
+    void insert_resource_barrier(const CommandContextHandle command_context, D3D12_RESOURCE_BARRIER barriers[], const size_t num_barriers)
+    {
+        ID3D12GraphicsCommandList* cmd_list = get_command_list(command_context);
+        cmd_list->ResourceBarrier(num_barriers, barriers);
     };
 
     CommandContextHandle provision(CommandContextPool& pool)
@@ -112,13 +124,14 @@ namespace zec::dx12::CommandContextUtils
             ));
             allocator_idx = u16(pool.cmd_allocators.push_back(cmd_allocator));
         }
+        DXCall(cmd_allocator->Reset());
 
         u8 list_idx = 0;
         ID3D12GraphicsCommandList* cmd_list = nullptr;
         if (pool.free_cmd_list_indices.size > 0) {
             list_idx = pool.free_cmd_list_indices.pop_back();
             cmd_list = pool.cmd_lists[list_idx];
-            cmd_list->Reset(cmd_allocator, nullptr);
+            DXCall(cmd_list->Reset(cmd_allocator, nullptr));
         }
         else {
             ASSERT(pool.cmd_lists.size < UINT8_MAX);
@@ -140,6 +153,10 @@ namespace zec::dx12::CommandContextUtils
         ASSERT(num_contexts < MAX_NUM_SIMULTANEOUS_COMMAND_LIST_EXECUTION&& num_contexts > 0);
         ID3D12CommandList* cmd_lists[MAX_NUM_SIMULTANEOUS_COMMAND_LIST_EXECUTION] = {};
         CommandContextPool& pool = get_pool(context_handles[0]);
+
+        // TODO: Make sure the fence value is incremented atomically!
+        ++pool.last_used_fence_value;
+
         for (size_t i = 0; i < num_contexts; i++) {
             // Make sure all contexts are using the same pool/queue
             ASSERT(get_command_queue_type(context_handles[i]) == pool.type);
@@ -158,8 +175,7 @@ namespace zec::dx12::CommandContextUtils
         }
 
         pool.queue->ExecuteCommandLists(num_contexts, cmd_lists);
-        // TODO: Make sure the fence value is incremented atomically!
-        signal(pool.fence, pool.queue, pool.last_used_fence_value++);
+        signal(pool.fence, pool.queue, pool.last_used_fence_value);
     }
 
     void reset(CommandContextPool& pool)
@@ -171,7 +187,6 @@ namespace zec::dx12::CommandContextUtils
             if (pool.in_flight_fence_values.front() <= completed_fence_value) {
                 pool.in_flight_fence_values.pop_front();
                 u64 allocator_idx = pool.in_flight_allocator_indices.pop_front();
-                pool.cmd_allocators[allocator_idx]->Reset();
                 pool.free_allocator_indices.push_back(u16(allocator_idx));
             }
             else {

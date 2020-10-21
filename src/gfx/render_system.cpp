@@ -97,13 +97,13 @@ namespace zec::RenderSystem
             in_render_list.execute_fns.push_back(render_pass_desc.execute);
             in_render_list.destroy_fns.push_back(render_pass_desc.destroy);
 
-            ResourceListEntry resources_per_pass[8] = {};
+            PassResourceList resources_per_pass = {};
             for (size_t resource_idx = 0; resource_idx < ARRAY_SIZE(render_pass_desc.resources); resource_idx++) {
                 const auto& resource_desc = render_pass_desc.resources[resource_idx];
                 if (resource_desc.type == PassResourceType::INVALID) {
                     break;
                 }
-                resources_per_pass[resource_idx] = in_render_list.resource_map[resource_desc.name];
+                resources_per_pass.entries[resource_idx] = in_render_list.resource_map[resource_desc.name];
             }
             in_render_list.resources_per_pass.push_back(resources_per_pass);
         }
@@ -122,7 +122,7 @@ namespace zec::RenderSystem
         // Since we don't model views at the API level, we'll just pass the handles back in the same order that the pass desc used them
         for (size_t i = 0; i < render_list.execute_fns.size; i++) {
             auto execute_fn = render_list.execute_fns[i];
-            ResourceListEntry* pass_resources = render_list.resources_per_pass[i];
+            PassResourceList& pass_resources = render_list.resources_per_pass[i];
             execute_fn(pass_resources);
         }
     }

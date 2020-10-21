@@ -27,10 +27,16 @@ namespace zec::dx12
 
     namespace CommandContextUtils
     {
+        ID3D12GraphicsCommandList* get_command_list(const CommandContextHandle handle);
+
         void destroy(CommandContextPool& pool);
+        void reset(CommandContextPool& pool);
 
         void initialize_pools();
         void destroy_pools();
+
+
+        void insert_resource_barrier(const CommandContextHandle context, D3D12_RESOURCE_BARRIER barriers[], const size_t num_barriers);
 
         CommandContextHandle provision(CommandContextPool& pool);
         void return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts);

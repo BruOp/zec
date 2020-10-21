@@ -346,7 +346,11 @@ namespace zec
     void destroy_renderer()
     {
         write_log("Destroying renderer");
-        wait(g_frame_fence, g_current_cpu_frame);
+
+        for (size_t i = 0; i < ARRAY_SIZE(g_command_pools); i++) {
+            wait(g_command_pools[i].fence, g_command_pools[i].last_used_fence_value);
+            CommandContextUtils::reset(g_command_pools[i]);
+        }
 
         // Swap Chain Destruction
         DescriptorHeap& rtv_heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_RTV];
@@ -391,7 +395,7 @@ namespace zec
         g_gfx_queue->Wait(g_upload_manager.fence.d3d_fence, g_upload_manager.current_fence_value);
     }
 
-    void begin_frame()
+    CommandContextHandle begin_frame()
     {
         if (g_current_cpu_frame != 0) {
             // Wait for the GPU to catch up so we can freely reset our frame's command allocator
@@ -403,6 +407,10 @@ namespace zec
             }
 
             g_current_frame_idx = g_swap_chain.swap_chain->GetCurrentBackBufferIndex();
+
+            for (size_t i = 0; i < ARRAY_SIZE(g_command_pools); i++) {
+                CommandContextUtils::reset(g_command_pools[i]);
+            }
         }
 
         // Process resources queued for destruction
@@ -414,6 +422,8 @@ namespace zec
 
         auto& heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
 
+
+        CommandContextHandle command_context = gfx::cmd::provision(CommandQueueType::GRAPHICS);
         // TODO: Provide interface for creating barriers? Maybe that needs to be handled as part of the render graph though
 
         const TextureHandle backbuffer = get_current_back_buffer_handle(g_swap_chain, g_current_frame_idx);
@@ -425,10 +435,13 @@ namespace zec
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        //g_cmd_list->ResourceBarrier(1, &barrier);
+
+        CommandContextUtils::insert_resource_barrier(command_context, &barrier, 1);
+
+        return command_context;
     }
 
-    void end_frame()
+    void end_frame(const CommandContextHandle command_context)
     {
         const TextureHandle backbuffer = get_current_back_buffer_handle(g_swap_chain, g_current_frame_idx);
 
@@ -439,10 +452,9 @@ namespace zec
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        //g_cmd_list->ResourceBarrier(1, &barrier);
 
-        /*ID3D12CommandList* command_lists[] = { g_cmd_list };
-        g_gfx_queue->ExecuteCommandLists(ARRAY_SIZE(command_lists), command_lists);*/
+        CommandContextUtils::insert_resource_barrier(command_context, &barrier, 1);
+        CommandContextUtils::return_and_execute(&command_context, 1);
 
         // Present the frame.
         if (g_swap_chain.swap_chain != nullptr) {

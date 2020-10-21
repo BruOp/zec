@@ -176,6 +176,7 @@ protected:
 
     void render() override final
     {
+        CommandContextHandle command_ctx = begin_frame();
         ui::begin_frame();
 
         {
@@ -198,18 +199,19 @@ protected:
         Scissor scissor{ 0, 0, width, height };
 
         TextureHandle render_target = get_current_back_buffer_handle();
-        clear_render_target(render_target, clear_color);
+        gfx::cmd::clear_render_target(command_ctx, render_target, clear_color);
 
-        set_active_resource_layout(resource_layout);
-        set_pipeline_state(pso_handle);
-        bind_constant_buffer(cb_handle, 0);
-        set_viewports(&viewport, 1);
-        set_scissors(&scissor, 1);
+        gfx::cmd::set_active_resource_layout(command_ctx, resource_layout);
+        gfx::cmd::set_pipeline_state(command_ctx, pso_handle);
+        gfx::cmd::bind_constant_buffer(command_ctx, cb_handle, 0);
+        gfx::cmd::set_viewports(command_ctx, &viewport, 1);
+        gfx::cmd::set_scissors(command_ctx, &scissor, 1);
 
-        set_render_targets(&render_target, 1);
-        draw_mesh(cube_mesh);
+        gfx::cmd::set_render_targets(command_ctx, &render_target, 1);
+        gfx::cmd::draw_mesh(command_ctx, cube_mesh);
 
-        ui::end_frame(dx12::g_cmd_list);
+        ui::end_frame(command_ctx);
+        end_frame(command_ctx);
     }
 
     void before_reset() override final

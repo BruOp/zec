@@ -11,8 +11,8 @@ namespace zec
     void begin_upload();
     void end_upload();
 
-    void begin_frame();
-    void end_frame();
+    CommandContextHandle begin_frame();
+    void end_frame(const CommandContextHandle command_context);
 
     // ---------- Resource Queries ----------
     u32 get_shader_readable_texture_index(const TextureHandle handle);
