@@ -38,7 +38,7 @@ public:
     float clear_color[4] = { 0.2f, 0.2f, 0.2f, 1.0f };
 
     Camera camera = {};
-    OrbitCameraController camera_controller = OrbitCameraController{ input_manager };
+    OrbitCameraController camera_controller = OrbitCameraController{ };
     MeshHandle cube_mesh = {};
     BufferHandle view_cb_handle = {};
     BufferHandle draw_cb_handle = {};
@@ -296,22 +296,28 @@ protected:
 
     void render() override final
     {
+        CommandContextHandle cmd_ctx = begin_frame();
+
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         Scissor scissor{ 0, 0, width, height };
 
         TextureHandle backbuffer = get_current_back_buffer_handle();
-        clear_render_target(backbuffer, clear_color);
+        gfx::cmd::clear_render_target(cmd_ctx, backbuffer, clear_color);
 
-        set_active_resource_layout(resource_layout);
-        set_pipeline_state(pso_handle);
-        bind_resource_table(2);
-        bind_constant_buffer(draw_cb_handle, 0);
-        bind_constant_buffer(view_cb_handle, 1);
-        set_viewports(&viewport, 1);
-        set_scissors(&scissor, 1);
+        gfx::cmd::set_active_resource_layout(cmd_ctx, resource_layout);
+        gfx::cmd::set_pipeline_state(cmd_ctx, pso_handle);
+        gfx::cmd::bind_constant_buffer(cmd_ctx, draw_cb_handle, 0);
+        gfx::cmd::bind_constant_buffer(cmd_ctx, view_cb_handle, 1);
+        gfx::cmd::bind_resource_table(cmd_ctx, 2);
 
-        set_render_targets(&backbuffer, 1);
-        draw_mesh(cube_mesh);
+
+        gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
+        gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
+
+        gfx::cmd::set_render_targets(cmd_ctx, &backbuffer, 1);
+        gfx::cmd::draw_mesh(cmd_ctx, cube_mesh);
+
+        end_frame(cmd_ctx);
     }
 
     void before_reset() override final

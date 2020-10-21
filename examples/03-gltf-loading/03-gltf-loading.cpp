@@ -198,6 +198,8 @@ protected:
 
     void render() override final
     {
+        CommandContextHandle cmd_ctx = begin_frame();
+
         ui::begin_frame();
 
         {
@@ -216,25 +218,27 @@ protected:
         Scissor scissor{ 0, 0, width, height };
 
         TextureHandle backbuffer = get_current_back_buffer_handle();
-        clear_render_target(backbuffer, clear_color);
-        clear_depth_target(depth_target, 1.0f, 0);
+        gfx::cmd::clear_render_target(cmd_ctx, backbuffer, clear_color);
+        gfx::cmd::clear_depth_target(cmd_ctx, depth_target, 1.0f, 0);
 
-        set_active_resource_layout(resource_layout);
-        set_pipeline_state(pso_handle);
-        set_viewports(&viewport, 1);
-        set_scissors(&scissor, 1);
+        gfx::cmd::set_active_resource_layout(cmd_ctx, resource_layout);
+        gfx::cmd::set_pipeline_state(cmd_ctx, pso_handle);
+        gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
+        gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
-        set_render_targets(&backbuffer, 1, depth_target);
+        gfx::cmd::set_render_targets(cmd_ctx, &backbuffer, 1, depth_target);
 
-        bind_resource_table(2);
-        bind_constant_buffer(view_cb_handle, 1);
+        gfx::cmd::bind_resource_table(cmd_ctx, 2);
+        gfx::cmd::bind_constant_buffer(cmd_ctx, view_cb_handle, 1);
 
         for (size_t i = 0; i < gltf_context.draw_calls.size; i++) {
-            bind_constant_buffer(draw_data_buffer_handles[i], 0);
-            draw_mesh(gltf_context.draw_calls[i].mesh);
+            gfx::cmd::bind_constant_buffer(cmd_ctx, draw_data_buffer_handles[i], 0);
+            gfx::cmd::draw_mesh(cmd_ctx, gltf_context.draw_calls[i].mesh);
         }
 
-        ui::end_frame(dx12::g_cmd_list);
+        ui::end_frame(cmd_ctx);
+        end_frame(cmd_ctx);
+
     }
 
     void before_reset() override final
