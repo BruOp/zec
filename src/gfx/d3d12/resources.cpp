@@ -25,7 +25,6 @@ namespace zec
             // alloc_size       => If the buffer is used "dynamically" then we actually allocate enough memory
             //                     to update different regions of the buffer for different frames
             //                     (so RENDER_LATENCY * buffer.size)
-            size_t alloc_size = buffer.size;
 
             if (desc.usage & vertex_or_index) {
                 // ASSERT it's only one or the other
@@ -42,6 +41,8 @@ namespace zec
             else if (desc.usage & RESOURCE_USAGE_CONSTANT) {
                 buffer.size = align_to(buffer.size, dx12::CONSTANT_BUFFER_ALIGNMENT);
             }
+
+            size_t alloc_size = buffer.size;
 
             if (desc.usage & RESOURCE_USAGE_DYNAMIC) {
                 heap_type = D3D12_HEAP_TYPE_UPLOAD;

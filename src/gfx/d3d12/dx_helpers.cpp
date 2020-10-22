@@ -337,5 +337,30 @@ namespace zec
                 return D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE;
             }
         }
+        D3D12_RESOURCE_STATES to_d3d_resource_state(const ResourceUsage usage)
+        {
+            switch (usage) {
+            case RESOURCE_USAGE_VERTEX:
+            case RESOURCE_USAGE_CONSTANT:
+                return D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+            case RESOURCE_USAGE_INDEX:
+                return D3D12_RESOURCE_STATE_INDEX_BUFFER;
+            case RESOURCE_USAGE_SHADER_READABLE:
+                // TODO: This isn't accurate. We may need to use another enum instead of ResourceUsage
+                return D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+            case RESOURCE_USAGE_COMPUTE_WRITABLE:
+                return D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+            case RESOURCE_USAGE_RENDER_TARGET:
+                return D3D12_RESOURCE_STATE_RENDER_TARGET;
+            case RESOURCE_USAGE_DEPTH_STENCIL:
+                return D3D12_RESOURCE_STATE_DEPTH_WRITE;
+            case RESOURCE_USAGE_PRESENT:
+                return D3D12_RESOURCE_STATE_PRESENT;
+            case RESOURCE_USAGE_DYNAMIC:
+            case RESOURCE_USAGE_UNUSED:
+            default:
+                throw std::runtime_error("Cannot do anything with UNUSED or DYNAMIC you dullard.");
+            }
+        }
     }
 }

@@ -41,6 +41,8 @@ namespace zec
 
         D3D12_TEXTURE_ADDRESS_MODE to_d3d_address_mode(const SamplerWrapMode mode);
 
+        D3D12_RESOURCE_STATES to_d3d_resource_state(const ResourceUsage usage);
+
         template <typename T, typename ResourceHandle>
         class DXPtrArray
         {

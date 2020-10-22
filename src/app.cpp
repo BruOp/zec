@@ -71,6 +71,7 @@ namespace zec
 
     void App::shutdown_internal()
     {
+        wait_for_gpu();
         shutdown();
         destroy_renderer();
     }

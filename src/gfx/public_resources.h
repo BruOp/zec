@@ -39,6 +39,8 @@ namespace zec
         RESOURCE_USAGE_DYNAMIC = (1 << 5),
         RESOURCE_USAGE_RENDER_TARGET = (1 << 6),
         RESOURCE_USAGE_DEPTH_STENCIL = (1 << 7),
+        // NOTE: Present is used exclusively for transitions, not for creation. Do not use this flag when creating a resource, use RENDER_TARGET instead.
+        RESOURCE_USAGE_PRESENT = (1 << 8),
     };
 
     enum MeshAttribute : u16
@@ -456,5 +458,14 @@ namespace zec
         u64 top = 0;
         u64 right = 0;
         u64 bottom = 0;
+    };
+
+    struct TextureTransitionDesc
+    {
+        TextureHandle texture;
+        // Note: before and after must both be subsets of the usage that the resource was created with
+        ResourceUsage before;
+        // Note: before and after must both be subsets of the usage that the resource was created with
+        ResourceUsage after;
     };
 }

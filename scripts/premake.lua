@@ -139,5 +139,6 @@ group "examples"
 exampleProject(
     "01-hello-world",
     "02-normal-mapping",
-    "03-gltf-loading"
+    "03-gltf-loading",
+    "04-tone-mapping"
 )

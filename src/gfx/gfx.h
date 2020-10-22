@@ -8,6 +8,8 @@ namespace zec
     void init_renderer(const RendererDesc& renderer_desc);
     void destroy_renderer();
 
+    void wait_for_gpu();
+
     void begin_upload();
     void end_upload();
 
@@ -44,6 +46,8 @@ namespace zec
 
         void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
 
+        void bind_constant(const CommandContextHandle ctx, const void* data, const u64 num_constants, const u32 binding_slot);
+
         void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
 
         void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
@@ -67,5 +71,10 @@ namespace zec
             const TextureHandle depth_target = INVALID_HANDLE
         );
 
+        void transition_textures(
+            const CommandContextHandle ctx,
+            TextureTransitionDesc* transition_descs,
+            u64 num_transitions
+        );
     }
 }

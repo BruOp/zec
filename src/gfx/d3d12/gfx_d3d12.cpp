@@ -345,12 +345,9 @@ namespace zec
 
     void destroy_renderer()
     {
-        write_log("Destroying renderer");
 
-        for (size_t i = 0; i < ARRAY_SIZE(g_command_pools); i++) {
-            wait(g_command_pools[i].fence, g_command_pools[i].last_used_fence_value);
-            CommandContextUtils::reset(g_command_pools[i]);
-        }
+        write_log("Destroying renderer");
+        wait_for_gpu();
 
         // Swap Chain Destruction
         DescriptorHeap& rtv_heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_RTV];
@@ -382,6 +379,14 @@ namespace zec
         dx_destroy(&g_device);
         dx_destroy(&g_adapter);
         dx_destroy(&g_factory);
+    }
+
+    void wait_for_gpu()
+    {
+        for (size_t i = 0; i < ARRAY_SIZE(g_command_pools); i++) {
+            wait(g_command_pools[i].fence, g_command_pools[i].last_used_fence_value);
+            CommandContextUtils::reset(g_command_pools[i]);
+        }
     }
 
     void begin_upload()
@@ -578,6 +583,15 @@ namespace zec
             initial_state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
         }
 
+        if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
+            flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+            if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
+                initial_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+            }
+            else {
+                initial_state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+            }
+        }
 
         D3D12_RESOURCE_DESC d3d_desc = {
             .Dimension = desc.is_3d ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -625,12 +639,20 @@ namespace zec
                 srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
             }
 
-
-            g_device->CreateShaderResourceView(texture.resource, &srv_desc, cpu_handle);
+            if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
+                g_device->CreateShaderResourceView(texture.resource, nullptr, cpu_handle);
+            }
+            else {
+                g_device->CreateShaderResourceView(texture.resource, &srv_desc, cpu_handle);
+            }
         }
 
         if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
-            ASSERT_FAIL("TODO");
+            D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
+            DescriptorHandle rtv = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, &cpu_handle);
+            texture.rtv = rtv;
+
+            g_device->CreateRenderTargetView(texture.resource, nullptr, cpu_handle);
         }
 
         if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
@@ -680,7 +702,7 @@ namespace zec
                 .RegisterSpace = 0,
                 .Num32BitValues = desc.constants[i].num_constants,
             };
-            remaining_dwords -= 2;
+            remaining_dwords -= 2 * desc.constants[i].num_constants;
             parameter_count++;
         }
 
