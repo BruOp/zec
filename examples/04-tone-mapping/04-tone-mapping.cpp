@@ -61,6 +61,8 @@ public:
     TextureHandle depth_target = {};
     TextureHandle hdr_buffers[RENDER_LATENCY] = {};
 
+    TextureHandle envmap = {};
+
     MeshHandle fullscreen_mesh;
 
 protected:
@@ -220,6 +222,8 @@ protected:
         };
 
         fullscreen_mesh = create_mesh(fullscreen_desc);
+
+        envmap = load_texture_from_file("textures/venice_sunset_4k.hdr");
 
         //gltf::load_gltf_file("models/damaged_helmet/DamagedHelmet.gltf", gltf_context);
         gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", gltf_context);

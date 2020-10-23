@@ -5,16 +5,15 @@
 #include "dx_utils.h"
 #include "dx_helpers.h"
 #include "globals.h"
+#include "timer.h"
 #include "DirectXTex.h"
+
+#include <filesystem>
 
 #if _DEBUG
 #define USE_DEBUG_DEVICE 1
 #define BREAK_ON_DX_ERROR (USE_DEBUG_DEVICE && 1)
 #define USE_GPU_VALIDATION 1
-#else
-#define USE_DEBUG_DEVICE 0
-#define BREAK_ON_DX_ERROR 0
-#define USE_GPU_VALIDATION 0
 #endif
 
 
@@ -170,12 +169,13 @@ namespace zec
             ASSERT(g_device == nullptr);
             constexpr int ADAPTER_NUMBER = 0;
 
+            UINT factory_flags = 0;
         #ifdef USE_DEBUG_DEVICE
             ID3D12Debug* debug_ptr;
             DXCall(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_ptr)));
             debug_ptr->EnableDebugLayer();
 
-            UINT factory_flags = DXGI_CREATE_FACTORY_DEBUG;
+            factory_flags = DXGI_CREATE_FACTORY_DEBUG;
 
         #ifdef USE_GPU_VALIDATION
             ID3D12Debug1* debug1;
@@ -406,6 +406,7 @@ namespace zec
             // Wait for the GPU to catch up so we can freely reset our frame's command allocator
             const u64 gpu_lag = g_current_cpu_frame - g_current_gpu_frame;
             ASSERT(gpu_lag <= RENDER_LATENCY);
+
             if (gpu_lag == RENDER_LATENCY) {
                 wait(g_frame_fence, g_current_gpu_frame + 1);
                 ++g_current_gpu_frame;
@@ -468,8 +469,7 @@ namespace zec
         }
 
         // Increment our cpu frame couter to indicate submission
-        ++g_current_cpu_frame;
-        signal(g_frame_fence, g_gfx_queue, g_current_cpu_frame);
+        signal(g_frame_fence, g_gfx_queue, g_current_cpu_frame++);
     }
 
     // ---------- Resource Queries ----------
@@ -577,7 +577,7 @@ namespace zec
         D3D12_CLEAR_VALUE optimized_clear_value = { };
 
         if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
-            optimized_clear_value.Format = DXGI_FORMAT_D32_FLOAT;
+            optimized_clear_value.Format = texture.info.format;
             optimized_clear_value.DepthStencil = { 1.0f, 0 };
             flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
             initial_state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
@@ -585,6 +585,11 @@ namespace zec
 
         if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
             flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+            optimized_clear_value.Format = texture.info.format;
+            optimized_clear_value.Color[0] = 0.0f;
+            optimized_clear_value.Color[1] = 0.0f;
+            optimized_clear_value.Color[2] = 0.0f;
+            optimized_clear_value.Color[3] = 1.0f;
             if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
                 initial_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
             }
@@ -613,11 +618,12 @@ namespace zec
             .HeapType = D3D12_HEAP_TYPE_DEFAULT
         };
 
+        const bool depth_or_rt = bool(desc.usage & (RESOURCE_USAGE_DEPTH_STENCIL | RESOURCE_USAGE_RENDER_TARGET));
         DXCall(g_allocator->CreateResource(
             &alloc_desc,
             &d3d_desc,
             initial_state,
-            (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) ? &optimized_clear_value : nullptr,
+            depth_or_rt ? &optimized_clear_value : nullptr,
             &texture.allocation,
             IID_PPV_ARGS(&texture.resource)
         ));
@@ -805,10 +811,21 @@ namespace zec
     TextureHandle zec::load_texture_from_file(const char* file_path)
     {
         std::wstring path = ansi_to_wstring(file_path);
+        const std::filesystem::path filesystem_path{ file_path };
 
         DirectX::ScratchImage image;
+        const auto& extension = filesystem_path.extension();
 
-        DXCall(DirectX::LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image));
+        if (extension.compare(L".dds") == 0 || extension.compare(L".DDS") == 0) {
+            DXCall(DirectX::LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image));
+        }
+        else if (extension.compare(L".hdr") == 0 || extension.compare(L".HDR") == 0) {
+            DXCall(DirectX::LoadFromHDRFile(path.c_str(), nullptr, image));
+        }
+        else {
+            throw std::runtime_error("Wasn't able to load file!");
+        }
+
         const DirectX::TexMetadata meta_data = image.GetMetadata();
         bool is_3d = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
 
