@@ -271,7 +271,7 @@ namespace zec::gfx::cmd
     void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const float* clear_color)
     {
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-        DescriptorHandle rtv = TextureUtils::get_rtv(g_textures, render_texture);
+        DescriptorRangeHandle rtv = TextureUtils::get_rtv(g_textures, render_texture);
         auto cpu_handle = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv);
         cmd_list->ClearRenderTargetView(cpu_handle, clear_color, 0, nullptr);
     };
@@ -279,7 +279,7 @@ namespace zec::gfx::cmd
     void clear_depth_target(const CommandContextHandle ctx, const TextureHandle depth_stencil_buffer, const float depth_value, const u8 stencil_value)
     {
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-        DescriptorHandle dsv = TextureUtils::get_dsv(g_textures, depth_stencil_buffer);
+        DescriptorRangeHandle dsv = TextureUtils::get_dsv(g_textures, depth_stencil_buffer);
         auto cpu_handle = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, dsv);
         cmd_list->ClearDepthStencilView(cpu_handle, D3D12_CLEAR_FLAG_DEPTH, depth_value, stencil_value, 0, nullptr);
 
@@ -314,13 +314,13 @@ namespace zec::gfx::cmd
         D3D12_CPU_DESCRIPTOR_HANDLE dsv;
         D3D12_CPU_DESCRIPTOR_HANDLE* dsv_ptr = nullptr;
         if (is_valid(depth_target)) {
-            DescriptorHandle descriptor_handle = TextureUtils::get_dsv(g_textures, depth_target);
+            DescriptorRangeHandle descriptor_handle = TextureUtils::get_dsv(g_textures, depth_target);
             dsv = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, descriptor_handle);
             dsv_ptr = &dsv;
         }
         D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
         for (size_t i = 0; i < num_render_targets; i++) {
-            DescriptorHandle descriptor_handle = TextureUtils::get_rtv(g_textures, render_textures[i]);
+            DescriptorRangeHandle descriptor_handle = TextureUtils::get_rtv(g_textures, render_textures[i]);
             rtvs[i] = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, descriptor_handle);
         }
         cmd_list->OMSetRenderTargets(num_render_targets, rtvs, FALSE, dsv_ptr);

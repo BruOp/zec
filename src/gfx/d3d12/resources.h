@@ -34,10 +34,10 @@ namespace zec
         {
             ID3D12Resource* resource = nullptr;
             D3D12MA::Allocation* allocation = nullptr;
-            DescriptorHandle srv = INVALID_HANDLE;
-            DescriptorHandle uav = INVALID_HANDLE;
-            DescriptorHandle rtv = INVALID_HANDLE;
-            DescriptorHandle dsv = INVALID_HANDLE;
+            DescriptorRangeHandle srv = INVALID_HANDLE;
+            DescriptorRangeHandle uav = INVALID_HANDLE;
+            DescriptorRangeHandle rtv = INVALID_HANDLE;
+            DescriptorRangeHandle dsv = INVALID_HANDLE;
             TextureInfo info = {};
             RenderTargetInfo render_target_info = {};
         };

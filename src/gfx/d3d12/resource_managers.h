@@ -95,7 +95,7 @@ namespace zec::dx12
     struct DepthStencilInfo
     {
         TextureHandle handle;
-        DescriptorHandle dsv;
+        DescriptorRangeHandle dsv;
     };
 
     struct TextureList
@@ -109,9 +109,9 @@ namespace zec::dx12
 
         Array<ID3D12Resource*> resources = {};
         Array<D3D12MA::Allocation*> allocations = {};
-        Array<DescriptorHandle> srvs = {};
-        Array<DescriptorHandle> uavs = {};
-        Array<DescriptorHandle> rtvs = {};
+        Array<DescriptorRangeHandle> srvs = {};
+        Array<DescriptorRangeHandle> uavs = {};
+        Array<DescriptorRangeHandle> rtvs = {};
         Array<TextureInfo> infos = {};
         Array<RenderTargetInfo> render_target_infos = {};
         // Note, this is not 1-1 like other arrays in this structure.
@@ -126,22 +126,22 @@ namespace zec::dx12
 
         inline u32 get_srv_index(TextureList& texture_list, TextureHandle handle)
         {
-            return texture_list.srvs[handle.idx].idx;
+            return DescriptorUtils::get_offset(texture_list.srvs[handle.idx]);
         };
 
         inline u32 get_uav_index(TextureList& texture_list, TextureHandle handle)
         {
-            return texture_list.uavs[handle.idx].idx;
+            return DescriptorUtils::get_offset(texture_list.uavs[handle.idx]);
         };
 
-        inline DescriptorHandle get_rtv(TextureList& texture_list, TextureHandle handle)
+        inline DescriptorRangeHandle get_rtv(TextureList& texture_list, TextureHandle handle)
         {
             return texture_list.rtvs[handle.idx];
         };
 
-        DescriptorHandle get_dsv(TextureList& texture_list, TextureHandle handle);
+        DescriptorRangeHandle get_dsv(TextureList& texture_list, TextureHandle handle);
 
-        inline void set_rtv(TextureList& texture_list, TextureHandle handle, DescriptorHandle rtv)
+        inline void set_rtv(TextureList& texture_list, TextureHandle handle, DescriptorRangeHandle rtv)
         {
             texture_list.rtvs[handle.idx] = rtv;
         };

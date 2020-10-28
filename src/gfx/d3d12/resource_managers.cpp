@@ -28,14 +28,14 @@ namespace zec::dx12
             list.infos.push_back(texture.info);
             list.render_target_infos.push_back(texture.render_target_info);
 
-            if (is_valid(texture.dsv)) {
+            if (DescriptorUtils::is_valid(texture.dsv)) {
                 list.dsv_infos.push_back({ handle, texture.dsv });
             };
 
             return handle;
         }
 
-        DescriptorHandle get_dsv(TextureList& texture_list, TextureHandle handle)
+        DescriptorRangeHandle get_dsv(TextureList& texture_list, TextureHandle handle)
         {
             for (size_t i = 0; i < texture_list.dsv_infos.size; i++) {
                 const auto& dsv_info = texture_list.dsv_infos[i];

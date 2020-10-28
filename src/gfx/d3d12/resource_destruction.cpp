@@ -60,15 +60,15 @@ namespace zec
                     queue_destruction(destruction_queue, texture_list.resources[i], texture_list.allocations[i]);
                 }
 
-                DescriptorUtils::free_descriptor(srv_heap, texture_list.srvs[i], current_frame_idx);
-                DescriptorUtils::free_descriptor(srv_heap, texture_list.uavs[i], current_frame_idx);
-                DescriptorUtils::free_descriptor(rtv_heap, texture_list.rtvs[i], current_frame_idx);
+                DescriptorUtils::free_descriptors(srv_heap, texture_list.srvs[i], current_frame_idx);
+                DescriptorUtils::free_descriptors(srv_heap, texture_list.uavs[i], current_frame_idx);
+                DescriptorUtils::free_descriptors(rtv_heap, texture_list.rtvs[i], current_frame_idx);
             }
 
             DescriptorHeap& dsv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_DSV];
             for (size_t i = 0; i < texture_list.dsv_infos.size; i++) {
                 const auto& dsv_info = texture_list.dsv_infos[i];
-                DescriptorUtils::free_descriptor(dsv_heap, dsv_info.dsv, current_frame_idx);
+                DescriptorUtils::free_descriptors(dsv_heap, dsv_info.dsv, current_frame_idx);
             }
 
             texture_list.resources.empty();

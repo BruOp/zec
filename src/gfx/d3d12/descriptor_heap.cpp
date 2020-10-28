@@ -40,52 +40,74 @@ namespace zec::dx12::DescriptorUtils
 
     void destroy(DescriptorHeap& heap)
     {
-        ASSERT(heap.num_allocated == 0);
+        ASSERT(heap.num_free == heap.num_allocated);
         heap.heap->Release();
     }
 
-    DescriptorHandle allocate_descriptor(DescriptorHeap& heap, D3D12_CPU_DESCRIPTOR_HANDLE* in_handle)
+    DescriptorRangeHandle allocate_descriptors(DescriptorHeap& heap, const size_t count, D3D12_CPU_DESCRIPTOR_HANDLE in_handles[])
     {
-        // First check if there is an entry in the dead list:
-        if (heap.dead_list.size > 0) {
-            ++heap.num_allocated;
-            return heap.dead_list.pop_back();
+        // TODO: wrap this all in a mutex lock?
+        DescriptorRangeHandle handle{};
+        // First check if there is an entry in the dead list that satisfies our requirements:
+        for (size_t i = 0; i < heap.dead_list.size; ++i) {
+            DescriptorRangeHandle free_range = heap.dead_list[i];
+            if (get_count(free_range) == count) {
+                // Swap with the end, so that we don't have holes
+                heap.dead_list[i] = heap.dead_list.pop_back();
+                handle = free_range;
+                heap.num_free -= get_count(handle);
+                break;
+            }
+            else if (get_count(free_range) > count) {
+                // Grab a chunk of the free range
+                heap.dead_list[i] = encode(get_offset(free_range) + count, get_count(free_range) - count);
+                handle = free_range;
+                heap.num_free -= get_count(handle);
+                break;
+            }
         }
 
-        ASSERT(heap.capacity - heap.num_allocated > 0);
-        in_handle->ptr = heap.cpu_start.ptr + heap.descriptor_size * heap.num_allocated;
-        return { u32(heap.num_allocated++) };
+        // Allocate from the end of the heap if the free list didn't yield anything
+        if (!is_valid(handle)) {
+            ASSERT(heap.num_allocated + count <= heap.capacity);
+            handle = encode(heap.num_allocated, count);
+            // Fill in_handles;
+            heap.num_allocated += count;
+        }
+
+        for (size_t i = 0; i < count; i++) {
+            in_handles[i].ptr = heap.cpu_start.ptr + heap.descriptor_size * (get_offset(handle) + i);
+        }
+        // We don't need to increment num_allocated since we've grabbed these from the free list.
+        return handle;
     }
 
-    DescriptorHandle allocate_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, D3D12_CPU_DESCRIPTOR_HANDLE* handle)
+    DescriptorRangeHandle allocate_descriptors(const D3D12_DESCRIPTOR_HEAP_TYPE type, const size_t count, D3D12_CPU_DESCRIPTOR_HANDLE in_handles[])
     {
         ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
-        return allocate_descriptor(g_descriptor_heaps[type], handle);
+        return allocate_descriptors(g_descriptor_heaps[type], count, in_handles);
     }
 
-    void allocate_descriptors(DescriptorHeap& heap, DescriptorHandle** in_descriptors, D3D12_CPU_DESCRIPTOR_HANDLE** in_handles, const u32 num_handles)
-    {
-        // TODO: Obtain lock on the descriptor heap, since we need all the descriptors to be contiguous
-    }
 
-    void free_descriptor(DescriptorHeap& heap, const DescriptorHandle descriptor, u64 current_frame_idx)
+    void free_descriptors(DescriptorHeap& heap, const DescriptorRangeHandle descriptor, u64 current_frame_idx)
     {
         if (is_valid(descriptor)) {
             heap.destruction_queue.push_back({ .handle = descriptor, .frame_index = u32(current_frame_idx) });
         }
     }
 
-    void free_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle)
+    void free_descriptors(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorRangeHandle descriptor_handle)
     {
         ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
-        free_descriptor(g_descriptor_heaps[type], descriptor_handle, g_current_frame_idx);
+        free_descriptors(g_descriptor_heaps[type], descriptor_handle, g_current_frame_idx);
     }
+
 
     void process_destruction_queue(DescriptorHeap& heap, u64 current_frame_idx)
     {
         for (const auto element : heap.destruction_queue) {
             if (element.frame_index == current_frame_idx) {
-                --heap.num_allocated;
+                heap.num_free += get_count(element.handle);
                 heap.dead_list.push_back(element.handle);
             }
         }
@@ -127,23 +149,23 @@ namespace zec::dx12::DescriptorUtils
         }
     }
 
-    D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle)
+    D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorRangeHandle descriptor_handle, size_t local_offset)
     {
         ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
         const DescriptorHeap& heap = g_descriptor_heaps[type];
 
         D3D12_CPU_DESCRIPTOR_HANDLE handle = heap.cpu_start;
-        handle.ptr += heap.descriptor_size * descriptor_handle.idx;
+        handle.ptr += heap.descriptor_size * (get_offset(descriptor_handle) + local_offset);
         return handle;
     }
 
-    D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle)
+    D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorRangeHandle descriptor_handle, size_t local_offset)
     {
         ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
         const DescriptorHeap& heap = g_descriptor_heaps[type];
 
         D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
-        handle.ptr += heap.descriptor_size * descriptor_handle.idx;
+        handle.ptr += heap.descriptor_size * (get_offset(descriptor_handle) + local_offset);
         return handle;
     }
 }

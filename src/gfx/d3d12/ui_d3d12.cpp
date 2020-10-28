@@ -13,7 +13,7 @@ namespace zec::ui
 {
     struct UIState
     {
-        dx12::DescriptorHandle srv_handle = {};
+        dx12::DescriptorRangeHandle srv_handle = {};
     };
 
     static UIState g_ui_state;
@@ -35,7 +35,7 @@ namespace zec::ui
 
         dx12::DescriptorHeap& srv_heap = dx12::g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-        g_ui_state.srv_handle = dx12::DescriptorUtils::allocate_descriptor(srv_heap, &cpu_handle);
+        g_ui_state.srv_handle = dx12::DescriptorUtils::allocate_descriptors(srv_heap, 1, &cpu_handle);
         D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = dx12::DescriptorUtils::get_gpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
         ImGui_ImplDX12_Init(
             dx12::g_device,
@@ -48,7 +48,7 @@ namespace zec::ui
 
     void destroy()
     {
-        dx12::DescriptorUtils::free_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
+        dx12::DescriptorUtils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
         ImGui_ImplDX12_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();

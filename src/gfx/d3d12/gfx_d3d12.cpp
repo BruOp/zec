@@ -67,13 +67,13 @@ namespace zec
                 if (resource != nullptr) dx_destroy(&resource);
 
                 const auto rtv_handle = TextureUtils::get_rtv(g_textures, texture_handle);
-                DescriptorUtils::free_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv_handle);
+                DescriptorUtils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv_handle);
 
                 DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&resource)));
                 set_resource(g_textures, resource, texture_handle);
 
-                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle;
-                DescriptorHandle rtv = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, &cpu_handle);
+                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle{};
+                DescriptorRangeHandle rtv = DescriptorUtils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, &cpu_handle);
                 TextureUtils::set_rtv(g_textures, g_swap_chain.back_buffers[i], rtv);
 
                 D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = { };
@@ -167,7 +167,7 @@ namespace zec
             ASSERT(g_adapter == nullptr);
             ASSERT(g_factory == nullptr);
             ASSERT(g_device == nullptr);
-            constexpr int ADAPTER_NUMBER = 1;
+            constexpr int ADAPTER_NUMBER = 0;
 
             UINT factory_flags = 0;
         #ifdef USE_DEBUG_DEVICE
@@ -402,6 +402,8 @@ namespace zec
 
     CommandContextHandle begin_frame()
     {
+        g_current_frame_idx = g_swap_chain.swap_chain->GetCurrentBackBufferIndex();
+
         if (g_current_cpu_frame != 0) {
             // Wait for the GPU to catch up so we can freely reset our frame's command allocator
             const u64 gpu_lag = g_current_cpu_frame - g_current_gpu_frame;
@@ -411,8 +413,6 @@ namespace zec
                 wait(g_frame_fence, g_current_gpu_frame + 1);
                 ++g_current_gpu_frame;
             }
-
-            g_current_frame_idx = g_swap_chain.swap_chain->GetCurrentBackBufferIndex();
 
             for (size_t i = 0; i < ARRAY_SIZE(g_command_pools); i++) {
                 CommandContextUtils::reset(g_command_pools[i]);
@@ -645,7 +645,7 @@ namespace zec
         if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
 
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-            DescriptorHandle srv = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &cpu_handle);
+            DescriptorRangeHandle srv = DescriptorUtils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, &cpu_handle);
             texture.srv = srv;
 
             D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = { };
@@ -670,31 +670,51 @@ namespace zec
             }
         }
 
-        for ()
-            if (desc.usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
-                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                DescriptorHandle uav = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &cpu_handle);
-                texture.uav = uav;
 
+        if (desc.usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
+            constexpr u32 MAX_NUM_MIPS = 16;
+            D3D12_CPU_DESCRIPTOR_HANDLE cpu_handles[MAX_NUM_MIPS] = {};
+            ASSERT(texture.info.num_mips < MAX_NUM_MIPS);
+            DescriptorRangeHandle uav = DescriptorUtils::allocate_descriptors(
+                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                texture.info.num_mips,
+                cpu_handles
+            );
+            texture.uav = uav;
+
+            // TODO: 3D texture support
+            ASSERT(!desc.is_3d);
+
+            for (u32 i = 0; i < texture.info.num_mips; i++) {
                 D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
                     .Format = texture.info.format,
                     .ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D,
                 };
-                if (desc.is_cubemap) {
-                    uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
-                    uav_desc.Texture2D = {
-                        .MipSlice = 0,
-                        .PlaneSlice = 0
-                    }
-                }
 
-                // TODO: 3D texture support
-                ASSERT(!desc.is_3d);
+
+                if (desc.is_cubemap || desc.array_size > 1) {
+                    uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
+                    uav_desc.Texture2DArray = {
+                        .MipSlice = i,
+                        .FirstArraySlice = 0,
+                        .ArraySize = texture.info.array_size,
+                        .PlaneSlice = 0
+                    };
+                }
+                else {
+                    uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+                    uav_desc.Texture2D = {
+                        .MipSlice = i,
+                        .PlaneSlice = 0
+                    };
+                }
+                g_device->CreateUnorderedAccessView(texture.resource, nullptr, &uav_desc, cpu_handles[i]);
             }
+        }
 
         if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-            DescriptorHandle rtv = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, &cpu_handle);
+            DescriptorRangeHandle rtv = DescriptorUtils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, &cpu_handle);
             texture.rtv = rtv;
 
             g_device->CreateRenderTargetView(texture.resource, nullptr, cpu_handle);
@@ -702,7 +722,7 @@ namespace zec
 
         if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-            DescriptorHandle dsv = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, &cpu_handle);
+            DescriptorRangeHandle dsv = DescriptorUtils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, texture.info.array_size, &cpu_handle);
             texture.dsv = dsv;
 
             D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {
@@ -913,7 +933,7 @@ namespace zec
         ));
 
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle{};
-        DescriptorHandle srv = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &cpu_handle);
+        DescriptorRangeHandle srv = DescriptorUtils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, &cpu_handle);
         texture.srv = srv;
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
@@ -922,7 +942,7 @@ namespace zec
             .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
             .Texture2D = {
                 .MostDetailedMip = 0,
-                .MipLevels = texture.info.num_mips,
+                .MipLevels = u32(-1),
                 .ResourceMinLODClamp = 0.0f,
              },
         };
