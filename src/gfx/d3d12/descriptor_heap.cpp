@@ -57,11 +57,28 @@ namespace zec::dx12::DescriptorUtils
         return { u32(heap.num_allocated++) };
     }
 
+    DescriptorHandle allocate_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, D3D12_CPU_DESCRIPTOR_HANDLE* handle)
+    {
+        ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
+        return allocate_descriptor(g_descriptor_heaps[type], handle);
+    }
+
+    void allocate_descriptors(DescriptorHeap& heap, DescriptorHandle** in_descriptors, D3D12_CPU_DESCRIPTOR_HANDLE** in_handles, const u32 num_handles)
+    {
+        // TODO: Obtain lock on the descriptor heap, since we need all the descriptors to be contiguous
+    }
+
     void free_descriptor(DescriptorHeap& heap, const DescriptorHandle descriptor, u64 current_frame_idx)
     {
         if (is_valid(descriptor)) {
             heap.destruction_queue.push_back({ .handle = descriptor, .frame_index = u32(current_frame_idx) });
         }
+    }
+
+    void free_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle)
+    {
+        ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
+        free_descriptor(g_descriptor_heaps[type], descriptor_handle, g_current_frame_idx);
     }
 
     void process_destruction_queue(DescriptorHeap& heap, u64 current_frame_idx)
@@ -129,17 +146,4 @@ namespace zec::dx12::DescriptorUtils
         handle.ptr += heap.descriptor_size * descriptor_handle.idx;
         return handle;
     }
-
-    DescriptorHandle allocate_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, D3D12_CPU_DESCRIPTOR_HANDLE* handle)
-    {
-        ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
-        return allocate_descriptor(g_descriptor_heaps[type], handle);
-    }
-
-    void free_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle)
-    {
-        ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
-        free_descriptor(g_descriptor_heaps[type], descriptor_handle, g_current_frame_idx);
-    }
-
 }

@@ -71,7 +71,7 @@ namespace zec
 
             if (desc.usage & RESOURCE_USAGE_DYNAMIC) {
                 buffer.cpu_accessible = true;
-                buffer.resource->Map(0, &CD3DX12_RANGE(0, 0), &buffer.cpu_address);
+                buffer.resource->Map(0, nullptr, &buffer.cpu_address);
             }
         }
 

@@ -43,7 +43,7 @@ namespace zec
         {
             // The backbuffers will be destroyed when we destroy our Texture List
             swap_chain.swap_chain->Release();
-            swap_chain.output->Release();
+            if (swap_chain.output) swap_chain.output->Release();
         }
 
         void destroy(

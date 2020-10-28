@@ -18,6 +18,7 @@ namespace zec
 
     // ---------- Resource Queries ----------
     u32 get_shader_readable_texture_index(const TextureHandle handle);
+    u32 get_shader_writable_texture_index(const TextureHandle handle);
     TextureHandle get_current_back_buffer_handle();
 
     // ---------- Resource creation ----------
@@ -37,7 +38,7 @@ namespace zec
         // ---------- Command Contexts ----------
         CommandContextHandle provision(CommandQueueType type);
 
-        void return_to_pool(CommandContextHandle& command_context);
+        void return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts);
 
         //--------- Resource Binding ----------
         void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
@@ -50,8 +51,12 @@ namespace zec
 
         void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
 
+        // Draw / Dispatch
         void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
 
+        void dispatch(const CommandContextHandle ctx);
+
+        // Misc
         void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const float* clear_color);
         inline void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const vec4 clear_color)
         {

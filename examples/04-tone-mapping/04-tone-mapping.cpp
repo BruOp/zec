@@ -223,7 +223,7 @@ protected:
 
         fullscreen_mesh = create_mesh(fullscreen_desc);
 
-        envmap = load_texture_from_file("textures/venice_sunset_4k.hdr");
+        envmap = load_texture_from_file("textures/venice_sunset.dds");
 
         //gltf::load_gltf_file("models/damaged_helmet/DamagedHelmet.gltf", gltf_context);
         gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", gltf_context);
@@ -244,9 +244,6 @@ protected:
         draw_constant_data.reserve(num_draws);
         draw_data_buffer_handles.reserve(num_draws);
         for (size_t i = 0; i < num_draws; i++) {
-            const size_t node_idx = draw_data_buffer_handles.push_back(
-                create_buffer(cb_desc)
-            );
 
             const auto& draw_call = gltf_context.draw_calls[i];
             const auto& transform = gltf_context.scene_graph.global_transforms[draw_call.scene_node_idx];
@@ -257,6 +254,13 @@ protected:
                 .normal_transform = normal_transform,
                 .material_data = gltf_context.materials[draw_call.material_index],
                 });
+
+            BufferDesc draw_cb_desc = cb_desc;
+            draw_cb_desc.data = &draw_constant_data[i];
+
+            const size_t node_idx = draw_data_buffer_handles.push_back(
+                create_buffer(draw_cb_desc)
+            );
         }
 
         TextureDesc depth_texture_desc = {
@@ -302,10 +306,6 @@ protected:
         view_constant_data.camera_position = camera.position;
         view_constant_data.time = time_data.elapsed_seconds_f;
         update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
-
-        for (size_t i = 0; i < gltf_context.draw_calls.size; i++) {
-            update_buffer(draw_data_buffer_handles[i], &draw_constant_data[i], sizeof(DrawConstantData));
-        }
     }
 
     void render() override final

@@ -100,6 +100,7 @@ namespace zec
         PIXEL = 0,
         ALL,
         VERTEX,
+        COMPUTE
     };
 
     enum struct ResourceLayoutEntryType : u8
@@ -295,6 +296,7 @@ namespace zec
         u32 height = 0;
         u32 depth = 0;
         u32 num_mips = 0;
+        // For cube maps, array_size must == 6
         u32 array_size = 0;
         u16 is_cubemap = 0;
         u16 is_3d = 0;

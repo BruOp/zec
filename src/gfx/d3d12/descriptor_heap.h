@@ -50,7 +50,13 @@ namespace zec
             // This takes a heap and a null CPU_DESCRIPTOR_HANDLE and returns an index, but also sets the in_handles ptr value
             // to the appropriate one so it can be used to create views
             DescriptorHandle allocate_descriptor(DescriptorHeap& heap, D3D12_CPU_DESCRIPTOR_HANDLE* in_handle);
+            DescriptorHandle allocate_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, D3D12_CPU_DESCRIPTOR_HANDLE* in_handle); // Use globals
+
+            // Used for allocating many descriptors for e.g. different mip slices
+            void allocate_descriptors(DescriptorHeap& heap, DescriptorHandle** in_descriptors, D3D12_CPU_DESCRIPTOR_HANDLE** in_handles, const u32 num_handles);
+
             void free_descriptor(DescriptorHeap& heap, const DescriptorHandle descriptor_handle, u64 current_frame_idx);
+            void free_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle); // Use globals
 
             void process_destruction_queue(DescriptorHeap& heap, u64 current_frame_idx);
 
@@ -61,8 +67,6 @@ namespace zec
             D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle);
             D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle);
 
-            DescriptorHandle allocate_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, D3D12_CPU_DESCRIPTOR_HANDLE* in_handle); // Use globals
-            void free_descriptor(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorHandle descriptor_handle); // Use globals
 
         }
     }

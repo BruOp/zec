@@ -128,7 +128,7 @@ protected:
         begin_upload();
 
         //gltf::load_gltf_file("models/damaged_helmet/DamagedHelmet.gltf", gltf_context);
-        gltf::load_gltf_file("models/damaged_helmet/DamagedHelmet.gltf", gltf_context);
+        gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", gltf_context);
 
         end_upload();
 

@@ -167,7 +167,7 @@ namespace zec
             ASSERT(g_adapter == nullptr);
             ASSERT(g_factory == nullptr);
             ASSERT(g_device == nullptr);
-            constexpr int ADAPTER_NUMBER = 0;
+            constexpr int ADAPTER_NUMBER = 1;
 
             UINT factory_flags = 0;
         #ifdef USE_DEBUG_DEVICE
@@ -198,7 +198,7 @@ namespace zec
             g_adapter->GetDesc1(&desc);
             write_log("Creating DX12 device on adapter '%ls'", desc.Description);
 
-            DXCall(D3D12CreateDevice(g_adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&g_device)));
+            DXCall(D3D12CreateDevice(g_adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&g_device)));
 
             D3D_FEATURE_LEVEL feature_levels_arr[4] = {
                 D3D_FEATURE_LEVEL_11_0,
@@ -216,7 +216,7 @@ namespace zec
             ));
             g_supported_feature_level = feature_levels.MaxSupportedFeatureLevel;
 
-            D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_12_0;
+            D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_11_0;
             if (g_supported_feature_level < min_feature_level) {
                 std::wstring majorLevel = to_string<int>(min_feature_level >> 12);
                 std::wstring minorLevel = to_string<int>((min_feature_level >> 8) & 0xF);
@@ -479,6 +479,11 @@ namespace zec
         return TextureUtils::get_srv_index(g_textures, handle);
     }
 
+    u32 get_shader_writable_texture_index(const TextureHandle handle)
+    {
+        return TextureUtils::get_uav_index(g_textures, handle);
+    }
+
     TextureHandle get_current_back_buffer_handle()
     {
         return dx12::get_current_back_buffer_handle(g_swap_chain, g_current_frame_idx);
@@ -598,12 +603,21 @@ namespace zec
             }
         }
 
+        u16 depth_or_array_size = u16(desc.array_size);
+        ASSERT(!desc.is_cubemap || desc.array_size == 6);
+        if (desc.is_3d) {
+            // Basically not handling an array of 3D textures for now.
+            ASSERT(!desc.is_cubemap);
+            ASSERT(desc.array_size == 1);
+            depth_or_array_size = u16(desc.depth);
+        }
+
         D3D12_RESOURCE_DESC d3d_desc = {
             .Dimension = desc.is_3d ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D,
             .Alignment = 0,
             .Width = texture.info.width,
             .Height = texture.info.height,
-            .DepthOrArraySize = desc.is_3d ? u16(texture.info.depth) : u16(texture.info.array_size),
+            .DepthOrArraySize = depth_or_array_size,
             .MipLevels = u16(desc.num_mips),
             .Format = texture.info.format,
             .SampleDesc = {
@@ -645,6 +659,9 @@ namespace zec
                 srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
             }
 
+            // TODO: 3D Texture support
+            ASSERT(!desc.is_3d);
+
             if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
                 g_device->CreateShaderResourceView(texture.resource, nullptr, cpu_handle);
             }
@@ -652,6 +669,28 @@ namespace zec
                 g_device->CreateShaderResourceView(texture.resource, &srv_desc, cpu_handle);
             }
         }
+
+        for ()
+            if (desc.usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
+                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
+                DescriptorHandle uav = DescriptorUtils::allocate_descriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, &cpu_handle);
+                texture.uav = uav;
+
+                D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
+                    .Format = texture.info.format,
+                    .ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D,
+                };
+                if (desc.is_cubemap) {
+                    uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
+                    uav_desc.Texture2D = {
+                        .MipSlice = 0,
+                        .PlaneSlice = 0
+                    }
+                }
+
+                // TODO: 3D texture support
+                ASSERT(!desc.is_3d);
+            }
 
         if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};

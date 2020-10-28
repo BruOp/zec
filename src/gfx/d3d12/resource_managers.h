@@ -129,6 +129,11 @@ namespace zec::dx12
             return texture_list.srvs[handle.idx].idx;
         };
 
+        inline u32 get_uav_index(TextureList& texture_list, TextureHandle handle)
+        {
+            return texture_list.uavs[handle.idx].idx;
+        };
+
         inline DescriptorHandle get_rtv(TextureList& texture_list, TextureHandle handle)
         {
             return texture_list.rtvs[handle.idx];

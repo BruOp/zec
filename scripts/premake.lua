@@ -140,5 +140,6 @@ exampleProject(
     "01-hello-world",
     "02-normal-mapping",
     "03-gltf-loading",
-    "04-tone-mapping"
+    "04-tone-mapping",
+    "05-envmap-creation"
 )

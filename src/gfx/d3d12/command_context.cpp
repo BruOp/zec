@@ -205,7 +205,7 @@ namespace zec::gfx::cmd
     {
         CommandContextPool& pool = get_pool(type);
         return CommandContextUtils::provision(pool);
-    };
+    }
 
     void return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts)
     {
@@ -260,6 +260,12 @@ namespace zec::gfx::cmd
         cmd_list->IASetIndexBuffer(&mesh.index_buffer_view);
         cmd_list->IASetVertexBuffers(0, mesh.num_vertex_buffers, mesh.buffer_views);
         cmd_list->DrawIndexedInstanced(mesh.index_count, 1, 0, 0, 0);
+    }
+
+    void dispatch(const CommandContextHandle ctx, const u32 thread_group_count_x, const u32 thread_group_count_y, const u32 thread_group_count_z)
+    {
+        ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+        cmd_list->Dispatch(thread_group_count_x, thread_group_count_y, thread_group_count_z);
     };
 
     void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const float* clear_color)
