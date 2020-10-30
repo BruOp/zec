@@ -57,6 +57,8 @@ namespace zec::dx12::CommandContextUtils
         case zec::CommandQueueType::GRAPHICS:
             return D3D12_COMMAND_LIST_TYPE_DIRECT;
         case zec::CommandQueueType::COMPUTE:
+            return D3D12_COMMAND_LIST_TYPE_DIRECT;
+        case zec::CommandQueueType::ASYNC_COMPUTE:
             return D3D12_COMMAND_LIST_TYPE_COMPUTE;
         case zec::CommandQueueType::NUM_COMMAND_CONTEXT_POOLS:
         default:
@@ -90,6 +92,7 @@ namespace zec::dx12::CommandContextUtils
         }
         g_command_pools[u64(CommandQueueType::GRAPHICS)].queue = g_gfx_queue;
         g_command_pools[u64(CommandQueueType::COMPUTE)].queue = g_gfx_queue;
+        g_command_pools[u64(CommandQueueType::ASYNC_COMPUTE)].queue = g_compute_queue;
     };
 
     void destroy_pools()
@@ -216,7 +219,14 @@ namespace zec::gfx::cmd
     {
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
         ID3D12RootSignature* root_signature = g_root_signatures[resource_layout_id];
-        cmd_list->SetGraphicsRootSignature(root_signature);
+
+        CommandQueueType queue_type = get_command_queue_type(ctx);
+        if (queue_type == CommandQueueType::GRAPHICS) {
+            cmd_list->SetGraphicsRootSignature(root_signature);
+        }
+        else {
+            cmd_list->SetComputeRootSignature(root_signature);
+        }
     };
 
     void set_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle)
@@ -229,32 +239,51 @@ namespace zec::gfx::cmd
     void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
     {
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+
         const DescriptorHeap& heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
         D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
-        cmd_list->SetGraphicsRootDescriptorTable(resource_layout_entry_idx, handle);
+
+        CommandQueueType queue_type = get_command_queue_type(ctx);
+        if (queue_type == CommandQueueType::GRAPHICS) {
+            cmd_list->SetGraphicsRootDescriptorTable(resource_layout_entry_idx, handle);
+        }
+        else {
+            cmd_list->SetComputeRootDescriptorTable(resource_layout_entry_idx, handle);
+        }
     };
 
     void bind_constant(const CommandContextHandle ctx, const void* data, const u64 num_constants, const u32 binding_slot)
     {
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-        cmd_list->SetGraphicsRoot32BitConstants(binding_slot, u32(num_constants), data, 0);
+
+        CommandQueueType queue_type = get_command_queue_type(ctx);
+        if (queue_type == CommandQueueType::GRAPHICS) {
+            cmd_list->SetGraphicsRoot32BitConstants(binding_slot, u32(num_constants), data, 0);
+        }
+        else {
+            cmd_list->SetComputeRoot32BitConstants(binding_slot, u32(num_constants), data, 0);
+        }
     }
 
     void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot)
     {
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
         const Buffer& buffer = g_buffers[buffer_handle];
-        if (buffer.cpu_accessible) {
-            cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer.gpu_address + (buffer.size * g_current_frame_idx));
+        auto gpu_address = buffer.cpu_accessible ? buffer.gpu_address + (buffer.size * g_current_frame_idx) : buffer.gpu_address;
+        CommandQueueType queue_type = get_command_queue_type(ctx);
+        if (queue_type == CommandQueueType::GRAPHICS) {
+            cmd_list->SetGraphicsRootConstantBufferView(binding_slot, gpu_address);
         }
         else {
-            cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer.gpu_address);
+            cmd_list->SetComputeRootConstantBufferView(binding_slot, gpu_address);
         }
     };
 
     void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id)
     {
+        ASSERT(get_command_queue_type(ctx) == CommandQueueType::GRAPHICS);
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+
         const Mesh& mesh = g_meshes[mesh_id.idx];
         cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         cmd_list->IASetIndexBuffer(&mesh.index_buffer_view);

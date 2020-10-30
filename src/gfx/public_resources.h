@@ -100,7 +100,7 @@ namespace zec
         PIXEL = 0,
         ALL,
         VERTEX,
-        COMPUTE
+        ASYNC_COMPUTE
     };
 
     enum struct ResourceLayoutEntryType : u8
@@ -116,7 +116,7 @@ namespace zec
         UNUSED = 0,
         READ = 1 << 0,
         WRITE = 1 << 1,
-        READ_WRITE = READ & WRITE,
+        READ_WRITE = READ | WRITE,
     };
 
     enum struct ComparisonFunc : u8
@@ -241,6 +241,7 @@ namespace zec
     {
         GRAPHICS = 0,
         COMPUTE,
+        ASYNC_COMPUTE,
         // UPLOAD?
 
         NUM_COMMAND_CONTEXT_POOLS
@@ -302,6 +303,7 @@ namespace zec
         u16 is_3d = 0;
         BufferFormat format;
         u16 usage = 0;
+        ResourceUsage initial_state = RESOURCE_USAGE_UNUSED;
     };
 
     struct SamplerDesc
@@ -313,18 +315,10 @@ namespace zec
         u32 binding_slot;
     };
 
-    struct ResourceLayoutRangeDesc
-    {
-        static constexpr u32 UNBOUNDED_COUNT = 4096;
-        ResourceAccess usage = ResourceAccess::UNUSED;
-        u32 count = 0;
-        u32 space = 0;
-    };
-
     struct ResourceTableEntryDesc
     {
-        ResourceLayoutRangeDesc ranges[32] = {};
-        ShaderVisibility visibility = ShaderVisibility::ALL;
+        ResourceAccess usage = ResourceAccess::UNUSED;
+        u32 count = 0;
     };
 
     struct ResourceLayoutConstantsDesc
@@ -469,5 +463,16 @@ namespace zec
         ResourceUsage before;
         // Note: before and after must both be subsets of the usage that the resource was created with
         ResourceUsage after;
+    };
+
+    struct TextureInfo
+    {
+        u32 width = 0;
+        u32 height = 0;
+        u32 depth = 0;
+        u32 num_mips = 0;
+        u32 array_size = 0;
+        DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+        u32 is_cubemap = 0;
     };
 }

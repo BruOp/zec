@@ -33,6 +33,11 @@ namespace zec
     // ---------- Resource updates ----------
     void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size);
 
+    namespace gfx::textures
+    {
+        TextureInfo get_texture_info(const TextureHandle texture_handle);
+    }
+
     namespace gfx::cmd
     {
         // ---------- Command Contexts ----------
@@ -54,7 +59,12 @@ namespace zec
         // Draw / Dispatch
         void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
 
-        void dispatch(const CommandContextHandle ctx);
+        void dispatch(
+            const CommandContextHandle ctx,
+            const u32 thread_group_count_x,
+            const u32 thread_group_count_y,
+            const u32 thread_group_count_z
+        );
 
         // Misc
         void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const float* clear_color);

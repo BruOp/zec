@@ -268,6 +268,16 @@ namespace zec
                 g_gfx_queue->SetName(L"Graphics queue");
             }
 
+            // Initialize compute queue
+            {
+                D3D12_COMMAND_QUEUE_DESC queue_desc{ };
+                queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+                queue_desc.Type = D3D12_COMMAND_LIST_TYPE_COMPUTE;
+
+                DXCall(g_device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&g_compute_queue)));
+                g_compute_queue->SetName(L"Compute queue");
+            }
+
             // Initialize copy queue
             {
                 D3D12_COMMAND_QUEUE_DESC queue_desc{ };
@@ -371,6 +381,7 @@ namespace zec
         CommandContextUtils::destroy_pools();
 
         dx_destroy(&g_gfx_queue);
+        dx_destroy(&g_compute_queue);
         dx_destroy(&g_copy_queue);
 
         destroy(g_destruction_queue);
@@ -576,16 +587,37 @@ namespace zec
             }
         };
 
-        D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COMMON;
-
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
-        D3D12_CLEAR_VALUE optimized_clear_value = { };
+        D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COMMON;
+        switch (desc.usage) {
+        case RESOURCE_USAGE_SHADER_READABLE:
+            initial_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+            break;
+        case RESOURCE_USAGE_COMPUTE_WRITABLE:
+            initial_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+            break;
+        case RESOURCE_USAGE_RENDER_TARGET:
+            initial_state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+            break;
+        case RESOURCE_USAGE_DEPTH_STENCIL:
+            initial_state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+            break;
+        default:
+            ASSERT(desc.initial_state != RESOURCE_USAGE_UNUSED);
+            ASSERT(desc.initial_state & desc.usage);
+            initial_state = to_d3d_resource_state(desc.initial_state);
+            break;
+        }
 
+        if (desc.usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
+            flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        }
+
+        D3D12_CLEAR_VALUE optimized_clear_value = { };
         if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
+            flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
             optimized_clear_value.Format = texture.info.format;
             optimized_clear_value.DepthStencil = { 1.0f, 0 };
-            flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-            initial_state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
         }
 
         if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
@@ -595,12 +627,6 @@ namespace zec
             optimized_clear_value.Color[1] = 0.0f;
             optimized_clear_value.Color[2] = 0.0f;
             optimized_clear_value.Color[3] = 1.0f;
-            if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
-                initial_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-            }
-            else {
-                initial_state = D3D12_RESOURCE_STATE_RENDER_TARGET;
-            }
         }
 
         u16 depth_or_array_size = u16(desc.array_size);
@@ -691,7 +717,6 @@ namespace zec
                     .ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D,
                 };
 
-
                 if (desc.is_cubemap || desc.array_size > 1) {
                     uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
                     uav_desc.Texture2DArray = {
@@ -742,7 +767,6 @@ namespace zec
 
     ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc)
     {
-
         constexpr u64 MAX_DWORDS_IN_RS = 64;
         ASSERT(desc.num_constants < MAX_DWORDS_IN_RS);
         ASSERT(desc.num_constant_buffers < MAX_DWORDS_IN_RS / 2);
@@ -783,47 +807,67 @@ namespace zec
             parameter_count++;
         }
 
-        for (u32 i = 0; i < desc.num_resource_tables; i++) {
-            D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_count];
-            parameter.ShaderVisibility = to_d3d_visibility(desc.tables[i].visibility);
-            parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-            parameter.DescriptorTable = {};
 
-            constexpr u64 num_ranges = ARRAY_SIZE(desc.tables[i].ranges);
-            D3D12_DESCRIPTOR_RANGE d3d_ranges[num_ranges] = { };
-            parameter.DescriptorTable.pDescriptorRanges = d3d_ranges;
+        // Tables -- Note that we actually map them to ranges
+        if (desc.num_resource_tables > 0) {
+            ASSERT(desc.num_resource_tables < ResourceLayoutDesc::MAX_ENTRIES);
 
+            D3D12_DESCRIPTOR_RANGE srv_ranges[ResourceLayoutDesc::MAX_ENTRIES] = {};
+            D3D12_DESCRIPTOR_RANGE uav_ranges[ResourceLayoutDesc::MAX_ENTRIES] = {};
             u32 srv_count = 0;
             u32 uav_count = 0;
-            for (size_t range_idx = 0; range_idx < num_ranges; range_idx++) {
-                const ResourceLayoutRangeDesc& range_desc = desc.tables[i].ranges[range_idx];
-                if (range_desc.usage == ResourceAccess::UNUSED) {
-                    parameter.DescriptorTable.NumDescriptorRanges = range_idx;
-                    break;
-                }
-                bool is_srv_range = range_desc.usage == ResourceAccess::READ;
-                auto range_type = (is_srv_range) ? D3D12_DESCRIPTOR_RANGE_TYPE_SRV : D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-                u32 base_shader_register = is_srv_range ? srv_count : uav_count;
-                d3d_ranges[range_idx] = {
-                    .RangeType = range_type,
-                    .NumDescriptors = range_desc.count,
-                    .BaseShaderRegister = base_shader_register,
-                    // Every table gets placed in its own space... not sure this is a good idea? But let's keep it simple for now.
-                    // In the future we might want to consider putting all unbounded tables in the zero-th space? but that's complicated
-                    .RegisterSpace = i + 1,
-                    .OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND,
-                };
 
-                if (is_srv_range) {
-                    srv_count += range_desc.count;
+            D3D12_ROOT_DESCRIPTOR_TABLE srv_table = {};
+            D3D12_ROOT_DESCRIPTOR_TABLE uav_table = {};
+
+            for (u32 i = 0; i < desc.num_resource_tables; i++) {
+                const auto& table_desc = desc.tables[i];
+                ASSERT(table_desc.usage != ResourceAccess::UNUSED);
+
+                auto range_type = table_desc.usage == ResourceAccess::READ ? D3D12_DESCRIPTOR_RANGE_TYPE_SRV : D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+                // Since we only support bindless, they all start at a base shader register of zero and are in a different space.
+                if (table_desc.usage == ResourceAccess::READ) {
+
+                    srv_ranges[srv_count++] = {
+                        .RangeType = range_type,
+                        .NumDescriptors = table_desc.count,
+                        .BaseShaderRegister = 0,
+                        .RegisterSpace = i + 1,
+                        .OffsetInDescriptorsFromTableStart = 0
+                    };
                 }
                 else {
-                    uav_count += range_desc.count;
+                    uav_ranges[uav_count++] = {
+                        .RangeType = range_type,
+                        .NumDescriptors = table_desc.count,
+                        .BaseShaderRegister = 0,
+                        .RegisterSpace = i + 1,
+                        .OffsetInDescriptorsFromTableStart = 0
+                    };
                 }
             }
 
-            remaining_dwords--;
-            parameter_count++;
+            if (srv_count > 0) {
+                D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_count++];
+                parameter.ShaderVisibility = to_d3d_visibility(ShaderVisibility::ALL);
+                parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                parameter.DescriptorTable = {
+                    .NumDescriptorRanges = srv_count,
+                    .pDescriptorRanges = srv_ranges,
+                };
+                remaining_dwords--;
+            }
+
+            if (uav_count > 0) {
+                D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_count++];
+                parameter.ShaderVisibility = to_d3d_visibility(ShaderVisibility::ALL);
+                parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                parameter.DescriptorTable = {
+                    .NumDescriptorRanges = uav_count,
+                    .pDescriptorRanges = uav_ranges,
+                };
+                remaining_dwords--;
+            }
         }
 
         ASSERT(remaining_dwords > 0);
@@ -854,14 +898,23 @@ namespace zec
 
         ID3DBlob* signature;
         ID3DBlob* error;
-        DXCall(D3D12SerializeRootSignature(&root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
-        DXCall(g_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root_signature)));
+        HRESULT hr = D3D12SerializeRootSignature(&root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
 
         if (error != nullptr) {
             print_blob(error);
             error->Release();
             throw std::runtime_error("Failed to create root signature");
         }
+        DXCall(hr);
+
+        hr = g_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root_signature));
+
+        if (error != nullptr) {
+            print_blob(error);
+            error->Release();
+            throw std::runtime_error("Failed to create root signature");
+        }
+        DXCall(hr);
         signature != nullptr && signature->Release();
 
         return g_root_signatures.push_back(root_signature);

@@ -332,7 +332,6 @@ protected:
         Scissor scissor{ 0, 0, width, height };
         TextureHandle hdr_buffer = hdr_buffers[frame_ctr % RENDER_LATENCY];
 
-
         gfx::cmd::set_active_resource_layout(cmd_ctx, resource_layout);
         gfx::cmd::set_pipeline_state(cmd_ctx, pso_handle);
         gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);

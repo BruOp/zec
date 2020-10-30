@@ -13,17 +13,6 @@ namespace zec
         constexpr size_t VERTEX_BUFFER_ALIGNMENT = 4;
         constexpr size_t INDEX_BUFFER_ALIGNMENT = 4;
 
-        struct TextureInfo
-        {
-            u32 width = 0;
-            u32 height = 0;
-            u32 depth = 0;
-            u32 num_mips = 0;
-            u32 array_size = 0;
-            DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
-            u32 is_cubemap = 0;
-        };
-
         struct RenderTargetInfo
         {
             u8 mssa_samples = 0;

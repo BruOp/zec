@@ -10,9 +10,21 @@ using namespace zec;
 struct PrefilteringPassConstants
 {
     u32 src_texture_idx;
-    u32 out_texture_idx;
-    u32 mip_level;
+    u32 out_texture_initial_idx;
+    u32 mip_idx;
+    u32 mip_width;
 };
+
+struct ViewConstantData
+{
+    mat4 invVP;
+    float exposure = 1.0f;
+    float mip_level = 0.0f;
+    u32 envmap_idx;
+    float padding[45];
+};
+static_assert(sizeof(ViewConstantData) == 256);
+
 
 enum struct TonemappingOperators : u32
 {
@@ -40,15 +52,27 @@ class EnvMapCreationApp : public zec::App
 public:
     EnvMapCreationApp() : App{ L"Prefiltered Environment Map Creator" } { }
 
-    float exposure = 1.0f;
+    float roughness = 0.001f;
+
     EnvMapInfo env_map_info = {};
+
+    Camera camera = {};
+    OrbitCameraController camera_controller = OrbitCameraController{};
+
+    ViewConstantData view_constant_data = {};
 
     ResourceLayoutHandle prefiltering_layout;
     PipelineStateHandle prefiltering_pso = {};
 
+    ResourceLayoutHandle background_pass_layout;
+    PipelineStateHandle background_pass_pso = {};
+
     ResourceLayoutHandle tonemapping_layout;
     PipelineStateHandle tonemapping_pso = {};
 
+    BufferHandle view_cb_handle = {};
+
+    TextureHandle hdr_buffers[RENDER_LATENCY] = {};
     TextureHandle unfiltered_env_maps = {};
     TextureHandle filtered_env_maps = {};
     TextureHandle input_envmap = {};
@@ -58,6 +82,19 @@ public:
 protected:
     void init() override final
     {
+        camera_controller.init();
+        camera_controller.set_camera(&camera);
+
+        camera_controller.origin = vec3{ 0.0f, 0.0f, 0.0f };
+        camera_controller.radius = 7.0f;
+
+        camera.projection = perspective_projection(
+            float(width) / float(height),
+            deg_to_rad(65.0f),
+            0.1f, // near
+            100.0f // far
+        );
+
         // Initialize UI
         ui::initialize(window);
 
@@ -65,20 +102,16 @@ protected:
         {
             ResourceLayoutDesc prefiltering_layout_desc{
                 .constants = {{
-                    .visibility = ShaderVisibility::COMPUTE,
+                    .visibility = ShaderVisibility::ASYNC_COMPUTE,
                     .num_constants = sizeof(PrefilteringPassConstants) / 4u,
                  }},
                 .num_constants = 1,
                 .num_constant_buffers = 0,
                 .tables = {
-                    {
-                        .ranges = {
-                            {.usage = ResourceAccess::READ, .count = ResourceLayoutRangeDesc::UNBOUNDED_COUNT },
-                        },
-                        .visibility = ShaderVisibility::COMPUTE,
-                    }
+                    {.usage = ResourceAccess::READ, .count = 4096 },
+                    {.usage = ResourceAccess::WRITE, .count = 4096 },
                 },
-                .num_resource_tables = 1,
+                .num_resource_tables = 2,
                 .static_samplers = {
                     {
                         .filtering = SamplerFilterType::MIN_POINT_MAG_POINT_MIP_POINT,
@@ -86,24 +119,57 @@ protected:
                         .wrap_v = SamplerWrapMode::CLAMP,
                         .binding_slot = 0,
                     },
-                },
-                .num_static_samplers = 1,
+            },
+            .num_static_samplers = 1,
             };
 
             prefiltering_layout = create_resource_layout(prefiltering_layout_desc);
             PipelineStateObjectDesc pipeline_desc = {
-                    .resource_layout = prefiltering_layout,
-                .input_assembly_desc = {{
-                    { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
-                    { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::FLOAT_2, 1 },
-                    } },
-                    .shader_file_path = L"shaders/envmap_prefilter.hlsl",
+                .resource_layout = prefiltering_layout,
+                .shader_file_path = L"shaders/envmap_prefilter.hlsl",
             };
             pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
-            pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
+            pipeline_desc.used_stages = PIPELINE_STAGE_COMPUTE;
             prefiltering_pso = create_pipeline_state_object(pipeline_desc);
         }
 
+        // Background Rendering
+        {
+            ResourceLayoutDesc background_pass_layout_desc{
+                .num_constants = 0,
+                .constant_buffers = {
+                    {.visibility = ShaderVisibility::ALL },
+                },
+                .num_constant_buffers = 1,
+                .tables = {
+                    {.usage = ResourceAccess::READ, .count = 4096 },
+                },
+                .num_resource_tables = 1,
+                .static_samplers = {
+                    {
+                        .filtering = SamplerFilterType::MIN_LINEAR_MAG_LINEAR_MIP_LINEAR,
+                        .wrap_u = SamplerWrapMode::CLAMP,
+                        .wrap_v = SamplerWrapMode::CLAMP,
+                        .binding_slot = 0,
+                    },
+                },
+                .num_static_samplers = 1,
+            };
+            background_pass_layout = create_resource_layout(background_pass_layout_desc);
+
+            PipelineStateObjectDesc pipeline_desc = {
+                    .resource_layout = background_pass_layout,
+                    .input_assembly_desc = {{
+                        { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
+                        { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::FLOAT_2, 1 },
+                    } },
+                    .rtv_formats = {{ BufferFormat::R8G8B8A8_UNORM_SRGB }},
+                    .shader_file_path = L"shaders/background_pass.hlsl",
+            };
+            pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
+            pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
+            background_pass_pso = create_pipeline_state_object(pipeline_desc);
+        }
 
         // Tone mapping PSO
         {
@@ -115,12 +181,7 @@ protected:
                 .num_constants = 1,
                 .num_constant_buffers = 0,
                 .tables = {
-                    {
-                        .ranges = {
-                            {.usage = ResourceAccess::READ, .count = ResourceLayoutRangeDesc::UNBOUNDED_COUNT },
-                        },
-                        .visibility = ShaderVisibility::PIXEL,
-                    }
+                    {.usage = ResourceAccess::READ, .count = 4096 },
                 },
                 .num_resource_tables = 1,
                 .static_samplers = {
@@ -189,7 +250,7 @@ protected:
 
         fullscreen_mesh = create_mesh(fullscreen_desc);
 
-        input_envmap = load_texture_from_file("textures/venice_sunset_4k.hdr");
+        input_envmap = load_texture_from_file("textures/venice_sunset.dds");
 
         constexpr u32 cubemap_face_width = 1024;
         TextureDesc output_envmap_desc{
@@ -197,15 +258,40 @@ protected:
             .height = cubemap_face_width,
             .depth = 1,
             .num_mips = 1u + u32(floor(log2(cubemap_face_width))),
-            .array_size = 1,
+            .array_size = 6,
             .is_cubemap = true,
             .is_3d = false,
-            .format = BufferFormat::FLOAT_3,
+            .format = BufferFormat::HALF_4,
             .usage = RESOURCE_USAGE_COMPUTE_WRITABLE | RESOURCE_USAGE_SHADER_READABLE,
+            .initial_state = RESOURCE_USAGE_COMPUTE_WRITABLE
         };
         output_envmap = create_texture(output_envmap_desc);
 
         end_upload();
+
+        BufferDesc cb_desc = {
+            .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
+            .type = BufferType::DEFAULT,
+            .byte_size = sizeof(ViewConstantData),
+            .stride = 0,
+            .data = nullptr,
+        };
+        view_cb_handle = create_buffer(cb_desc);
+
+        TextureDesc hdr_buffer_desc = {
+            .width = width,
+            .height = height,
+            .depth = 1,
+            .num_mips = 1,
+            .array_size = 1,
+            .is_3d = false,
+            .format = BufferFormat::R16G16B16A16_FLOAT,
+            .usage = RESOURCE_USAGE_RENDER_TARGET | RESOURCE_USAGE_SHADER_READABLE,
+            .initial_state = RESOURCE_USAGE_SHADER_READABLE,
+        };
+        for (size_t i = 0; i < RENDER_LATENCY; i++) {
+            hdr_buffers[i] = create_texture(hdr_buffer_desc);
+        }
 
         {
             CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::COMPUTE);
@@ -213,18 +299,34 @@ protected:
             gfx::cmd::set_active_resource_layout(cmd_ctx, prefiltering_layout);
             gfx::cmd::set_pipeline_state(cmd_ctx, prefiltering_pso);
 
-            PrefilteringPassConstants prefilter_constants = {
-                .src_texture_idx = get_shader_readable_texture_index(input_envmap),
-                .out_texture_idx = get_shader_writable_texture_index(output_envmap),
-                .mip_level = 0,
-            };
-
-            gfx::cmd::bind_constant(cmd_ctx, &prefilter_constants, 2, 0);
             gfx::cmd::bind_resource_table(cmd_ctx, 1);
+            gfx::cmd::bind_resource_table(cmd_ctx, 2);
 
-            // TODO: Calculate dispatch size based on TextureInfo, which I should make public and queryable.
-            gfx::cmd::dispatch(cmd_ctx, );
+            TextureInfo texture_info = gfx::textures::get_texture_info(output_envmap);
+            for (u32 mip_idx = 0; mip_idx < texture_info.num_mips; mip_idx++) {
 
+                // Dispatch size is based on number of threads for each direction
+                u32 mip_width = texture_info.width >> mip_idx;
+
+                PrefilteringPassConstants prefilter_constants = {
+                    .src_texture_idx = get_shader_readable_texture_index(input_envmap),
+                    .out_texture_initial_idx = get_shader_writable_texture_index(output_envmap),
+                    .mip_idx = mip_idx,
+                    .mip_width = mip_width,
+                };
+                gfx::cmd::bind_constant(cmd_ctx, &prefilter_constants, 4, 0);
+
+                const u32 dispatch_size = max(1u, mip_width / 8u);
+
+                gfx::cmd::dispatch(cmd_ctx, dispatch_size, dispatch_size, 1);
+            }
+
+            TextureTransitionDesc transition = {
+                .texture = output_envmap,
+                .before = RESOURCE_USAGE_COMPUTE_WRITABLE,
+                .after = RESOURCE_USAGE_SHADER_READABLE
+            };
+            gfx::cmd::transition_textures(cmd_ctx, &transition, 1);
             gfx::cmd::return_and_execute(&cmd_ctx, 1);
         }
 
@@ -238,7 +340,14 @@ protected:
 
     void update(const zec::TimeData& time_data) override final
     {
-        // Check whether our shit is done?
+        TextureInfo& texture_info = gfx::textures::get_texture_info(output_envmap);
+
+        camera_controller.update(time_data.delta_seconds_f);
+        view_constant_data.invVP = invert(camera.projection * camera.view);
+        view_constant_data.mip_level = roughness * float(texture_info.num_mips);
+        view_constant_data.envmap_idx = get_shader_readable_texture_index(output_envmap);
+
+        update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
     }
 
     void render() override final
@@ -259,7 +368,8 @@ protected:
             u32 slider_max = env_map_info.num_mips - 1;
             ImGui::SliderScalar("input u32", ImGuiDataType_U32, &env_map_info.current_mip_level, &u32_zero, &slider_max, "%u");
             ////ImGui::SliderInt("Mip Level", &env_map_info.current_mip_level, 0, env_map_info.num_mips - 1);
-            ImGui::DragFloat("Exposure", &exposure, 0.01f, 0.0f, 5.0f);
+            ImGui::DragFloat("Exposure", &view_constant_data.exposure, 0.01f, 0.0f, 5.0f);
+            ImGui::DragFloat("Roughness", &roughness, 0.01f, 0.001f, 1.0f);
 
             ImGui::End();
         }
@@ -269,10 +379,17 @@ protected:
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         Scissor scissor{ 0, 0, width, height };
 
-        gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
-        gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
         gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1);
         gfx::cmd::clear_render_target(cmd_ctx, render_target, clear_color);
+
+        gfx::cmd::set_active_resource_layout(cmd_ctx, background_pass_layout);
+        gfx::cmd::set_pipeline_state(cmd_ctx, background_pass_pso);
+        gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
+        gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
+        gfx::cmd::bind_resource_table(cmd_ctx, 1);
+
+        gfx::cmd::bind_constant_buffer(cmd_ctx, view_cb_handle, 0);
+        gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
 
         ui::end_frame(cmd_ctx);
         end_frame(cmd_ctx);

@@ -17,6 +17,7 @@ namespace zec
         ID3D12GraphicsCommandList1* g_cmd_list = 0;
         ID3D12CommandAllocator* g_cmd_allocators[NUM_CMD_ALLOCATORS] = {};
         ID3D12CommandQueue* g_gfx_queue = 0;
+        ID3D12CommandQueue* g_compute_queue = 0;
         ID3D12CommandQueue* g_copy_queue = 0;
 
         ResourceDestructionQueue g_destruction_queue = {};

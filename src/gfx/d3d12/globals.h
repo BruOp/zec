@@ -24,6 +24,7 @@ namespace zec
 
 
         extern ID3D12CommandQueue* g_gfx_queue;
+        extern ID3D12CommandQueue* g_compute_queue;
         extern ID3D12CommandQueue* g_copy_queue;
 
         extern CommandContextPool g_command_pools[size_t(CommandQueueType::NUM_COMMAND_CONTEXT_POOLS)];
