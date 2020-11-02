@@ -12,7 +12,6 @@ namespace zec
                 return D3D12_SHADER_VISIBILITY_PIXEL;
             case zec::ShaderVisibility::VERTEX:
                 return D3D12_SHADER_VISIBILITY_VERTEX;
-            case zec::ShaderVisibility::ASYNC_COMPUTE:
             case zec::ShaderVisibility::ALL:
             default:
                 return D3D12_SHADER_VISIBILITY_ALL;

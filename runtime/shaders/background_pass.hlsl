@@ -14,8 +14,9 @@ cbuffer view_constants_buffer : register(b0)
 {
     float4x4 invVP;
     float exposure;
-    float mip_level;
+    uint mip_level;
     uint envmap_idx;
+    uint reference_idx;
 };
 
 SamplerState default_sampler : register(s0);
@@ -26,6 +27,7 @@ struct PSInput
 {
     float4 position_cs : SV_POSITION;
     float4 direction_ws : DIRECTION;
+    float2 uv : TEXCOORD;
 };
 
 float3 convertRGB2XYZ(float3 _rgb)
@@ -96,6 +98,7 @@ PSInput VSMain(float3 position : POSITION, float2 uv : TEXCOORD)
 
     result.direction_ws = mul(invVP, result.position_cs);
     result.direction_ws /= result.direction_ws.w;
+    result.uv = uv;
 
     return result;
 }
@@ -103,9 +106,15 @@ PSInput VSMain(float3 position : POSITION, float2 uv : TEXCOORD)
 float4 PSMain(PSInput input) : SV_TARGET
 {
     TextureCube src_texture = texCube_table[envmap_idx];
-    float4 color = src_texture.SampleLevel(default_sampler, input.direction_ws.xyz, mip_level);
+    TextureCube reference_texture = texCube_table[reference_idx];
+    float4 color = src_texture.SampleLevel(default_sampler, input.direction_ws.xyz, float(mip_level));
+    float4 reference_color = reference_texture.SampleLevel(default_sampler, input.direction_ws.xyz, float(mip_level));
     float3 rgb = color.rgb;
-
+    
+    if (input.uv.x > 0.5) {
+        rgb = reference_color.rgb;
+    }
+    
     float3 Yxy = convertRGB2Yxy(rgb);
 
     Yxy.x *= exposure;

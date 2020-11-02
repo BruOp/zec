@@ -167,7 +167,7 @@ namespace zec
             ASSERT(g_adapter == nullptr);
             ASSERT(g_factory == nullptr);
             ASSERT(g_device == nullptr);
-            constexpr int ADAPTER_NUMBER = 0;
+            constexpr int ADAPTER_NUMBER = 1;
 
             UINT factory_flags = 0;
         #ifdef USE_DEBUG_DEVICE

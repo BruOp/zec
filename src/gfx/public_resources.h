@@ -100,7 +100,7 @@ namespace zec
         PIXEL = 0,
         ALL,
         VERTEX,
-        ASYNC_COMPUTE
+        COMPUTE = ALL,
     };
 
     enum struct ResourceLayoutEntryType : u8

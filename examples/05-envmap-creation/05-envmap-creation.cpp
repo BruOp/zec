@@ -12,16 +12,17 @@ struct PrefilteringPassConstants
     u32 src_texture_idx;
     u32 out_texture_initial_idx;
     u32 mip_idx;
-    u32 mip_width;
+    u32 img_width;
 };
 
 struct ViewConstantData
 {
     mat4 invVP;
     float exposure = 1.0f;
-    float mip_level = 0.0f;
+    u32 mip_level = 0;
     u32 envmap_idx;
-    float padding[45];
+    u32 reference_idx;
+    float padding[44];
 };
 static_assert(sizeof(ViewConstantData) == 256);
 
@@ -77,6 +78,7 @@ public:
     TextureHandle filtered_env_maps = {};
     TextureHandle input_envmap = {};
     TextureHandle output_envmap = {};
+    TextureHandle reference_envmap = {};
     MeshHandle fullscreen_mesh;
 
 protected:
@@ -102,7 +104,7 @@ protected:
         {
             ResourceLayoutDesc prefiltering_layout_desc{
                 .constants = {{
-                    .visibility = ShaderVisibility::ASYNC_COMPUTE,
+                    .visibility = ShaderVisibility::COMPUTE,
                     .num_constants = sizeof(PrefilteringPassConstants) / 4u,
                  }},
                 .num_constants = 1,
@@ -114,7 +116,7 @@ protected:
                 .num_resource_tables = 2,
                 .static_samplers = {
                     {
-                        .filtering = SamplerFilterType::MIN_POINT_MAG_POINT_MIP_POINT,
+                        .filtering = SamplerFilterType::MIN_LINEAR_MAG_LINEAR_MIP_LINEAR,
                         .wrap_u = SamplerWrapMode::CLAMP,
                         .wrap_v = SamplerWrapMode::CLAMP,
                         .binding_slot = 0,
@@ -251,13 +253,14 @@ protected:
         fullscreen_mesh = create_mesh(fullscreen_desc);
 
         input_envmap = load_texture_from_file("textures/venice_sunset.dds");
+        reference_envmap = load_texture_from_file("textures/reference_sunset.dds");
 
         constexpr u32 cubemap_face_width = 1024;
         TextureDesc output_envmap_desc{
             .width = cubemap_face_width,
             .height = cubemap_face_width,
             .depth = 1,
-            .num_mips = 1u + u32(floor(log2(cubemap_face_width))),
+            .num_mips = u32(log2(cubemap_face_width)),
             .array_size = 6,
             .is_cubemap = true,
             .is_3d = false,
@@ -301,8 +304,8 @@ protected:
 
             gfx::cmd::bind_resource_table(cmd_ctx, 1);
             gfx::cmd::bind_resource_table(cmd_ctx, 2);
-
             TextureInfo texture_info = gfx::textures::get_texture_info(output_envmap);
+
             for (u32 mip_idx = 0; mip_idx < texture_info.num_mips; mip_idx++) {
 
                 // Dispatch size is based on number of threads for each direction
@@ -312,7 +315,7 @@ protected:
                     .src_texture_idx = get_shader_readable_texture_index(input_envmap),
                     .out_texture_initial_idx = get_shader_writable_texture_index(output_envmap),
                     .mip_idx = mip_idx,
-                    .mip_width = mip_width,
+                    .img_width = texture_info.width,
                 };
                 gfx::cmd::bind_constant(cmd_ctx, &prefilter_constants, 4, 0);
 
@@ -343,9 +346,10 @@ protected:
         TextureInfo& texture_info = gfx::textures::get_texture_info(output_envmap);
 
         camera_controller.update(time_data.delta_seconds_f);
-        view_constant_data.invVP = invert(camera.projection * camera.view);
-        view_constant_data.mip_level = roughness * float(texture_info.num_mips);
+        view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
+        //view_constant_data.mip_level = roughness * float(texture_info.num_mips - 1);
         view_constant_data.envmap_idx = get_shader_readable_texture_index(output_envmap);
+        view_constant_data.reference_idx = get_shader_readable_texture_index(reference_envmap);
 
         update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
     }
@@ -359,17 +363,15 @@ protected:
         {
             const auto framerate = ImGui::GetIO().Framerate;
 
-            ImGui::ShowDemoWindow();
-
             ImGui::Begin("Envmap Creator");
 
             constexpr u32 u32_one = 1u;
             constexpr u32 u32_zero = 0u;
-            u32 slider_max = env_map_info.num_mips - 1;
-            ImGui::SliderScalar("input u32", ImGuiDataType_U32, &env_map_info.current_mip_level, &u32_zero, &slider_max, "%u");
-            ////ImGui::SliderInt("Mip Level", &env_map_info.current_mip_level, 0, env_map_info.num_mips - 1);
+            u32 slider_max = gfx::textures::get_texture_info(output_envmap).num_mips;
+            ImGui::SliderScalar("Mip Level", ImGuiDataType_U32, &view_constant_data.mip_level, &u32_zero, &slider_max, "%u");
+            //ImGui::SliderInt("Mip Level", &env_map_info.current_mip_level, 0, env_map_info.num_mips - 1);
             ImGui::DragFloat("Exposure", &view_constant_data.exposure, 0.01f, 0.0f, 5.0f);
-            ImGui::DragFloat("Roughness", &roughness, 0.01f, 0.001f, 1.0f);
+            ImGui::SliderFloat("Roughness", &roughness, 0.001f, 1.0f);
 
             ImGui::End();
         }

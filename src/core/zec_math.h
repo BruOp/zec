@@ -303,9 +303,9 @@ namespace zec
         }
         mat4(const mat3& rotation, const vec3& translation)
         {
-            memory::copy(&rows[0], rotation[0], sizeof(rotation[0]));
-            memory::copy(&rows[1], rotation[1], sizeof(rotation[0]));
-            memory::copy(&rows[2], rotation[2], sizeof(rotation[0]));
+            memory::copy(&rows[0], &rotation.rows[0], sizeof(vec3));
+            memory::copy(&rows[1], &rotation.rows[1], sizeof(vec3));
+            memory::copy(&rows[2], &rotation.rows[2], sizeof(vec3));
             rows[3] = { 0.0f, 0.0f, 0.0f, 1.0f };
             data[0][3] = translation.x;
             data[1][3] = translation.y;
