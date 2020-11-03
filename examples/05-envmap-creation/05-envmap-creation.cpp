@@ -26,7 +26,6 @@ struct ViewConstantData
 };
 static_assert(sizeof(ViewConstantData) == 256);
 
-
 enum struct TonemappingOperators : u32
 {
     NONE = 0,
@@ -42,10 +41,11 @@ struct TonemapPassConstants
     float exposure;
 };
 
-struct EnvMapInfo
+struct EnvMapTask
 {
-    u32 current_mip_level = 0;
-    u32 num_mips = 1;
+    CmdReceipt receipt = {};
+    bool has_completed = false;
+    bool has_transitioned = false;
 };
 
 class EnvMapCreationApp : public zec::App
@@ -55,10 +55,10 @@ public:
 
     float roughness = 0.001f;
 
-    EnvMapInfo env_map_info = {};
-
     Camera camera = {};
     OrbitCameraController camera_controller = OrbitCameraController{};
+
+    EnvMapTask env_map_task;
 
     ViewConstantData view_constant_data = {};
 
@@ -73,7 +73,6 @@ public:
 
     BufferHandle view_cb_handle = {};
 
-    TextureHandle hdr_buffers[RENDER_LATENCY] = {};
     TextureHandle unfiltered_env_maps = {};
     TextureHandle filtered_env_maps = {};
     TextureHandle input_envmap = {};
@@ -99,6 +98,7 @@ protected:
 
         // Initialize UI
         ui::initialize(window);
+
 
         // Prefiltering PSO
         {
@@ -171,45 +171,6 @@ protected:
             pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
             background_pass_pso = create_pipeline_state_object(pipeline_desc);
-        }
-
-        // Tone mapping PSO
-        {
-            ResourceLayoutDesc tonemapping_layout_desc{
-                .constants = {{
-                    .visibility = ShaderVisibility::PIXEL,
-                    .num_constants = 2
-                 }},
-                .num_constants = 1,
-                .num_constant_buffers = 0,
-                .tables = {
-                    {.usage = ResourceAccess::READ, .count = 4096 },
-                },
-                .num_resource_tables = 1,
-                .static_samplers = {
-                    {
-                        .filtering = SamplerFilterType::MIN_POINT_MAG_POINT_MIP_POINT,
-                        .wrap_u = SamplerWrapMode::CLAMP,
-                        .wrap_v = SamplerWrapMode::CLAMP,
-                        .binding_slot = 0,
-                    },
-                },
-                .num_static_samplers = 1,
-            };
-
-            tonemapping_layout = create_resource_layout(tonemapping_layout_desc);
-            PipelineStateObjectDesc pipeline_desc = {
-                    .resource_layout = tonemapping_layout,
-                .input_assembly_desc = {{
-                    { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
-                    { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::FLOAT_2, 1 },
-                    } },
-                    .rtv_formats = {{ BufferFormat::R8G8B8A8_UNORM_SRGB }},
-                    .shader_file_path = L"shaders/basic_tone_map.hlsl",
-            };
-            pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
-            pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
-            tonemapping_pso = create_pipeline_state_object(pipeline_desc);
         }
 
         begin_upload();
@@ -292,12 +253,9 @@ protected:
             .usage = RESOURCE_USAGE_RENDER_TARGET | RESOURCE_USAGE_SHADER_READABLE,
             .initial_state = RESOURCE_USAGE_SHADER_READABLE,
         };
-        for (size_t i = 0; i < RENDER_LATENCY; i++) {
-            hdr_buffers[i] = create_texture(hdr_buffer_desc);
-        }
 
         {
-            CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::COMPUTE);
+            CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::ASYNC_COMPUTE);
 
             gfx::cmd::set_active_resource_layout(cmd_ctx, prefiltering_layout);
             gfx::cmd::set_pipeline_state(cmd_ctx, prefiltering_pso);
@@ -321,19 +279,11 @@ protected:
 
                 const u32 dispatch_size = max(1u, mip_width / 8u);
 
-                gfx::cmd::dispatch(cmd_ctx, dispatch_size, dispatch_size, 1);
+                gfx::cmd::dispatch(cmd_ctx, dispatch_size, dispatch_size, 6);
             }
 
-            TextureTransitionDesc transition = {
-                .texture = output_envmap,
-                .before = RESOURCE_USAGE_COMPUTE_WRITABLE,
-                .after = RESOURCE_USAGE_SHADER_READABLE
-            };
-            gfx::cmd::transition_textures(cmd_ctx, &transition, 1);
-            gfx::cmd::return_and_execute(&cmd_ctx, 1);
+            env_map_task.receipt = gfx::cmd::return_and_execute(&cmd_ctx, 1);
         }
-
-
     }
 
     void shutdown() override final
@@ -347,7 +297,6 @@ protected:
 
         camera_controller.update(time_data.delta_seconds_f);
         view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
-        //view_constant_data.mip_level = roughness * float(texture_info.num_mips - 1);
         view_constant_data.envmap_idx = get_shader_readable_texture_index(output_envmap);
         view_constant_data.reference_idx = get_shader_readable_texture_index(reference_envmap);
 
@@ -368,10 +317,19 @@ protected:
             constexpr u32 u32_one = 1u;
             constexpr u32 u32_zero = 0u;
             u32 slider_max = gfx::textures::get_texture_info(output_envmap).num_mips;
-            ImGui::SliderScalar("Mip Level", ImGuiDataType_U32, &view_constant_data.mip_level, &u32_zero, &slider_max, "%u");
-            //ImGui::SliderInt("Mip Level", &env_map_info.current_mip_level, 0, env_map_info.num_mips - 1);
-            ImGui::DragFloat("Exposure", &view_constant_data.exposure, 0.01f, 0.0f, 5.0f);
-            ImGui::SliderFloat("Roughness", &roughness, 0.001f, 1.0f);
+
+            if (env_map_task.has_completed) {
+
+                ImGui::SliderScalar("Mip Level", ImGuiDataType_U32, &view_constant_data.mip_level, &u32_zero, &slider_max, "%u");
+                ImGui::DragFloat("Exposure", &view_constant_data.exposure, 0.01f, 0.0f, 5.0f);
+
+                char output_file_name[64] = "";
+                ImGui::InputText("Save with file name:", output_file_name, sizeof(output_file_name));
+                ImGui::Button("Save DDS");
+            }
+            else {
+                ImGui::Text("Filtering environment map...");
+            }
 
             ImGui::End();
         }
@@ -384,14 +342,27 @@ protected:
         gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1);
         gfx::cmd::clear_render_target(cmd_ctx, render_target, clear_color);
 
-        gfx::cmd::set_active_resource_layout(cmd_ctx, background_pass_layout);
-        gfx::cmd::set_pipeline_state(cmd_ctx, background_pass_pso);
-        gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
-        gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
-        gfx::cmd::bind_resource_table(cmd_ctx, 1);
+        if (env_map_task.has_completed || gfx::cmd::check_status(env_map_task.receipt)) {
+            env_map_task.has_completed = true;
+            if (!env_map_task.has_transitioned) {
+                TextureTransitionDesc transition = {
+                .texture = output_envmap,
+                .before = RESOURCE_USAGE_COMPUTE_WRITABLE,
+                .after = RESOURCE_USAGE_SHADER_READABLE
+                };
+                gfx::cmd::transition_textures(cmd_ctx, &transition, 1);
+                env_map_task.has_transitioned = true;
+            }
 
-        gfx::cmd::bind_constant_buffer(cmd_ctx, view_cb_handle, 0);
-        gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
+            gfx::cmd::set_active_resource_layout(cmd_ctx, background_pass_layout);
+            gfx::cmd::set_pipeline_state(cmd_ctx, background_pass_pso);
+            gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
+            gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
+            gfx::cmd::bind_resource_table(cmd_ctx, 1);
+
+            gfx::cmd::bind_constant_buffer(cmd_ctx, view_cb_handle, 0);
+            gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
+        }
 
         ui::end_frame(cmd_ctx);
         end_frame(cmd_ctx);

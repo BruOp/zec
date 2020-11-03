@@ -38,6 +38,6 @@ namespace zec::dx12
         void insert_resource_barrier(const CommandContextHandle context, D3D12_RESOURCE_BARRIER barriers[], const size_t num_barriers);
 
         CommandContextHandle provision(CommandContextPool& pool);
-        void return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts);
+        CmdReceipt return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts);
     }
 }

@@ -431,11 +431,6 @@ namespace zec
         std::wstring shader_file_path = L"";
     };
 
-    struct CommandContextPoolDesc
-    {
-        CommandQueueType type;
-    };
-
     // ---------- Other Descriptions ----------
 
     struct Viewport
@@ -474,5 +469,11 @@ namespace zec
         u32 array_size = 0;
         DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
         u32 is_cubemap = 0;
+    };
+
+    struct CmdReceipt
+    {
+        CommandQueueType queue_type = CommandQueueType::GRAPHICS;
+        u64 fence_value = UINT64_MAX;
     };
 }

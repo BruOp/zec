@@ -43,7 +43,9 @@ namespace zec
         // ---------- Command Contexts ----------
         CommandContextHandle provision(CommandQueueType type);
 
-        void return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts);
+        CmdReceipt return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts);
+
+        bool check_status(const CmdReceipt receipt);
 
         //--------- Resource Binding ----------
         void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);

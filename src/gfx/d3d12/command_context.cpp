@@ -150,15 +150,17 @@ namespace zec::dx12::CommandContextUtils
         return encode_command_context_handle(pool.type, allocator_idx, list_idx);
     }
 
-    void return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts)
+    CmdReceipt return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts)
     {
         constexpr size_t MAX_NUM_SIMULTANEOUS_COMMAND_LIST_EXECUTION = 8; // Arbitrary limit 
         ASSERT(num_contexts < MAX_NUM_SIMULTANEOUS_COMMAND_LIST_EXECUTION&& num_contexts > 0);
         ID3D12CommandList* cmd_lists[MAX_NUM_SIMULTANEOUS_COMMAND_LIST_EXECUTION] = {};
         CommandContextPool& pool = get_pool(context_handles[0]);
-
+        CmdReceipt receipt = {
+            .queue_type = pool.type
+        };
         // TODO: Make sure the fence value is incremented atomically!
-        ++pool.last_used_fence_value;
+        receipt.fence_value = ++pool.last_used_fence_value;
 
         for (size_t i = 0; i < num_contexts; i++) {
             // Make sure all contexts are using the same pool/queue
@@ -179,6 +181,7 @@ namespace zec::dx12::CommandContextUtils
 
         pool.queue->ExecuteCommandLists(num_contexts, cmd_lists);
         signal(pool.fence, pool.queue, pool.last_used_fence_value);
+        return receipt;
     }
 
     void reset(CommandContextPool& pool)
@@ -210,10 +213,16 @@ namespace zec::gfx::cmd
         return CommandContextUtils::provision(pool);
     }
 
-    void return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts)
+    CmdReceipt return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts)
     {
-        dx12::CommandContextUtils::return_and_execute(context_handles, num_contexts);
+        return dx12::CommandContextUtils::return_and_execute(context_handles, num_contexts);
     };
+
+    bool check_status(const CmdReceipt receipt)
+    {
+        CommandContextPool& pool = get_pool(receipt.queue_type);
+        return is_signaled(pool.fence, receipt.fence_value);
+    }
 
     void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id)
     {

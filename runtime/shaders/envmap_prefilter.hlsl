@@ -1,6 +1,6 @@
 #pragma pack_matrix( row_major )
 
-static const uint NUM_SAMPLES = 256u;
+static const uint NUM_SAMPLES = 1024;
 static const float PI = 3.141592653589793;
 
 cbuffer pass_constants : register(b0)
@@ -102,7 +102,7 @@ float3 prefilter_env_map(TextureCube src_texture, float roughness, float3 R, flo
             // float pdf = D_GGX(NoH, roughness) * NoH / (4.0 * VoH);
             // but since V = N => VoH == NoH
             // Solid angle of current sample -- bigger for less likely samples
-            float mip_level = max(mip_bias - 0.5 * log2(D_GGX(NoH, alpha)), 0.0);
+            float mip_level = 1.0 + max(mip_bias - 0.5 * log2(D_GGX(NoH, alpha)), 0.0);
             prefiltered_color += src_texture.SampleLevel(cube_sampler, L, mip_level).rgb * NoL;
             total_weight += NoL;
         }
@@ -110,7 +110,7 @@ float3 prefilter_env_map(TextureCube src_texture, float roughness, float3 R, flo
     return prefiltered_color / total_weight;
 }
 
-[numthreads(8, 8, 6)]
+[numthreads(8, 8, 1)]
 void CSMain(
     uint3 group_id : SV_GROUPID,
     uint3 group_thread_id : SV_GROUPTHREADID,
