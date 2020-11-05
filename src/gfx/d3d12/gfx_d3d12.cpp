@@ -347,10 +347,10 @@ namespace zec
         g_frame_fence = create_fence(g_fences, 0);
 
         g_upload_manager.init({
-            g_device,
-            g_allocator,
-            g_copy_queue,
-            &g_fences });
+            .type = CommandQueueType::COPY,
+            .device = g_device,
+            .allocator = g_allocator,
+            });
     }
 
     void destroy_renderer()
@@ -405,10 +405,9 @@ namespace zec
         g_upload_manager.begin_upload();
     }
 
-    void end_upload()
+    CmdReceipt end_upload()
     {
-        g_upload_manager.end_upload();
-        g_gfx_queue->Wait(g_upload_manager.fence.d3d_fence, g_upload_manager.current_fence_value);
+        return g_upload_manager.end_upload();
     }
 
     CommandContextHandle begin_frame()
@@ -594,7 +593,7 @@ namespace zec
             initial_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
             break;
         case RESOURCE_USAGE_COMPUTE_WRITABLE:
-            initial_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+            initial_state = D3D12_RESOURCE_STATE_COMMON;
             break;
         case RESOURCE_USAGE_RENDER_TARGET:
             initial_state = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -610,7 +609,7 @@ namespace zec
         }
 
         if (desc.usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
-            flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+            flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
         }
 
         D3D12_CLEAR_VALUE optimized_clear_value = { };

@@ -1,3 +1,4 @@
+
 #pragma once
 #include "pch.h"
 #include "constants.h"
@@ -242,7 +243,7 @@ namespace zec
         GRAPHICS = 0,
         COMPUTE,
         ASYNC_COMPUTE,
-        // UPLOAD?
+        COPY,
 
         NUM_COMMAND_CONTEXT_POOLS
     };

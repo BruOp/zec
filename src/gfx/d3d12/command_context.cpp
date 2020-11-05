@@ -60,6 +60,8 @@ namespace zec::dx12::CommandContextUtils
             return D3D12_COMMAND_LIST_TYPE_DIRECT;
         case zec::CommandQueueType::ASYNC_COMPUTE:
             return D3D12_COMMAND_LIST_TYPE_COMPUTE;
+        case zec::CommandQueueType::COPY:
+            return D3D12_COMMAND_LIST_TYPE_COPY;
         case zec::CommandQueueType::NUM_COMMAND_CONTEXT_POOLS:
         default:
             throw std::runtime_error("Cannot map NUM_COMMAND_CONTEXT_POOLS to D3D12_COMMAND_LIST_TYPE");
@@ -93,6 +95,7 @@ namespace zec::dx12::CommandContextUtils
         g_command_pools[u64(CommandQueueType::GRAPHICS)].queue = g_gfx_queue;
         g_command_pools[u64(CommandQueueType::COMPUTE)].queue = g_gfx_queue;
         g_command_pools[u64(CommandQueueType::ASYNC_COMPUTE)].queue = g_compute_queue;
+        g_command_pools[u64(CommandQueueType::COPY)].queue = g_copy_queue;
     };
 
     void destroy_pools()
@@ -222,6 +225,25 @@ namespace zec::gfx::cmd
     {
         CommandContextPool& pool = get_pool(receipt.queue_type);
         return is_signaled(pool.fence, receipt.fence_value);
+    }
+
+    void flush_queue(const CommandQueueType queue)
+    {
+        CommandContextPool& source_pool = get_pool(queue);
+        wait(source_pool.fence, source_pool.last_used_fence_value);
+    }
+
+    void cpu_wait(const CmdReceipt receipt)
+    {
+        CommandContextPool& pool = get_pool(receipt.queue_type);
+        wait(pool.fence, receipt.fence_value);
+    }
+
+    void gpu_wait(const CommandQueueType queue_to_insert_wait, const CmdReceipt receipt_to_wait_on)
+    {
+        CommandContextPool& source_pool = get_pool(receipt_to_wait_on.queue_type);
+        ID3D12CommandQueue* dest_queue = get_pool(queue_to_insert_wait).queue;
+        dest_queue->Wait(source_pool.fence.d3d_fence, receipt_to_wait_on.fence_value);
     }
 
     void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id)

@@ -5,6 +5,8 @@
 #include "gltf_loading.h"
 #include "gfx/d3d12/globals.h"
 
+#include <imgui-filebrowser/imfilebrowser.h>
+
 using namespace zec;
 
 struct PrefilteringPassConstants
@@ -26,27 +28,141 @@ struct ViewConstantData
 };
 static_assert(sizeof(ViewConstantData) == 256);
 
-enum struct TonemappingOperators : u32
+struct PrefilterEnvMapDesc
 {
-    NONE = 0,
-    REINHARD,
-    ACES,
-    UCHIMURA,
-    NUM_TONEMAPPING_OPERATORS
+    TextureHandle src_texture;
+    u32 out_texture_width;
 };
 
-struct TonemapPassConstants
+struct PrefilterEnvMapTask
 {
-    u32 src_texture;
-    float exposure;
-};
+    enum struct TaskState : u8
+    {
+        NOT_ISSUED = 0,
+        IN_FLIGHT,
+        REQUIRES_TRANSITION,
+        COMPLETED
+    };
 
-struct EnvMapTask
-{
+
+    TaskState state = TaskState::NOT_ISSUED;
     CmdReceipt receipt = {};
-    bool has_completed = false;
-    bool has_transitioned = false;
+
+    ResourceLayoutHandle layout;
+    PipelineStateHandle pso = {};
+
+    TextureHandle out_texture;
 };
+
+void init(PrefilterEnvMapTask& task)
+{
+    task.state = PrefilterEnvMapTask::TaskState::NOT_ISSUED;
+    task.receipt = { };
+
+    ResourceLayoutDesc prefiltering_layout_desc{
+        .constants = {{
+            .visibility = ShaderVisibility::COMPUTE,
+            .num_constants = sizeof(PrefilteringPassConstants) / 4u,
+         }},
+        .num_constants = 1,
+        .num_constant_buffers = 0,
+        .tables = {
+            {.usage = ResourceAccess::READ, .count = 4096 },
+            {.usage = ResourceAccess::WRITE, .count = 4096 },
+        },
+        .num_resource_tables = 2,
+        .static_samplers = {
+            {
+                .filtering = SamplerFilterType::MIN_LINEAR_MAG_LINEAR_MIP_LINEAR,
+                .wrap_u = SamplerWrapMode::CLAMP,
+                .wrap_v = SamplerWrapMode::CLAMP,
+                .binding_slot = 0,
+            },
+    },
+    .num_static_samplers = 1,
+    };
+
+    task.layout = create_resource_layout(prefiltering_layout_desc);
+
+    PipelineStateObjectDesc pipeline_desc = {
+        .resource_layout = task.layout,
+        .shader_file_path = L"shaders/envmap_prefilter.hlsl",
+    };
+    pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
+    pipeline_desc.used_stages = PIPELINE_STAGE_COMPUTE;
+
+    task.pso = create_pipeline_state_object(pipeline_desc);
+
+}
+
+void issue_commands(PrefilterEnvMapTask& task, const PrefilterEnvMapDesc desc)
+{
+    TextureDesc output_envmap_desc{
+        .width = desc.out_texture_width,
+        .height = desc.out_texture_width,
+        .depth = 1,
+        .num_mips = u32(log2(desc.out_texture_width)),
+        .array_size = 6,
+        .is_cubemap = true,
+        .is_3d = false,
+        .format = BufferFormat::HALF_4,
+        .usage = RESOURCE_USAGE_COMPUTE_WRITABLE | RESOURCE_USAGE_SHADER_READABLE,
+        .initial_state = RESOURCE_USAGE_COMPUTE_WRITABLE
+    };
+    task.out_texture = create_texture(output_envmap_desc);
+
+    CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::ASYNC_COMPUTE);
+
+    gfx::cmd::set_active_resource_layout(cmd_ctx, task.layout);
+    gfx::cmd::set_pipeline_state(cmd_ctx, task.pso);
+
+    gfx::cmd::bind_resource_table(cmd_ctx, 1);
+    gfx::cmd::bind_resource_table(cmd_ctx, 2);
+    TextureInfo texture_info = gfx::textures::get_texture_info(task.out_texture);
+
+    for (u32 mip_idx = 0; mip_idx < texture_info.num_mips; mip_idx++) {
+
+        // Dispatch size is based on number of threads for each direction
+        u32 mip_width = texture_info.width >> mip_idx;
+
+        PrefilteringPassConstants prefilter_constants = {
+            .src_texture_idx = get_shader_readable_texture_index(desc.src_texture),
+            .out_texture_initial_idx = get_shader_writable_texture_index(task.out_texture),
+            .mip_idx = mip_idx,
+            .img_width = texture_info.width,
+        };
+        gfx::cmd::bind_constant(cmd_ctx, &prefilter_constants, 4, 0);
+
+        const u32 dispatch_size = max(1u, mip_width / 8u);
+
+        gfx::cmd::dispatch(cmd_ctx, dispatch_size, dispatch_size, 6);
+    }
+
+    task.receipt = gfx::cmd::return_and_execute(&cmd_ctx, 1);
+    task.state = PrefilterEnvMapTask::TaskState::IN_FLIGHT;
+}
+
+void check_status(PrefilterEnvMapTask& task)
+{
+    if (task.state == PrefilterEnvMapTask::TaskState::IN_FLIGHT && gfx::cmd::check_status(task.receipt)) {
+        task.state = PrefilterEnvMapTask::TaskState::REQUIRES_TRANSITION;
+    }
+}
+
+void handle_transition(PrefilterEnvMapTask& task, const CommandContextHandle cmd_ctx)
+{
+    ASSERT(task.state == PrefilterEnvMapTask::TaskState::REQUIRES_TRANSITION);
+    gfx::cmd::gpu_wait(CommandQueueType::GRAPHICS, task.receipt);
+
+    TextureTransitionDesc transition = {
+        .texture = task.out_texture,
+        .before = RESOURCE_USAGE_COMPUTE_WRITABLE,
+        .after = RESOURCE_USAGE_SHADER_READABLE
+    };
+    gfx::cmd::transition_textures(cmd_ctx, &transition, 1);
+    task.state = PrefilterEnvMapTask::TaskState::COMPLETED;
+}
+
 
 class EnvMapCreationApp : public zec::App
 {
@@ -55,15 +171,16 @@ public:
 
     float roughness = 0.001f;
 
+    ImGui::FileBrowser file_dialog = ImGui::FileBrowser{
+        ImGuiFileBrowserFlags_EnterNewFilename | ImGuiFileBrowserFlags_CloseOnEsc
+    };
+
     Camera camera = {};
     OrbitCameraController camera_controller = OrbitCameraController{};
 
-    EnvMapTask env_map_task;
+    PrefilterEnvMapTask prefiltering_task;
 
     ViewConstantData view_constant_data = {};
-
-    ResourceLayoutHandle prefiltering_layout;
-    PipelineStateHandle prefiltering_pso = {};
 
     ResourceLayoutHandle background_pass_layout;
     PipelineStateHandle background_pass_pso = {};
@@ -73,11 +190,11 @@ public:
 
     BufferHandle view_cb_handle = {};
 
-    TextureHandle unfiltered_env_maps = {};
-    TextureHandle filtered_env_maps = {};
     TextureHandle input_envmap = {};
-    TextureHandle output_envmap = {};
     TextureHandle reference_envmap = {};
+
+    TextureHandle background_texture = {};
+
     MeshHandle fullscreen_mesh;
 
 protected:
@@ -99,41 +216,9 @@ protected:
         // Initialize UI
         ui::initialize(window);
 
-
-        // Prefiltering PSO
-        {
-            ResourceLayoutDesc prefiltering_layout_desc{
-                .constants = {{
-                    .visibility = ShaderVisibility::COMPUTE,
-                    .num_constants = sizeof(PrefilteringPassConstants) / 4u,
-                 }},
-                .num_constants = 1,
-                .num_constant_buffers = 0,
-                .tables = {
-                    {.usage = ResourceAccess::READ, .count = 4096 },
-                    {.usage = ResourceAccess::WRITE, .count = 4096 },
-                },
-                .num_resource_tables = 2,
-                .static_samplers = {
-                    {
-                        .filtering = SamplerFilterType::MIN_LINEAR_MAG_LINEAR_MIP_LINEAR,
-                        .wrap_u = SamplerWrapMode::CLAMP,
-                        .wrap_v = SamplerWrapMode::CLAMP,
-                        .binding_slot = 0,
-                    },
-            },
-            .num_static_samplers = 1,
-            };
-
-            prefiltering_layout = create_resource_layout(prefiltering_layout_desc);
-            PipelineStateObjectDesc pipeline_desc = {
-                .resource_layout = prefiltering_layout,
-                .shader_file_path = L"shaders/envmap_prefilter.hlsl",
-            };
-            pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
-            pipeline_desc.used_stages = PIPELINE_STAGE_COMPUTE;
-            prefiltering_pso = create_pipeline_state_object(pipeline_desc);
-        }
+        // (optional) set browser properties
+        file_dialog.SetTitle("Save File as");
+        file_dialog.SetTypeFilters({ ".dds" });
 
         // Background Rendering
         {
@@ -172,6 +257,8 @@ protected:
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
             background_pass_pso = create_pipeline_state_object(pipeline_desc);
         }
+
+        ::init(prefiltering_task);
 
         begin_upload();
 
@@ -213,23 +300,7 @@ protected:
 
         fullscreen_mesh = create_mesh(fullscreen_desc);
 
-        input_envmap = load_texture_from_file("textures/venice_sunset.dds");
         reference_envmap = load_texture_from_file("textures/reference_sunset.dds");
-
-        constexpr u32 cubemap_face_width = 1024;
-        TextureDesc output_envmap_desc{
-            .width = cubemap_face_width,
-            .height = cubemap_face_width,
-            .depth = 1,
-            .num_mips = u32(log2(cubemap_face_width)),
-            .array_size = 6,
-            .is_cubemap = true,
-            .is_3d = false,
-            .format = BufferFormat::HALF_4,
-            .usage = RESOURCE_USAGE_COMPUTE_WRITABLE | RESOURCE_USAGE_SHADER_READABLE,
-            .initial_state = RESOURCE_USAGE_COMPUTE_WRITABLE
-        };
-        output_envmap = create_texture(output_envmap_desc);
 
         end_upload();
 
@@ -254,36 +325,6 @@ protected:
             .initial_state = RESOURCE_USAGE_SHADER_READABLE,
         };
 
-        {
-            CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::ASYNC_COMPUTE);
-
-            gfx::cmd::set_active_resource_layout(cmd_ctx, prefiltering_layout);
-            gfx::cmd::set_pipeline_state(cmd_ctx, prefiltering_pso);
-
-            gfx::cmd::bind_resource_table(cmd_ctx, 1);
-            gfx::cmd::bind_resource_table(cmd_ctx, 2);
-            TextureInfo texture_info = gfx::textures::get_texture_info(output_envmap);
-
-            for (u32 mip_idx = 0; mip_idx < texture_info.num_mips; mip_idx++) {
-
-                // Dispatch size is based on number of threads for each direction
-                u32 mip_width = texture_info.width >> mip_idx;
-
-                PrefilteringPassConstants prefilter_constants = {
-                    .src_texture_idx = get_shader_readable_texture_index(input_envmap),
-                    .out_texture_initial_idx = get_shader_writable_texture_index(output_envmap),
-                    .mip_idx = mip_idx,
-                    .img_width = texture_info.width,
-                };
-                gfx::cmd::bind_constant(cmd_ctx, &prefilter_constants, 4, 0);
-
-                const u32 dispatch_size = max(1u, mip_width / 8u);
-
-                gfx::cmd::dispatch(cmd_ctx, dispatch_size, dispatch_size, 6);
-            }
-
-            env_map_task.receipt = gfx::cmd::return_and_execute(&cmd_ctx, 1);
-        }
     }
 
     void shutdown() override final
@@ -293,18 +334,22 @@ protected:
 
     void update(const zec::TimeData& time_data) override final
     {
-        TextureInfo& texture_info = gfx::textures::get_texture_info(output_envmap);
+        if (is_valid(prefiltering_task.out_texture)) {
+            TextureInfo& texture_info = gfx::textures::get_texture_info(prefiltering_task.out_texture);
 
-        camera_controller.update(time_data.delta_seconds_f);
-        view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
-        view_constant_data.envmap_idx = get_shader_readable_texture_index(output_envmap);
-        view_constant_data.reference_idx = get_shader_readable_texture_index(reference_envmap);
+            camera_controller.update(time_data.delta_seconds_f);
+            view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
+            view_constant_data.envmap_idx = get_shader_readable_texture_index(prefiltering_task.out_texture);
+            view_constant_data.reference_idx = get_shader_readable_texture_index(reference_envmap);
 
-        update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
+            update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
+        }
     }
 
     void render() override final
     {
+        check_status(prefiltering_task);
+
         CommandContextHandle cmd_ctx = begin_frame();
 
         ui::begin_frame();
@@ -312,23 +357,51 @@ protected:
         {
             const auto framerate = ImGui::GetIO().Framerate;
 
-            ImGui::Begin("Envmap Creator");
-
             constexpr u32 u32_one = 1u;
             constexpr u32 u32_zero = 0u;
-            u32 slider_max = gfx::textures::get_texture_info(output_envmap).num_mips;
 
-            if (env_map_task.has_completed) {
+            ImGui::Begin("Envmap Creator");
 
+            switch (prefiltering_task.state) {
+            case PrefilterEnvMapTask::TaskState::NOT_ISSUED:
+                ImGui::Text("Currently only works with DDS files that already have mip-maps.");
+                if (ImGui::Button("Load env map")) {
+                    file_dialog.Open();
+                }
+
+                file_dialog.Display();
+
+                if (file_dialog.HasSelected()) {
+                    auto input_file_path = file_dialog.GetSelected().string();
+
+                    begin_upload();
+                    input_envmap = load_texture_from_file(input_file_path.c_str());
+                    CmdReceipt receipt = end_upload();
+                    gfx::cmd::gpu_wait(CommandQueueType::COMPUTE, receipt);
+                    issue_commands(prefiltering_task, { .src_texture = input_envmap, .out_texture_width = 512 });
+                    file_dialog.ClearSelected();
+                }
+
+                break;
+            case PrefilterEnvMapTask::TaskState::IN_FLIGHT:
+                ImGui::Text("Generating prefiltered environment map");
+                break;
+            case PrefilterEnvMapTask::TaskState::COMPLETED:
+                u32 slider_max = gfx::textures::get_texture_info(prefiltering_task.out_texture).num_mips;
                 ImGui::SliderScalar("Mip Level", ImGuiDataType_U32, &view_constant_data.mip_level, &u32_zero, &slider_max, "%u");
                 ImGui::DragFloat("Exposure", &view_constant_data.exposure, 0.01f, 0.0f, 5.0f);
 
-                char output_file_name[64] = "";
-                ImGui::InputText("Save with file name:", output_file_name, sizeof(output_file_name));
-                ImGui::Button("Save DDS");
-            }
-            else {
-                ImGui::Text("Filtering environment map...");
+                if (ImGui::Button("Save DDS")) {
+                    file_dialog.Open();
+                }
+
+                file_dialog.Display();
+
+                if (file_dialog.HasSelected()) {
+                    write_log(file_dialog.GetSelected().c_str());
+                    file_dialog.ClearSelected();
+                }
+                break;
             }
 
             ImGui::End();
@@ -342,18 +415,10 @@ protected:
         gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1);
         gfx::cmd::clear_render_target(cmd_ctx, render_target, clear_color);
 
-        if (env_map_task.has_completed || gfx::cmd::check_status(env_map_task.receipt)) {
-            env_map_task.has_completed = true;
-            if (!env_map_task.has_transitioned) {
-                TextureTransitionDesc transition = {
-                .texture = output_envmap,
-                .before = RESOURCE_USAGE_COMPUTE_WRITABLE,
-                .after = RESOURCE_USAGE_SHADER_READABLE
-                };
-                gfx::cmd::transition_textures(cmd_ctx, &transition, 1);
-                env_map_task.has_transitioned = true;
-            }
-
+        switch (prefiltering_task.state) {
+        case PrefilterEnvMapTask::TaskState::REQUIRES_TRANSITION:
+            handle_transition(prefiltering_task, cmd_ctx);
+        case PrefilterEnvMapTask::TaskState::COMPLETED:
             gfx::cmd::set_active_resource_layout(cmd_ctx, background_pass_layout);
             gfx::cmd::set_pipeline_state(cmd_ctx, background_pass_pso);
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
@@ -362,6 +427,7 @@ protected:
 
             gfx::cmd::bind_constant_buffer(cmd_ctx, view_cb_handle, 0);
             gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
+            break;
         }
 
         ui::end_frame(cmd_ctx);

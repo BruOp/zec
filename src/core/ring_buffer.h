@@ -4,6 +4,67 @@
 
 namespace zec
 {
+    template<typename T, size_t Capacity>
+    class FixedRingBuffer
+    {
+    public:
+        FixedArray<T, Capacity> elements;
+        u64 read_idx = 0;
+        u64 write_idx = 0;
+
+        FixedRingBuffer() :
+            elements{ },
+            read_idx{ 0 },
+            write_idx{ 0 }
+        {
+            elements.size = Capacity; // Allows us to access all the elements using indexing
+        }
+
+        void push_back(T item)
+        {
+            ASSERT(remaining_capacity());
+            const u64 idx = (write_idx) % Capacity;
+            elements[idx] = item;
+            ++write_idx;
+        };
+
+        T pop_front()
+        {
+            ASSERT(read_idx != write_idx);
+            T element = elements[read_idx % Capacity];
+            ++read_idx;
+            return element;
+        };
+
+        inline T front()
+        {
+            ASSERT(write_idx > read_idx);
+            return elements[read_idx % Capacity];
+        }
+
+        T back()
+        {
+            ASSERT(write_idx > read_idx);
+            return elements[write_idx - 1];
+        };
+
+        inline u64 size() const
+        {
+            return write_idx - read_idx;
+        }
+
+        inline u64 remaining_capacity() const
+        {
+            return elements.capacity - write_idx + read_idx;
+        }
+
+        inline void reset()
+        {
+            read_idx = write_idx;
+        };
+
+    };
+
     template<typename T>
     class RingBuffer
     {

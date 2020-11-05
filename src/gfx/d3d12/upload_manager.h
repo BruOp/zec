@@ -17,10 +17,9 @@ namespace zec
     {
         struct UploadManagerDesc
         {
-            ID3D12Device* device = nullptr;
-            D3D12MA::Allocator* allocator = nullptr;
-            ID3D12CommandQueue* cmd_queue = nullptr;
-            Array<Fence>* fences = nullptr;
+            CommandQueueType type;
+            ID3D12Device* device;
+            D3D12MA::Allocator* allocator;
         };
 
         struct TextureUploadDesc
@@ -46,30 +45,33 @@ namespace zec
             };
 
         public:
+            UploadManager() = default;
+            ~UploadManager();
+
             void init(const UploadManagerDesc& desc);
             void destroy();
 
             void begin_upload();
-            void end_upload();
+            CmdReceipt end_upload();
 
             void queue_upload(const BufferDesc& buffer_desc, ID3D12Resource* destination_resource);
             void queue_upload(const TextureUploadDesc& texture_upload_desc, Texture& texture);
 
-            Fence fence = { };
-            u64 current_fence_value = 0;
-
         private:
-            // Not Owned
-            ID3D12CommandQueue* cmd_queue = nullptr;
-            D3D12MA::Allocator* allocator;
-            // Owned
-            ID3D12GraphicsCommandList* cmd_list = nullptr;
-            ID3D12CommandAllocator* cmd_allocators[RENDER_LATENCY] = {};
-            u64 current_idx;
-            u64 pending_size;
 
+            CommandQueueType type = CommandQueueType::COPY;
+            // Non-owning
+            ID3D12Device* device;
+            D3D12MA::Allocator* allocator;
+
+            CommandContextHandle cmd_ctx = {};
+
+            // Owned
+            u64 num_pending_resources;
+
+            static constexpr u64 MAX_IN_FLIGHT_UPLOAD_BATCHES = 8; // Totally arbitrary
             RingBuffer<Upload> upload_queue = {};
-            UploadBatchInfo upload_batch_info[RENDER_LATENCY] = {};
+            FixedRingBuffer<UploadBatchInfo, MAX_IN_FLIGHT_UPLOAD_BATCHES> upload_batch_info = {};
         };
     }
 }

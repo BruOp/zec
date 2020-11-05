@@ -11,7 +11,7 @@ namespace zec
     void wait_for_gpu();
 
     void begin_upload();
-    void end_upload();
+    CmdReceipt end_upload();
 
     CommandContextHandle begin_frame();
     void end_frame(const CommandContextHandle command_context);
@@ -46,6 +46,12 @@ namespace zec
         CmdReceipt return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts);
 
         bool check_status(const CmdReceipt receipt);
+
+        void flush_queue(const CommandQueueType type);
+
+        void cpu_wait(const CmdReceipt receipt);
+
+        void gpu_wait(CommandQueueType type, const CmdReceipt receipt);
 
         //--------- Resource Binding ----------
         void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);

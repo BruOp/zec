@@ -8,6 +8,79 @@ namespace zec
 {
     static constexpr size_t g_GB = 1024 * 1024 * 1024;
 
+    template<typename T, size_t Capacity>
+    class FixedArray
+    {
+    public:
+        T data[Capacity] = {};
+        const size_t capacity = Capacity;
+        size_t size = 0;
+
+        FixedArray() = default;
+
+        T* begin()
+        {
+            return data;
+        }
+
+        T* end()
+        {
+            return data + size;
+        }
+
+        UNCOPIABLE(FixedArray);
+        UNMOVABLE(FixedArray);
+
+        inline T& operator[](size_t idx)
+        {
+            ASSERT_MSG(idx < size, "Cannot access elements beyond Array size.");
+            return data[idx];
+        };
+
+        inline const T& operator[](size_t idx) const
+        {
+            ASSERT_MSG(idx < size, "Cannot access elements beyond Array size.");
+            return data[idx];
+        };
+
+        size_t push_back(const T& val)
+        {
+            ASSERT(size < capacity);
+            memory::copy((void*)&data[size], (void*)&val, sizeof(T));
+            return size++;
+        };
+
+        T pop_back()
+        {
+            ASSERT(size > 0);
+            return data[--size];
+        }
+
+        template<typename ...Args>
+        size_t create_back(Args... args)
+        {
+            ASSERT(size < capacity);
+            data[size] = T{ args... };
+            return size++;
+        };
+
+        void empty()
+        {
+            memset((void*)data, 0, size * sizeof(T));
+            size = 0;
+        }
+
+        size_t find_index(const T value_to_compare, const size_t starting_idx = 0)
+        {
+            for (size_t i = starting_idx; i < size; i++) {
+                if (data[i] == value_to_compare) {
+                    return i;
+                }
+            }
+            return UINT64_MAX;
+        }
+    };
+
     template <typename T>
     class Array
     {
