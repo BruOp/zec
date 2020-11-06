@@ -16,7 +16,6 @@ cbuffer view_constants_buffer : register(b0)
     float exposure;
     uint mip_level;
     uint envmap_idx;
-    uint reference_idx;
 };
 
 SamplerState default_sampler : register(s0);
@@ -106,14 +105,8 @@ PSInput VSMain(float3 position : POSITION, float2 uv : TEXCOORD)
 float4 PSMain(PSInput input) : SV_TARGET
 {
     TextureCube src_texture = texCube_table[envmap_idx];
-    TextureCube reference_texture = texCube_table[reference_idx];
     float4 color = src_texture.SampleLevel(default_sampler, input.direction_ws.xyz, float(mip_level));
-    float4 reference_color = reference_texture.SampleLevel(default_sampler, input.direction_ws.xyz, float(mip_level));
     float3 rgb = color.rgb;
-    
-    if (input.uv.x > 0.5) {
-        rgb = reference_color.rgb;
-    }
     
     float3 Yxy = convertRGB2Yxy(rgb);
 

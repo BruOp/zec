@@ -92,7 +92,7 @@ namespace zec
                 texture_info.height = swap_chain.height;
                 texture_info.depth = 1;
                 texture_info.array_size = 1;
-                texture_info.format = swap_chain.format;
+                texture_info.format = from_d3d_format(swap_chain.format);
                 texture_info.num_mips = 1;
 
 
@@ -581,11 +581,12 @@ namespace zec
                 .depth = desc.depth,
                 .num_mips = desc.num_mips,
                 .array_size = desc.array_size,
-                .format = to_d3d_format(desc.format),
+                .format = desc.format,
                 .is_cubemap = desc.is_cubemap
             }
         };
 
+        DXGI_FORMAT d3d_format = to_d3d_format(texture.info.format);
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
         D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COMMON;
         switch (desc.usage) {
@@ -615,13 +616,13 @@ namespace zec
         D3D12_CLEAR_VALUE optimized_clear_value = { };
         if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
             flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-            optimized_clear_value.Format = texture.info.format;
+            optimized_clear_value.Format = d3d_format;
             optimized_clear_value.DepthStencil = { 1.0f, 0 };
         }
 
         if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
             flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-            optimized_clear_value.Format = texture.info.format;
+            optimized_clear_value.Format = d3d_format;
             optimized_clear_value.Color[0] = 0.0f;
             optimized_clear_value.Color[1] = 0.0f;
             optimized_clear_value.Color[2] = 0.0f;
@@ -644,7 +645,7 @@ namespace zec
             .Height = texture.info.height,
             .DepthOrArraySize = depth_or_array_size,
             .MipLevels = u16(desc.num_mips),
-            .Format = texture.info.format,
+            .Format = d3d_format,
             .SampleDesc = {
                 .Count = 1,
                 .Quality = 0,
@@ -712,7 +713,7 @@ namespace zec
 
             for (u32 i = 0; i < texture.info.num_mips; i++) {
                 D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
-                    .Format = texture.info.format,
+                    .Format = d3d_format,
                     .ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D,
                 };
 
@@ -750,7 +751,7 @@ namespace zec
             texture.dsv = dsv;
 
             D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {
-                .Format = texture.info.format,
+                .Format = d3d_format,
                 .ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D,
                 .Flags = D3D12_DSV_FLAG_NONE,
                 .Texture2D = {
@@ -948,7 +949,7 @@ namespace zec
                 .depth = u32(meta_data.depth),
                 .num_mips = u32(meta_data.mipLevels),
                 .array_size = u32(meta_data.arraySize),
-                .format = meta_data.format,
+                .format = from_d3d_format(meta_data.format),
                 .is_cubemap = u16(meta_data.IsCubemap())
             }
         };
@@ -962,7 +963,7 @@ namespace zec
             .Height = texture.info.height,
             .DepthOrArraySize = is_3d ? u16(texture.info.depth) : u16(texture.info.array_size),
             .MipLevels = u16(meta_data.mipLevels),
-            .Format = texture.info.format,
+            .Format = meta_data.format,
             .SampleDesc = {
                 .Count = 1,
                 .Quality = 0,
@@ -989,7 +990,7 @@ namespace zec
         texture.srv = srv;
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
-            .Format = texture.info.format,
+            .Format = meta_data.format,
             .ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
             .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
             .Texture2D = {

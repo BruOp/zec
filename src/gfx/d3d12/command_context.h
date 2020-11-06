@@ -27,6 +27,7 @@ namespace zec::dx12
 
     namespace CommandContextUtils
     {
+        CommandContextPool& get_pool(const CommandQueueType type);
         ID3D12GraphicsCommandList* get_command_list(const CommandContextHandle handle);
 
         void destroy(CommandContextPool& pool);

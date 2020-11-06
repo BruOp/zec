@@ -23,8 +23,7 @@ struct ViewConstantData
     float exposure = 1.0f;
     u32 mip_level = 0;
     u32 envmap_idx;
-    u32 reference_idx;
-    float padding[44];
+    float padding[45];
 };
 static_assert(sizeof(ViewConstantData) == 256);
 
@@ -163,6 +162,14 @@ void handle_transition(PrefilterEnvMapTask& task, const CommandContextHandle cmd
     task.state = PrefilterEnvMapTask::TaskState::COMPLETED;
 }
 
+void load_src_envmap(PrefilterEnvMapTask& prefiltering_task, const char* file_path)
+{
+    begin_upload();
+    TextureHandle input_envmap = load_texture_from_file(file_path);
+    CmdReceipt receipt = end_upload();
+    gfx::cmd::gpu_wait(CommandQueueType::COMPUTE, receipt);
+    issue_commands(prefiltering_task, { .src_texture = input_envmap, .out_texture_width = 512 });
+}
 
 class EnvMapCreationApp : public zec::App
 {
@@ -189,9 +196,6 @@ public:
     PipelineStateHandle tonemapping_pso = {};
 
     BufferHandle view_cb_handle = {};
-
-    TextureHandle input_envmap = {};
-    TextureHandle reference_envmap = {};
 
     TextureHandle background_texture = {};
 
@@ -300,8 +304,6 @@ protected:
 
         fullscreen_mesh = create_mesh(fullscreen_desc);
 
-        reference_envmap = load_texture_from_file("textures/reference_sunset.dds");
-
         end_upload();
 
         BufferDesc cb_desc = {
@@ -340,7 +342,6 @@ protected:
             camera_controller.update(time_data.delta_seconds_f);
             view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
             view_constant_data.envmap_idx = get_shader_readable_texture_index(prefiltering_task.out_texture);
-            view_constant_data.reference_idx = get_shader_readable_texture_index(reference_envmap);
 
             update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
         }
@@ -374,11 +375,7 @@ protected:
                 if (file_dialog.HasSelected()) {
                     auto input_file_path = file_dialog.GetSelected().string();
 
-                    begin_upload();
-                    input_envmap = load_texture_from_file(input_file_path.c_str());
-                    CmdReceipt receipt = end_upload();
-                    gfx::cmd::gpu_wait(CommandQueueType::COMPUTE, receipt);
-                    issue_commands(prefiltering_task, { .src_texture = input_envmap, .out_texture_width = 512 });
+                    load_src_envmap(prefiltering_task, input_file_path.c_str());
                     file_dialog.ClearSelected();
                 }
 
@@ -398,7 +395,12 @@ protected:
                 file_dialog.Display();
 
                 if (file_dialog.HasSelected()) {
-                    write_log(file_dialog.GetSelected().c_str());
+                    gfx::textures::save_texture(
+                        prefiltering_task.out_texture,
+                        file_dialog.GetSelected().c_str(),
+                        RESOURCE_USAGE_SHADER_READABLE
+                    );
+
                     file_dialog.ClearSelected();
                 }
                 break;

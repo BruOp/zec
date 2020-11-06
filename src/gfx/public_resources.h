@@ -40,8 +40,9 @@ namespace zec
         RESOURCE_USAGE_DYNAMIC = (1 << 5),
         RESOURCE_USAGE_RENDER_TARGET = (1 << 6),
         RESOURCE_USAGE_DEPTH_STENCIL = (1 << 7),
+        RESOURCE_USAGE_READBACK = (1 << 8),
         // NOTE: Present is used exclusively for transitions, not for creation. Do not use this flag when creating a resource, use RENDER_TARGET instead.
-        RESOURCE_USAGE_PRESENT = (1 << 8),
+        RESOURCE_USAGE_PRESENT = (1 << 9),
     };
 
     enum MeshAttribute : u16
@@ -468,7 +469,7 @@ namespace zec
         u32 depth = 0;
         u32 num_mips = 0;
         u32 array_size = 0;
-        DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+        BufferFormat format = BufferFormat::UNKOWN;
         u32 is_cubemap = 0;
     };
 
