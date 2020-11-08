@@ -293,7 +293,6 @@ namespace zec
 
     struct TextureDesc
     {
-
         void* data = nullptr;
         u32 width = 0;
         u32 height = 0;

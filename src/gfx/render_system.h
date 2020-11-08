@@ -20,7 +20,6 @@ namespace zec
             UNUSED = 0,
             READ = 1 << 0,
             WRITE = 1 << 1,
-            READ_WRITE = READ & WRITE,
         };
         enum struct PassResourceType : u8
         {
@@ -29,15 +28,32 @@ namespace zec
             TEXTURE,
         };
 
-        struct PassResourceDesc
+        struct PassTextureResoruce
         {
-            PassResourceDesc() = default;
+            SizeClass size_class = SizeClass::RELATIVE_TO_SWAP_CHAIN;
+            BufferFormat format = BufferFormat::R8G8B8A8_UNORM;
+            float width = 1.0;
+            float height = 1.0;
+            u32 depth = 1;
+            u32 num_mips = 1;
+            u32 array_size = 1;
+            u16 is_cubemap = 0;
+            u16 is_3d = 0;
+        };
 
-            std::string name = "";
+        struct PassBufferResoruce
+        {
+            BufferType type = BufferType::DEFAULT;
+            BufferFormat format = BufferFormat::UNKOWN;
+            u32 byte_size = 0;
+            u32 stride = 0;
+        };
+
+        struct PassOutputDesc
+        {
+            char name[64] = "";
             PassResourceType type = PassResourceType::INVALID;
             ResourceUsage usage = RESOURCE_USAGE_UNUSED;
-            //bool needs_ping_pong = false; // For internal use...
-            // Only fill out the descs for WRITE resources
             union
             {
                 TextureDesc texture_desc = {};
@@ -45,19 +61,11 @@ namespace zec
             };
         };
 
-        struct ResourceListEntry
+        struct PassInputDesc
         {
+            char name[64] = "";
             PassResourceType type = PassResourceType::INVALID;
-            union
-            {
-                BufferHandle buffer = INVALID_HANDLE;
-                TextureHandle texture;
-            };
-        };
-
-        struct PassResourceList
-        {
-            ResourceListEntry entries[8];
+            ResourceUsage usage = RESOURCE_USAGE_UNUSED;
         };
 
         typedef void(*SetupFn)(void);
@@ -66,7 +74,8 @@ namespace zec
 
         struct RenderPassDesc
         {
-            PassResourceDesc resources[8] = {};
+            PassInputDesc inputs[8] = {};
+            PassOutputDesc outputs[8] = {};
 
             SetupFn setup = nullptr;
             ExecuteFn execute = nullptr;

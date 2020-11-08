@@ -121,6 +121,7 @@ project("zec_lib")
 
     links {
       "gainputstatic",
+      "ftl",
     }
 
   configuration {"Debug"}
@@ -128,6 +129,7 @@ project("zec_lib")
 
     links {
       "gainputstatic-d",
+      "ftl",
     }
 
 
