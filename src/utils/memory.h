@@ -14,6 +14,18 @@ namespace zec
             RESERVE = MEM_RESERVE
         };
 
+        inline void* alloc(size_t size)
+        {
+            ASSERT(size > 0);
+            return alloc(size);
+        };
+
+        inline void free(void* ptr)
+        {
+            ASSERT(ptr != nullptr);
+            free(ptr);
+        };
+
         inline void* virtual_alloc(void* ptr, size_t byte_size, AllocationType alloc_type)
         {
             const SysInfo& sys_info = get_sys_info();
