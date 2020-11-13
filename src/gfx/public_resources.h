@@ -452,6 +452,21 @@ namespace zec
         u64 bottom = 0;
     };
 
+
+    //enum struct ResourceType : u8
+    //{
+    //    Buffer = 0,
+    //    Texture = 1,
+    //};
+    //struct BufferTransitionDesc
+    //{
+    //    BufferHandle buffer;
+    //    // Note: before and after must both be subsets of the usage that the resource was created with
+    //    ResourceUsage before;
+    //    // Note: before and after must both be subsets of the usage that the resource was created with
+    //    ResourceUsage after;
+    //};
+
     struct TextureTransitionDesc
     {
         TextureHandle texture;

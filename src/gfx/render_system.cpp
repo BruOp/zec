@@ -4,14 +4,58 @@
 
 namespace zec::RenderSystem
 {
+    struct ResourceTransitionDesc
+    {
+        PassResourceType type;
+        union
+        {
+            BufferHandle buffer = {};
+            TextureHandle texture;
+        };
+        ResourceUsage after;
+    };
+
+    struct PassOutput
+    {
+        PassOutputDesc desc;
+        u32 output_by_pass_idx;
+    };
+
+    constexpr size_t GRAPH_DEPTH_LIMIT = 16; //totally arbitrary
+
+    struct ArrayView
+    {
+        u32 offset = 0;
+        u32 size = 0;
+    };
+
+    struct GraphInfo
+    {
+        u32 max_depth = 0;
+        ArrayView bucketed_passes_info[GRAPH_DEPTH_LIMIT] = {  };
+        ArrayView transition_views_per_depth[GRAPH_DEPTH_LIMIT] = {  };
+    };
+
     void compile_render_list(RenderList& in_render_list, const RenderPassDesc* render_pass_descs, size_t num_render_passes)
     {
         ASSERT(in_render_list.setup_fns.size == 0);
-        std::unordered_map<std::string, PassOutputDesc> output_descs = {};
+        std::unordered_map<std::string, PassOutput> outputs = {};
+        Array<u32> pass_depths{ num_render_passes };
+
+        GraphInfo graph_info{};
+
+        in_render_list.setup_fns.reserve(num_render_passes);
+        in_render_list.execute_fns.reserve(num_render_passes);
+        in_render_list.destroy_fns.reserve(num_render_passes);
+        in_render_list.context_data.reserve(num_render_passes);
 
         // Process outputs
-        for (size_t i = 0; i < num_render_passes; i++) {
-            const auto& render_pass = render_pass_descs[i];
+        for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
+            const auto& render_pass = render_pass_descs[pass_idx];
+
+            u32 depth = 0;
+            u32 num_inputs;
+
             for (const auto& input : render_pass.inputs) {
                 if (input.type == PassResourceType::INVALID || input.usage == RESOURCE_USAGE_UNUSED) {
                     break;
@@ -19,14 +63,22 @@ namespace zec::RenderSystem
 
                 // Check if resource exists and matches description
                 std::string input_name = { input.name };
-                if (output_descs.contains(input_name)) {
-                    ASSERT(output_descs[input_name].type == input.type);
-                    output_descs[input_name].usage = ResourceUsage(output_descs[input_name].usage | input.usage);
+                if (outputs.contains(input_name)) {
+                    ASSERT(outputs[input_name].desc.type == input.type);
+                    outputs[input_name].desc.usage = ResourceUsage(outputs[input_name].desc.usage | input.usage);
+
+                    u32 parent_pass_idx = outputs[input_name].output_by_pass_idx;
+                    ASSERT(parent_pass_idx < pass_idx);
+                    depth = max(depth, pass_depths[parent_pass_idx] + 1);
                 }
                 else {
                     ASSERT_FAIL("Cannot use an input that is not declared as an corresponding input");
                 }
             }
+            ASSERT(depth < GRAPH_DEPTH_LIMIT);
+            pass_depths[pass_idx] = depth;
+            graph_info.bucketed_passes_info[depth].size += 1;
+            graph_info.max_depth = max(depth, graph_info.max_depth);
 
             for (const auto& output : render_pass.outputs) {
                 if (output.type == PassResourceType::INVALID || output.usage == RESOURCE_USAGE_UNUSED) {
@@ -34,18 +86,35 @@ namespace zec::RenderSystem
                 }
 
                 // We do not currently allow outputing to the same resource more than once in a render list
-                ASSERT(!output_descs.contains(output.name));
+                ASSERT(!outputs.contains(output.name));
 
                 // Add it to our list
-                output_descs[output.name] = output;
+                outputs[output.name].desc = output;
+                outputs[output.name].output_by_pass_idx = pass_idx;
+                //++num_outputs;
             }
+
+            // Store the function pointers
+            in_render_list.setup_fns.push_back(render_pass.setup);
+            in_render_list.execute_fns.push_back(render_pass.execute);
+            in_render_list.destroy_fns.push_back(render_pass.destroy);
+            in_render_list.context_data.push_back(nullptr);
         }
 
-        // Okay, now our resource list should be complete
-        // Now we want to process it, such that we can then look up the resources that each pass needs later on
-        for (auto& pair : output_descs) {
+        // We now have:
+        // - A list of resource descs we have to create
+        // - A list containing the depths for each RenderPass
+        // - A list of the number of passes at each depth in our tree
+
+        // Now we can:
+        // - Create all of our resources
+        // - Put our render passes into "Buckets" based on their depth
+        // - Create a list of resource transitions 
+
+        // Process list of resources
+        for (auto& pair : outputs) {
             const std::string& name = pair.first;
-            auto& resource_desc = pair.second;
+            auto& resource_desc = pair.second.desc;
 
             // First we have to determine what type of resource we're creating:
             ASSERT(resource_desc.type != PassResourceType::INVALID);
@@ -90,19 +159,90 @@ namespace zec::RenderSystem
             }
         }
 
-        // Finally, loop through our pass descs again and store the details per pass
-        in_render_list.setup_fns.reserve(num_render_passes);
-        in_render_list.execute_fns.reserve(num_render_passes);
-        in_render_list.destroy_fns.reserve(num_render_passes);
-        in_render_list.context_data.reserve(num_render_passes);
+        Array<RenderPassDesc> bucketed_list(num_render_passes);
+        // Create "bucketed" list
+        {
+            for (size_t depth_idx = 0; depth_idx < graph_info.max_depth; depth_idx++) {
+                graph_info.bucketed_passes_info[depth_idx + 1].offset = graph_info.bucketed_passes_info[depth_idx].offset + graph_info.bucketed_passes_info[depth_idx].size;
+            }
 
-        for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
-            const RenderPassDesc& render_pass_desc = render_pass_descs[pass_idx];
-            in_render_list.setup_fns.push_back(render_pass_desc.setup);
-            in_render_list.execute_fns.push_back(render_pass_desc.execute);
-            in_render_list.destroy_fns.push_back(render_pass_desc.destroy);
-            in_render_list.context_data.push_back(nullptr);
+            u32 counter_per_depth[GRAPH_DEPTH_LIMIT] = { 0 };
+
+            for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
+                u32 graph_depth = pass_depths[pass_idx];
+                u32 offset = graph_info.bucketed_passes_info[graph_depth].offset + counter_per_depth[graph_depth];
+                counter_per_depth[graph_depth] += 1;
+                bucketed_list[offset] = render_pass_descs[pass_idx];
+            }
         }
+
+        // Create list of Resource Transtitions
+        Array<ResourceTransitionDesc> bucketed_transitions;
+
+        // For each different depth
+        // For each pass descs at this depth
+        // For each output, append an after state + resource ptr
+        // For each input, append an after state + resource ptr
+
+        // Note: During the rendering, we'll actually track the current state of the resource and
+        // omit and redundant resource transitions
+        // Note: We'll also do some additional book keeping on how many tansitions there are per
+        // bucket
+        const u32 transition_list_offset = 0;
+
+        for (size_t depth = 0; depth < graph_info.max_depth; depth++) {
+            ArrayView per_depth_info = graph_info.bucketed_passes_info[depth];
+            u32 offset = per_depth_info.offset;
+            u32 size = per_depth_info.size;
+            for (size_t pass_idx = offset; pass_idx < offset + size; pass_idx++) {
+                RenderPassDesc& pass_desc = bucketed_list[pass_idx];
+                for (const auto& input : pass_desc.inputs) {
+                    graph_info.transition_views_per_depth[depth].size++;
+
+                    if (input.type == PassResourceType::BUFFER) {
+                        BufferHandle buffer = in_render_list.buffers_map[input.name];
+                        bucketed_transitions.push_back({
+                            .type = input.type,
+                            .buffer = buffer,
+                            .after = input.usage });
+                    }
+                    else {
+                        TextureHandle texture = in_render_list.textures_map[input.name];
+                        bucketed_transitions.push_back({
+                            .type = input.type,
+                            .texture = texture,
+                            .after = input.usage });
+                    }
+                }
+
+                for (const auto& output : pass_desc.outputs) {
+                    graph_info.transition_views_per_depth[depth].size++;
+
+                    if (output.type == PassResourceType::BUFFER) {
+                        BufferHandle buffer = in_render_list.buffers_map[output.name];
+                        bucketed_transitions.push_back({
+                            .type = output.type,
+                            .buffer = buffer,
+                            .after = output.usage });
+                    }
+                    else {
+                        TextureHandle texture = in_render_list.textures_map[output.name];
+                        bucketed_transitions.push_back({
+                            .type = output.type,
+                            .texture = texture,
+                            .after = output.usage });
+                    }
+                }
+            }
+
+            // Write offset for next depth
+            graph_info.transition_views_per_depth[depth + 1].offset = graph_info.transition_views_per_depth[depth].size;
+        }
+        // TODO: Actually store this stuff somewhere
+
+        // TODO: Write some tests to see if this returns what we expect. Should be able to use dummy
+        // data, although maybe we need to break this up to make it a bit more testable? Only thing
+        // we'd have to mock for sure is the calls that create our resources.
     }
 
     void setup(RenderList& render_list)
