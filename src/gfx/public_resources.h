@@ -452,12 +452,12 @@ namespace zec
         u64 bottom = 0;
     };
 
-
-    //enum struct ResourceType : u8
-    //{
-    //    Buffer = 0,
-    //    Texture = 1,
-    //};
+    enum struct ResourceTransitionType : u8
+    {
+        INVALID = 0,
+        BUFFER,
+        TEXTURE,
+    };
     //struct BufferTransitionDesc
     //{
     //    BufferHandle buffer;
@@ -476,6 +476,18 @@ namespace zec
         ResourceUsage after;
     };
 
+    struct ResourceTransitionDesc
+    {
+        ResourceTransitionType type;
+        union
+        {
+            BufferHandle buffer = {};
+            TextureHandle texture;
+        };
+        ResourceUsage before;
+        ResourceUsage after;
+    };
+
     struct TextureInfo
     {
         u32 width = 0;
@@ -489,7 +501,9 @@ namespace zec
 
     struct CmdReceipt
     {
+
+        static constexpr u64 INVALID_FENCE_VALUE = UINT64_MAX;
         CommandQueueType queue_type = CommandQueueType::GRAPHICS;
-        u64 fence_value = UINT64_MAX;
+        u64 fence_value = INVALID_FENCE_VALUE;
     };
 }

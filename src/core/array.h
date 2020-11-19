@@ -165,6 +165,7 @@ namespace zec
             memory::copy((void*)&data[idx], (void*)&value, sizeof(T));
         }
 
+        // Grow both reserves and increases the size, so new items are indexable
         size_t grow(size_t additional_slots)
         {
             if (additional_slots + size > capacity) {
@@ -174,6 +175,9 @@ namespace zec
             return size;
         };
 
+        // Reserve grows the allocation, but does not increase the size.
+        // Do not try to index into the new space though, push to increase size first
+        // or use `grow` instead
         size_t reserve(size_t new_capacity)
         {
             if (new_capacity <= capacity) {

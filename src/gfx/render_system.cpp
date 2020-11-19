@@ -4,20 +4,11 @@
 
 namespace zec::RenderSystem
 {
-    struct ResourceTransitionDesc
-    {
-        PassResourceType type;
-        union
-        {
-            BufferHandle buffer = {};
-            TextureHandle texture;
-        };
-        ResourceUsage after;
-    };
 
     struct PassOutput
     {
         PassOutputDesc desc;
+        ResourceUsage initial_state;
         u32 output_by_pass_idx;
     };
 
@@ -38,25 +29,30 @@ namespace zec::RenderSystem
 
     void compile_render_list(RenderList& in_render_list, const RenderPassDesc* render_pass_descs, size_t num_render_passes)
     {
-        ASSERT(in_render_list.setup_fns.size == 0);
+        // So in the new system we're going to:
+        // Validate our input/outputs as before
+        // Store the "latest" dependency as part of which fence to wait on -- only necessary for cross queue execution. Otherwise, we'll insert resource barriers.
+        // The dependencies will need to be marked as "flushes" so that we know we should submit the work done so far before continuing
+        // We'll also need to transition our resources at the beginning of passes.
+        // There's an ambiguity where if several passes require a resource to be in say a READ state, which pass should perform the transition? Should transitions just be executed
+
+        ASSERT(in_render_list.render_passes.size == 0);
         std::unordered_map<std::string, PassOutput> outputs = {};
-        Array<u32> pass_depths{ num_render_passes };
 
-        GraphInfo graph_info{};
-
-        in_render_list.setup_fns.reserve(num_render_passes);
-        in_render_list.execute_fns.reserve(num_render_passes);
-        in_render_list.destroy_fns.reserve(num_render_passes);
-        in_render_list.context_data.reserve(num_render_passes);
+        in_render_list.render_passes.grow(num_render_passes);
 
         // Process outputs
         for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
-            const auto& render_pass = render_pass_descs[pass_idx];
+            const auto& render_pass_desc = render_pass_descs[pass_idx];
+            auto& render_pass = in_render_list.render_passes[pass_idx];
+            render_pass.queue_type = render_pass_desc.queue_type;
+            // Store function pointers
+            render_pass.setup = render_pass_desc.setup;
+            render_pass.execute = render_pass_desc.execute;
+            render_pass.destroy = render_pass_desc.destroy;
 
-            u32 depth = 0;
             u32 num_inputs;
-
-            for (const auto& input : render_pass.inputs) {
+            for (const auto& input : render_pass_desc.inputs) {
                 if (input.type == PassResourceType::INVALID || input.usage == RESOURCE_USAGE_UNUSED) {
                     break;
                 }
@@ -69,18 +65,23 @@ namespace zec::RenderSystem
 
                     u32 parent_pass_idx = outputs[input_name].output_by_pass_idx;
                     ASSERT(parent_pass_idx < pass_idx);
-                    depth = max(depth, pass_depths[parent_pass_idx] + 1);
+
+                    auto& parent_pass = in_render_list.render_passes[parent_pass_idx];
+                    // Since this is a hard dependency, the command has to be submitted like we expect
+                    parent_pass.requires_flush = true;
+
+                    if (render_pass_descs[parent_pass_idx].queue_type != render_pass_desc.queue_type) {
+
+                        render_pass.receipt_idx_to_wait_on = parent_pass_idx;
+                    }
+
                 }
                 else {
                     ASSERT_FAIL("Cannot use an input that is not declared as an corresponding input");
                 }
             }
-            ASSERT(depth < GRAPH_DEPTH_LIMIT);
-            pass_depths[pass_idx] = depth;
-            graph_info.bucketed_passes_info[depth].size += 1;
-            graph_info.max_depth = max(depth, graph_info.max_depth);
 
-            for (const auto& output : render_pass.outputs) {
+            for (const auto& output : render_pass_desc.outputs) {
                 if (output.type == PassResourceType::INVALID || output.usage == RESOURCE_USAGE_UNUSED) {
                     break;
                 }
@@ -89,16 +90,11 @@ namespace zec::RenderSystem
                 ASSERT(!outputs.contains(output.name));
 
                 // Add it to our list
+                outputs[output.name].initial_state = output.usage;
                 outputs[output.name].desc = output;
                 outputs[output.name].output_by_pass_idx = pass_idx;
                 //++num_outputs;
             }
-
-            // Store the function pointers
-            in_render_list.setup_fns.push_back(render_pass.setup);
-            in_render_list.execute_fns.push_back(render_pass.execute);
-            in_render_list.destroy_fns.push_back(render_pass.destroy);
-            in_render_list.context_data.push_back(nullptr);
         }
 
         // We now have:
@@ -106,15 +102,14 @@ namespace zec::RenderSystem
         // - A list containing the depths for each RenderPass
         // - A list of the number of passes at each depth in our tree
 
-        // Now we can:
-        // - Create all of our resources
-        // - Put our render passes into "Buckets" based on their depth
-        // - Create a list of resource transitions 
+        std::unordered_map<std::string, ResourceUsage> expected_state{ outputs.size() };
 
         // Process list of resources
         for (auto& pair : outputs) {
             const std::string& name = pair.first;
             auto& resource_desc = pair.second.desc;
+
+            expected_state[name] = pair.second.initial_state;
 
             // First we have to determine what type of resource we're creating:
             ASSERT(resource_desc.type != PassResourceType::INVALID);
@@ -159,86 +154,46 @@ namespace zec::RenderSystem
             }
         }
 
-        Array<RenderPassDesc> bucketed_list(num_render_passes);
-        // Create "bucketed" list
-        {
-            for (size_t depth_idx = 0; depth_idx < graph_info.max_depth; depth_idx++) {
-                graph_info.bucketed_passes_info[depth_idx + 1].offset = graph_info.bucketed_passes_info[depth_idx].offset + graph_info.bucketed_passes_info[depth_idx].size;
-            }
-
-            u32 counter_per_depth[GRAPH_DEPTH_LIMIT] = { 0 };
-
-            for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
-                u32 graph_depth = pass_depths[pass_idx];
-                u32 offset = graph_info.bucketed_passes_info[graph_depth].offset + counter_per_depth[graph_depth];
-                counter_per_depth[graph_depth] += 1;
-                bucketed_list[offset] = render_pass_descs[pass_idx];
-            }
-        }
-
         // Create list of Resource Transtitions
-        Array<ResourceTransitionDesc> bucketed_transitions;
-
-        // For each different depth
-        // For each pass descs at this depth
-        // For each output, append an after state + resource ptr
-        // For each input, append an after state + resource ptr
-
         // Note: During the rendering, we'll actually track the current state of the resource and
         // omit and redundant resource transitions
         // Note: We'll also do some additional book keeping on how many tansitions there are per
         // bucket
         const u32 transition_list_offset = 0;
+        auto& resource_transitions = in_render_list.resource_transitions;
+        for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
+            auto& render_pass = in_render_list.render_passes[pass_idx];
+            const RenderPassDesc& pass_desc = render_pass_descs[pass_idx];
+            render_pass.resource_transitions_view.offset = resource_transitions.size;
+            for (const auto& input : pass_desc.inputs) {
 
-        for (size_t depth = 0; depth < graph_info.max_depth; depth++) {
-            ArrayView per_depth_info = graph_info.bucketed_passes_info[depth];
-            u32 offset = per_depth_info.offset;
-            u32 size = per_depth_info.size;
-            for (size_t pass_idx = offset; pass_idx < offset + size; pass_idx++) {
-                RenderPassDesc& pass_desc = bucketed_list[pass_idx];
-                for (const auto& input : pass_desc.inputs) {
-                    graph_info.transition_views_per_depth[depth].size++;
-
-                    if (input.type == PassResourceType::BUFFER) {
-                        BufferHandle buffer = in_render_list.buffers_map[input.name];
-                        bucketed_transitions.push_back({
-                            .type = input.type,
-                            .buffer = buffer,
-                            .after = input.usage });
-                    }
-                    else {
-                        TextureHandle texture = in_render_list.textures_map[input.name];
-                        bucketed_transitions.push_back({
-                            .type = input.type,
-                            .texture = texture,
-                            .after = input.usage });
-                    }
+                // Do not record redundant resource transitions
+                if (expected_state[input.name] == input.usage) {
+                    continue;
                 }
 
-                for (const auto& output : pass_desc.outputs) {
-                    graph_info.transition_views_per_depth[depth].size++;
-
-                    if (output.type == PassResourceType::BUFFER) {
-                        BufferHandle buffer = in_render_list.buffers_map[output.name];
-                        bucketed_transitions.push_back({
-                            .type = output.type,
-                            .buffer = buffer,
-                            .after = output.usage });
-                    }
-                    else {
-                        TextureHandle texture = in_render_list.textures_map[output.name];
-                        bucketed_transitions.push_back({
-                            .type = output.type,
-                            .texture = texture,
-                            .after = output.usage });
-                    }
+                if (input.type == PassResourceType::BUFFER) {
+                    BufferHandle buffer = in_render_list.buffers_map[input.name];
+                    resource_transitions.push_back({
+                        .type = ResourceTransitionType(input.type),
+                        .buffer = buffer,
+                        .before = expected_state[input.name],
+                        .after = input.usage });
                 }
+                else {
+                    TextureHandle texture = in_render_list.textures_map[input.name];
+                    resource_transitions.push_back({
+                        .type = ResourceTransitionType(input.type),
+                        .texture = texture,
+                        .before = expected_state[input.name],
+                        .after = input.usage });
+                }
+                expected_state[input.name] = input.usage;
             }
-
-            // Write offset for next depth
-            graph_info.transition_views_per_depth[depth + 1].offset = graph_info.transition_views_per_depth[depth].size;
+            render_pass.resource_transitions_view.size = resource_transitions.size - render_pass.resource_transitions_view.offset;
         }
-        // TODO: Actually store this stuff somewhere
+
+        // TODO: last gfx pass should always flush! Or should it?...
 
         // TODO: Write some tests to see if this returns what we expect. Should be able to use dummy
         // data, although maybe we need to break this up to make it a bit more testable? Only thing
@@ -247,27 +202,84 @@ namespace zec::RenderSystem
 
     void setup(RenderList& render_list)
     {
-        for (size_t i = 0; i < render_list.setup_fns.size; i++) {
-            void* context = render_list.context_data[i];
-            render_list.setup_fns[i](context);
+        for (auto& render_pass : render_list.render_passes) {
+            render_pass.setup(render_pass.context);
         }
     }
 
     void execute(RenderList& render_list)
     {
-        // Since we don't model views at the API level, we'll just pass the handles back in the same order that the pass desc used them
-        for (size_t i = 0; i < render_list.execute_fns.size; i++) {
-            void* context = render_list.context_data[i];
-            render_list.execute_fns[i](render_list, context);
+        // --------------- RECORD --------------- 
+        constexpr size_t MAX_CMD_LIST_SUMISSIONS = 8; // Totally arbitrary
+        // Each render_pass gets a command context
+        Array<CommandContextHandle> cmd_contexts{ render_list.render_passes.size };
+        // Can be parallelized!
+        for (size_t pass_idx = 0; pass_idx < render_list.render_passes.size; ++pass_idx) {
+            const auto& render_pass = render_list.render_passes[pass_idx];
+            CommandContextHandle& cmd_ctx = cmd_contexts[pass_idx];
+            cmd_ctx = gfx::cmd::provision(render_pass.queue_type);
+
+            // Submit any resource barriers
+            ResourceTransitionDesc* transitions = &render_list.resource_transitions[render_pass.resource_transitions_view.offset];
+            gfx::cmd::transition_resources(cmd_ctx, transitions, render_pass.resource_transitions_view.size);
+
+            render_pass.execute(render_list, cmd_ctx, render_pass.context);
         }
+
+        // --------------- SUBMIT --------------- 
+        // TODO: Move this struct
+        struct CommandStream
+        {
+            size_t pending_count = 0;
+            CommandContextHandle contexts_to_submit[MAX_CMD_LIST_SUMISSIONS] = {};
+        };
+
+        CommandStream gfx_stream{};
+        CommandStream async_compute_stream{};
+
+        // Loop through all but the last command context
+        for (size_t pass_idx = 0; pass_idx < render_list.render_passes.size; pass_idx++) {
+            const auto& render_pass = render_list.render_passes[pass_idx];
+
+            if (render_pass.receipt_idx_to_wait_on) {
+                ASSERT(render_pass.receipt_idx_to_wait_on < pass_idx);
+                const CmdReceipt& cmd_receipt = render_list.receipts[render_pass.receipt_idx_to_wait_on];
+                ASSERT(render_pass.receipt_idx_to_wait_on != CmdReceipt::INVALID_FENCE_VALUE);
+                gfx::cmd::gpu_wait(render_pass.queue_type, cmd_receipt);
+            }
+
+            CommandStream& stream = render_pass.queue_type == CommandQueueType::ASYNC_COMPUTE ? async_compute_stream : gfx_stream;
+
+            // If we've reached the max or need to flush at this pass (for synchronization 
+            // purposes), we submit our command contexts and store the receipt
+            if (stream.pending_count == MAX_CMD_LIST_SUMISSIONS) {
+                debug_print(L"We're hitting the max number of command context submissions, might want to investigate this!");
+                gfx::cmd::return_and_execute(stream.contexts_to_submit, stream.pending_count);
+                stream.pending_count = 0;
+            }
+            else if (render_pass.requires_flush) {
+                render_list.receipts[pass_idx] = gfx::cmd::return_and_execute(stream.contexts_to_submit, stream.pending_count);
+                stream.pending_count = 0;
+            }
+
+            // Otherwise we continue so that we can still batch our command contexts.
+        }
+
+        if (async_compute_stream.pending_count > 0) {
+            gfx::cmd::return_and_execute(async_compute_stream.contexts_to_submit, async_compute_stream.pending_count);
+        }
+
+        // We cannot have any pending submissions at this point
+        ASSERT(gfx_stream.pending_count == 0);
+
+        // TODO: Figure out where to put PRESENT
     }
 
 
     void destroy(RenderList& render_list)
     {
-        for (size_t i = 0; i < render_list.execute_fns.size; i++) {
-            void* context = render_list.context_data[i];
-            render_list.execute_fns[i](render_list, context);
+        for (auto& render_pass : render_list.render_passes) {
+            render_pass.setup(render_pass.context);
         }
 
         // TODO: Destroy resources?

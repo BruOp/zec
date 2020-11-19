@@ -69,11 +69,12 @@ namespace zec::RenderSystem
     struct RenderList;
 
     typedef void(*SetupFn)(void* context);
-    typedef void(*ExecuteFn)(RenderList& render_list, void* context);
+    typedef void(*ExecuteFn)(RenderList& render_list, CommandContextHandle cmd_context, void* context);
     typedef void(*DestroyFn)(void* context);
 
     struct RenderPassDesc
     {
+        CommandQueueType queue_type = CommandQueueType::GRAPHICS;
         PassInputDesc inputs[8] = {};
         PassOutputDesc outputs[8] = {};
 
@@ -82,16 +83,28 @@ namespace zec::RenderSystem
         DestroyFn destroy = nullptr;
     };
 
+    struct RenderPass
+    {
+        CommandQueueType queue_type = CommandQueueType::GRAPHICS;
+        ArrayView resource_transitions_view = {};
+        u32 receipt_idx_to_wait_on = UINT32_MAX; // Index into the graph's fence list
+        bool requires_flush = false;
+        void* context;
+        SetupFn setup = nullptr;
+        ExecuteFn execute = nullptr;
+        DestroyFn destroy = nullptr;
+    };
+
     struct RenderList
     {
+        // TODO: Replace with our own map? And get rid of std::string?
         std::unordered_map<std::string, TextureHandle> textures_map = {};
         std::unordered_map<std::string, BufferHandle> buffers_map = {};
 
-        Array<SetupFn> setup_fns;
-        Array<ExecuteFn> execute_fns;
-        Array<DestroyFn> destroy_fns;
-        Array<void*> context_data; // Context per pass
-        // TODO: Replace with our own map?
+        // Do I need two seperate lists? Probably not?
+        Array<RenderPass> render_passes;
+        Array<ResourceTransitionDesc> resource_transitions;
+        Array<CmdReceipt> receipts;
     };
 
     void compile_render_list(RenderList& in_render_list, RenderPassDesc* render_passes, size_t num_render_passes);

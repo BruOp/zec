@@ -101,5 +101,11 @@ namespace zec
             TextureTransitionDesc* transition_descs,
             u64 num_transitions
         );
+
+        void transition_resources(
+            const CommandContextHandle ctx,
+            ResourceTransitionDesc* transition_descs,
+            u64 num_transitions
+        );
     }
 }
