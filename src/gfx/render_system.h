@@ -83,6 +83,13 @@ namespace zec::RenderSystem
         DestroyFn destroy = nullptr;
     };
 
+    struct RenderListDesc
+    {
+        RenderPassDesc* render_pass_descs;
+        u32 num_render_passes;
+        char resource_to_use_as_backbuffer[64];
+    };
+
     struct RenderPass
     {
         CommandQueueType queue_type = CommandQueueType::GRAPHICS;

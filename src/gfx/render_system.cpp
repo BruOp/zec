@@ -27,8 +27,12 @@ namespace zec::RenderSystem
         ArrayView transition_views_per_depth[GRAPH_DEPTH_LIMIT] = {  };
     };
 
-    void compile_render_list(RenderList& in_render_list, const RenderPassDesc* render_pass_descs, size_t num_render_passes)
+    void compile_render_list(RenderList& in_render_list, const RenderListDesc& render_list_desc)
     {
+        const RenderPassDesc* render_pass_descs = render_list_desc.render_pass_descs;
+        const u32 num_render_passes = render_list_desc.num_render_passes;
+        const std::string backbuffer_resource_name = { render_list_desc.resource_to_use_as_backbuffer };
+
         // So in the new system we're going to:
         // Validate our input/outputs as before
         // Store the "latest" dependency as part of which fence to wait on -- only necessary for cross queue execution. Otherwise, we'll insert resource barriers.
@@ -81,21 +85,30 @@ namespace zec::RenderSystem
                 }
             }
 
+            bool writes_to_backbuffer_resource = false;
             for (const auto& output : render_pass_desc.outputs) {
                 if (output.type == PassResourceType::INVALID || output.usage == RESOURCE_USAGE_UNUSED) {
                     break;
                 }
 
                 // We do not currently allow outputing to the same resource more than once in a render list
-                ASSERT(!outputs.contains(output.name));
+                std::string output_name = output.name;
+                ASSERT(!outputs.contains(output_name));
 
                 // Add it to our list
-                outputs[output.name].initial_state = output.usage;
-                outputs[output.name].desc = output;
-                outputs[output.name].output_by_pass_idx = pass_idx;
-                //++num_outputs;
+                outputs[output_name].initial_state = output.usage;
+                outputs[output_name].desc = output;
+                outputs[output_name].output_by_pass_idx = pass_idx;
+
+                writes_to_backbuffer_resource = writes_to_backbuffer_resource || output_name == backbuffer_resource_name;
             }
+
+            // Asser that the last pass writes to the backbuffer resource
+            ASSERT(pass_idx != num_render_passes - 1 || writes_to_backbuffer_resource);
         }
+
+        ASSERT(outputs.count(backbuffer_resource_name) != 0);
+        outputs.erase(backbuffer_resource_name);
 
         // We now have:
         // - A list of resource descs we have to create
@@ -154,12 +167,24 @@ namespace zec::RenderSystem
             }
         }
 
+        in_render_list.backbuffer_resource_name = backbuffer_resource_name;
+
+
         // Create list of Resource Transtitions
         // Note: During the rendering, we'll actually track the current state of the resource and
         // omit and redundant resource transitions
-        // Note: We'll also do some additional book keeping on how many tansitions there are per
+        // Note: We'll also deo some additional book keeping on how many tansitions there are per
         // bucket
-        const u32 transition_list_offset = 0;
+
+        // TODO: How do we manage transition to WRITE modes?
+
+        // I think  instead we could we could split our transition lists into two different lists:
+        // READ and WRITE modes
+        // Then each pass can transition their outputs after the first pass as well
+        // What's an alternative? First pass transition list?
+        // Well one possibility is to just keep it in the same list but store a size that's actually
+        // smaller than what we need and then correct it afterwards
+
         auto& resource_transitions = in_render_list.resource_transitions;
         for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
             auto& render_pass = in_render_list.render_passes[pass_idx];
@@ -167,7 +192,7 @@ namespace zec::RenderSystem
             render_pass.resource_transitions_view.offset = resource_transitions.size;
             for (const auto& input : pass_desc.inputs) {
 
-                // Do not record redundant resource transitions
+                // Because we only allow output transitions once
                 if (expected_state[input.name] == input.usage) {
                     continue;
                 }
@@ -190,10 +215,45 @@ namespace zec::RenderSystem
                 }
                 expected_state[input.name] = input.usage;
             }
+
             render_pass.resource_transitions_view.size = resource_transitions.size - render_pass.resource_transitions_view.offset;
+
+            // Store additional transitions for the outputs. We'll only use these after the first frame
+            for (const auto& output : pass_desc.outputs) {
+                // Do not record redundant resource transitions
+                if (expected_state[output.name] == output.usage) {
+                    continue;
+                }
+
+                if (output.type == PassResourceType::BUFFER) {
+                    BufferHandle buffer = in_render_list.buffers_map[output.name];
+                    resource_transitions.push_back({
+                        .type = ResourceTransitionType(output.type),
+                        .buffer = buffer,
+                        .before = expected_state[output.name],
+                        .after = output.usage });
+                }
+                else {
+                    TextureHandle texture = in_render_list.textures_map[output.name];
+                    resource_transitions.push_back({
+                        .type = ResourceTransitionType(output.type),
+                        .texture = texture,
+                        .before = expected_state[output.name],
+                        .after = output.usage });
+                }
+            }
         }
 
-        // TODO: last gfx pass should always flush! Or should it?...
+        // For now let's just:
+
+        // We'll also need to add a RTV transition before the first pass that writes to this resource
+        // We probably also want to ensure that we never use the promoted resource as anything other than
+        // an RTV in our 
+
+        // How do we add the RTV transition? Well since we only write to a resource once in the current system
+        // we kind of don't have to worry about it
+
+        // Idea: Present flag?
 
         // TODO: Write some tests to see if this returns what we expect. Should be able to use dummy
         // data, although maybe we need to break this up to make it a bit more testable? Only thing
@@ -209,6 +269,10 @@ namespace zec::RenderSystem
 
     void execute(RenderList& render_list)
     {
+        TextureHandle backbuffer = get_current_back_buffer_handle();
+        // Alias the backbuffer as the resource;
+        render_list.textures_map[render_list.backbuffer_resource_name] = backbuffer;
+
         // --------------- RECORD --------------- 
         constexpr size_t MAX_CMD_LIST_SUMISSIONS = 8; // Totally arbitrary
         // Each render_pass gets a command context
@@ -221,7 +285,14 @@ namespace zec::RenderSystem
 
             // Submit any resource barriers
             ResourceTransitionDesc* transitions = &render_list.resource_transitions[render_pass.resource_transitions_view.offset];
-            gfx::cmd::transition_resources(cmd_ctx, transitions, render_pass.resource_transitions_view.size);
+            u32 num_transitions = render_pass.resource_transitions_view.size;
+            if (pass_idx == render_list.render_passes.size - 1) {
+                // This is knid of a stupid way of doing this.
+                ResourceTransitionDesc* final_pass_transitions = reinterpret_cast<ResourceTransitionDesc*>(_alloca((num_transitions + 1) * sizeof(ResourceTransitionDesc)));
+                memory::copy(final_pass_transitions, transitions, sizeof(ResourceTransitionDesc) * num_transitions);
+                final_pass_transitions[num_transitions] = ResourceTransitionDesc{ .type = ResourceTransitionType::TEXTURE, .texture = get_current_back_buffer_handle }
+            }
+            gfx::cmd::transition_resources(cmd_ctx, transitions, num_transitions);
 
             render_pass.execute(render_list, cmd_ctx, render_pass.context);
         }
