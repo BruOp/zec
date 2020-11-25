@@ -122,7 +122,7 @@ namespace zec::dx12
 
     namespace TextureUtils
     {
-        TextureHandle push_back(TextureList& list, Texture& texture);
+        TextureHandle push_back(TextureList& list, const Texture& texture);
 
         inline u32 get_srv_index(TextureList& texture_list, TextureHandle handle)
         {

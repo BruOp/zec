@@ -80,7 +80,10 @@ namespace zec
             case BufferFormat::UNORM8_4_SRGB:
                 //case BufferFormat::R8G8B8A8_UNORM_SRGB:
                 return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-
+            case BufferFormat::UNORM8_BC7:
+                return DXGI_FORMAT_BC7_UNORM;
+            case BufferFormat::UNORM8_BC7_SRGB:
+                return DXGI_FORMAT_BC7_UNORM_SRGB;
             case BufferFormat::INVALID:
             default:
                 throw std::runtime_error("Cannot transform invalid format to DXGI format");
@@ -121,6 +124,10 @@ namespace zec
 
             case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
                 return BufferFormat::UNORM8_4_SRGB;
+            case DXGI_FORMAT_BC7_UNORM:
+                return BufferFormat::UNORM8_BC7;
+            case DXGI_FORMAT_BC7_UNORM_SRGB:
+                return BufferFormat::UNORM8_BC7_SRGB;
             default:
                 throw std::runtime_error("Do not know how to transform this format!");
             }

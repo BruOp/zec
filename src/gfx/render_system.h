@@ -102,19 +102,35 @@ namespace zec::RenderSystem
         DestroyFn destroy = nullptr;
     };
 
+    struct PassResourceTransitionDesc
+    {
+        char name[64] = "";
+        ResourceTransitionType type = ResourceTransitionType::INVALID;
+        ResourceUsage usage = RESOURCE_USAGE_UNUSED;
+    };
+
+    struct ResourceState
+    {
+        PassResourceType type = PassResourceType::INVALID;
+        ResourceUsage last_usage = RESOURCE_USAGE_UNUSED;
+        TextureHandle texture;
+        BufferHandle buffer;
+    };
+
     struct RenderList
     {
+        std::string backbuffer_resource_name = "";
+
         // TODO: Replace with our own map? And get rid of std::string?
-        std::unordered_map<std::string, TextureHandle> textures_map = {};
-        std::unordered_map<std::string, BufferHandle> buffers_map = {};
+        std::unordered_map<std::string, ResourceState> resource_map = {};
 
         // Do I need two seperate lists? Probably not?
         Array<RenderPass> render_passes;
-        Array<ResourceTransitionDesc> resource_transitions;
+        Array<PassResourceTransitionDesc> resource_transition_descs;
         Array<CmdReceipt> receipts;
     };
 
-    void compile_render_list(RenderList& in_render_list, RenderPassDesc* render_passes, size_t num_render_passes);
+    void compile_render_list(RenderList& in_render_list, const RenderListDesc& render_list_desc);
     void setup(RenderList& render_list);
     void execute(RenderList& render_list);
     void destroy(RenderList& render_list);

@@ -14,39 +14,28 @@ namespace zec::RenderSystem
 
     constexpr size_t GRAPH_DEPTH_LIMIT = 16; //totally arbitrary
 
-    struct ArrayView
-    {
-        u32 offset = 0;
-        u32 size = 0;
-    };
-
-    struct GraphInfo
-    {
-        u32 max_depth = 0;
-        ArrayView bucketed_passes_info[GRAPH_DEPTH_LIMIT] = {  };
-        ArrayView transition_views_per_depth[GRAPH_DEPTH_LIMIT] = {  };
-    };
-
     void compile_render_list(RenderList& in_render_list, const RenderListDesc& render_list_desc)
     {
         const RenderPassDesc* render_pass_descs = render_list_desc.render_pass_descs;
         const u32 num_render_passes = render_list_desc.num_render_passes;
         const std::string backbuffer_resource_name = { render_list_desc.resource_to_use_as_backbuffer };
 
+        in_render_list.backbuffer_resource_name = backbuffer_resource_name;
+
         // So in the new system we're going to:
         // Validate our input/outputs as before
         // Store the "latest" dependency as part of which fence to wait on -- only necessary for cross queue execution. Otherwise, we'll insert resource barriers.
         // The dependencies will need to be marked as "flushes" so that we know we should submit the work done so far before continuing
-        // We'll also need to transition our resources at the beginning of passes.
-        // There's an ambiguity where if several passes require a resource to be in say a READ state, which pass should perform the transition? Should transitions just be executed
 
         ASSERT(in_render_list.render_passes.size == 0);
-        std::unordered_map<std::string, PassOutput> outputs = {};
+        std::unordered_map<std::string, PassOutput> output_descs = {};
 
         in_render_list.render_passes.grow(num_render_passes);
 
-        // Process outputs
+        // Process passes
         for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
+
+            // Create RenderPass instance
             const auto& render_pass_desc = render_pass_descs[pass_idx];
             auto& render_pass = in_render_list.render_passes[pass_idx];
             render_pass.queue_type = render_pass_desc.queue_type;
@@ -54,8 +43,9 @@ namespace zec::RenderSystem
             render_pass.setup = render_pass_desc.setup;
             render_pass.execute = render_pass_desc.execute;
             render_pass.destroy = render_pass_desc.destroy;
+            render_pass.resource_transitions_view.offset = in_render_list.resource_transition_descs.size;
 
-            u32 num_inputs;
+            // Validate inputs
             for (const auto& input : render_pass_desc.inputs) {
                 if (input.type == PassResourceType::INVALID || input.usage == RESOURCE_USAGE_UNUSED) {
                     break;
@@ -63,11 +53,11 @@ namespace zec::RenderSystem
 
                 // Check if resource exists and matches description
                 std::string input_name = { input.name };
-                if (outputs.contains(input_name)) {
-                    ASSERT(outputs[input_name].desc.type == input.type);
-                    outputs[input_name].desc.usage = ResourceUsage(outputs[input_name].desc.usage | input.usage);
+                if (output_descs.contains(input_name)) {
+                    ASSERT(output_descs[input_name].desc.type == input.type);
+                    output_descs[input_name].desc.usage = ResourceUsage(output_descs[input_name].desc.usage | input.usage);
 
-                    u32 parent_pass_idx = outputs[input_name].output_by_pass_idx;
+                    u32 parent_pass_idx = output_descs[input_name].output_by_pass_idx;
                     ASSERT(parent_pass_idx < pass_idx);
 
                     auto& parent_pass = in_render_list.render_passes[parent_pass_idx];
@@ -79,12 +69,17 @@ namespace zec::RenderSystem
                         render_pass.receipt_idx_to_wait_on = parent_pass_idx;
                     }
 
+                    size_t transition_idx = in_render_list.resource_transition_descs.push_back({
+                        .type = ResourceTransitionType(input.type),
+                        .usage = input.usage });
+                    strcpy(in_render_list.resource_transition_descs[transition_idx].name, input.name);
                 }
                 else {
                     ASSERT_FAIL("Cannot use an input that is not declared as an corresponding input");
                 }
             }
 
+            // Validate outputs and process descriptions
             bool writes_to_backbuffer_resource = false;
             for (const auto& output : render_pass_desc.outputs) {
                 if (output.type == PassResourceType::INVALID || output.usage == RESOURCE_USAGE_UNUSED) {
@@ -93,36 +88,57 @@ namespace zec::RenderSystem
 
                 // We do not currently allow outputing to the same resource more than once in a render list
                 std::string output_name = output.name;
-                ASSERT(!outputs.contains(output_name));
+                ASSERT(!output_descs.contains(output_name));
 
                 // Add it to our list
-                outputs[output_name].initial_state = output.usage;
-                outputs[output_name].desc = output;
-                outputs[output_name].output_by_pass_idx = pass_idx;
+                output_descs[output_name].initial_state = output.usage;
+                output_descs[output_name].desc = output;
+                output_descs[output_name].output_by_pass_idx = pass_idx;
 
-                writes_to_backbuffer_resource = writes_to_backbuffer_resource || output_name == backbuffer_resource_name;
+                if (output_name == backbuffer_resource_name) {
+                    ASSERT(output.type == PassResourceType::TEXTURE);
+                    ASSERT(output.texture_desc.size_class == SizeClass::RELATIVE_TO_SWAP_CHAIN);
+                    ASSERT(output.texture_desc.width == 1.0f);
+                    ASSERT(output.texture_desc.height == 1.0f);
+                    ASSERT(output.texture_desc.num_mips == 1);
+                    ASSERT(output.texture_desc.depth == 1);
+                    ASSERT(output.texture_desc.is_3d == false);
+                    ASSERT(output.texture_desc.is_cubemap == false);
+                    ASSERT(output.usage == RESOURCE_USAGE_RENDER_TARGET);
+
+                    writes_to_backbuffer_resource = true;
+                }
+
+                size_t transition_idx = in_render_list.resource_transition_descs.push_back({
+                    .type = ResourceTransitionType(output.type),
+                    .usage = output.usage });
+                strcpy(in_render_list.resource_transition_descs[transition_idx].name, output.name);
+
             }
 
-            // Asser that the last pass writes to the backbuffer resource
+            // Assert that the last pass writes to the backbuffer resource
             ASSERT(pass_idx != num_render_passes - 1 || writes_to_backbuffer_resource);
+
+            render_pass.resource_transitions_view.size = in_render_list.resource_transition_descs.size - render_pass.resource_transitions_view.offset;
+
         }
 
-        ASSERT(outputs.count(backbuffer_resource_name) != 0);
-        outputs.erase(backbuffer_resource_name);
+        // Check that we do indeed write to the resource aliasing the backbuffer
+        // We should probably also assert that the sizing and stuff is what we expect
+        ASSERT(output_descs.count(backbuffer_resource_name) != 0);
+        // We don't need to create this resource, so remove it.
+        output_descs.erase(backbuffer_resource_name);
 
         // We now have:
         // - A list of resource descs we have to create
         // - A list containing the depths for each RenderPass
         // - A list of the number of passes at each depth in our tree
 
-        std::unordered_map<std::string, ResourceUsage> expected_state{ outputs.size() };
 
         // Process list of resources
-        for (auto& pair : outputs) {
+        for (auto& pair : output_descs) {
             const std::string& name = pair.first;
             auto& resource_desc = pair.second.desc;
-
-            expected_state[name] = pair.second.initial_state;
 
             // First we have to determine what type of resource we're creating:
             ASSERT(resource_desc.type != PassResourceType::INVALID);
@@ -137,7 +153,13 @@ namespace zec::RenderSystem
 
                 BufferHandle buffer = create_buffer(buffer_desc);
 
-                in_render_list.buffers_map.insert({ name, buffer });
+                in_render_list.resource_map.insert({
+                    name,
+                    {
+                        .type = PassResourceType::BUFFER,
+                        .last_usage = pair.second.initial_state,
+                        .buffer = buffer
+                    } });
             }
             else {
                 u32 width, height;
@@ -160,104 +182,19 @@ namespace zec::RenderSystem
                     .is_3d = resource_desc.texture_desc.is_3d,
                     .format = resource_desc.texture_desc.format,
                     .usage = resource_desc.usage,
+                    .initial_state = pair.second.initial_state,
                 };
 
                 TextureHandle texture = create_texture(texture_desc);
-                in_render_list.textures_map.insert({ name, texture });
+                in_render_list.resource_map.insert({
+                    name,
+                    {
+                        .type = PassResourceType::TEXTURE,
+                        .last_usage = pair.second.initial_state,
+                        .texture = texture
+                    } });
             }
         }
-
-        in_render_list.backbuffer_resource_name = backbuffer_resource_name;
-
-
-        // Create list of Resource Transtitions
-        // Note: During the rendering, we'll actually track the current state of the resource and
-        // omit and redundant resource transitions
-        // Note: We'll also deo some additional book keeping on how many tansitions there are per
-        // bucket
-
-        // TODO: How do we manage transition to WRITE modes?
-
-        // I think  instead we could we could split our transition lists into two different lists:
-        // READ and WRITE modes
-        // Then each pass can transition their outputs after the first pass as well
-        // What's an alternative? First pass transition list?
-        // Well one possibility is to just keep it in the same list but store a size that's actually
-        // smaller than what we need and then correct it afterwards
-
-        auto& resource_transitions = in_render_list.resource_transitions;
-        for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
-            auto& render_pass = in_render_list.render_passes[pass_idx];
-            const RenderPassDesc& pass_desc = render_pass_descs[pass_idx];
-            render_pass.resource_transitions_view.offset = resource_transitions.size;
-            for (const auto& input : pass_desc.inputs) {
-
-                // Because we only allow output transitions once
-                if (expected_state[input.name] == input.usage) {
-                    continue;
-                }
-
-                if (input.type == PassResourceType::BUFFER) {
-                    BufferHandle buffer = in_render_list.buffers_map[input.name];
-                    resource_transitions.push_back({
-                        .type = ResourceTransitionType(input.type),
-                        .buffer = buffer,
-                        .before = expected_state[input.name],
-                        .after = input.usage });
-                }
-                else {
-                    TextureHandle texture = in_render_list.textures_map[input.name];
-                    resource_transitions.push_back({
-                        .type = ResourceTransitionType(input.type),
-                        .texture = texture,
-                        .before = expected_state[input.name],
-                        .after = input.usage });
-                }
-                expected_state[input.name] = input.usage;
-            }
-
-            render_pass.resource_transitions_view.size = resource_transitions.size - render_pass.resource_transitions_view.offset;
-
-            // Store additional transitions for the outputs. We'll only use these after the first frame
-            for (const auto& output : pass_desc.outputs) {
-                // Do not record redundant resource transitions
-                if (expected_state[output.name] == output.usage) {
-                    continue;
-                }
-
-                if (output.type == PassResourceType::BUFFER) {
-                    BufferHandle buffer = in_render_list.buffers_map[output.name];
-                    resource_transitions.push_back({
-                        .type = ResourceTransitionType(output.type),
-                        .buffer = buffer,
-                        .before = expected_state[output.name],
-                        .after = output.usage });
-                }
-                else {
-                    TextureHandle texture = in_render_list.textures_map[output.name];
-                    resource_transitions.push_back({
-                        .type = ResourceTransitionType(output.type),
-                        .texture = texture,
-                        .before = expected_state[output.name],
-                        .after = output.usage });
-                }
-            }
-        }
-
-        // For now let's just:
-
-        // We'll also need to add a RTV transition before the first pass that writes to this resource
-        // We probably also want to ensure that we never use the promoted resource as anything other than
-        // an RTV in our 
-
-        // How do we add the RTV transition? Well since we only write to a resource once in the current system
-        // we kind of don't have to worry about it
-
-        // Idea: Present flag?
-
-        // TODO: Write some tests to see if this returns what we expect. Should be able to use dummy
-        // data, although maybe we need to break this up to make it a bit more testable? Only thing
-        // we'd have to mock for sure is the calls that create our resources.
     }
 
     void setup(RenderList& render_list)
@@ -271,7 +208,11 @@ namespace zec::RenderSystem
     {
         TextureHandle backbuffer = get_current_back_buffer_handle();
         // Alias the backbuffer as the resource;
-        render_list.textures_map[render_list.backbuffer_resource_name] = backbuffer;
+        render_list.resource_map[render_list.backbuffer_resource_name] = {
+            .type = PassResourceType::TEXTURE,
+            .last_usage = RESOURCE_USAGE_PRESENT,
+            .texture = backbuffer,
+        };
 
         // --------------- RECORD --------------- 
         constexpr size_t MAX_CMD_LIST_SUMISSIONS = 8; // Totally arbitrary
@@ -283,18 +224,53 @@ namespace zec::RenderSystem
             CommandContextHandle& cmd_ctx = cmd_contexts[pass_idx];
             cmd_ctx = gfx::cmd::provision(render_pass.queue_type);
 
-            // Submit any resource barriers
-            ResourceTransitionDesc* transitions = &render_list.resource_transitions[render_pass.resource_transitions_view.offset];
-            u32 num_transitions = render_pass.resource_transitions_view.size;
-            if (pass_idx == render_list.render_passes.size - 1) {
-                // This is knid of a stupid way of doing this.
-                ResourceTransitionDesc* final_pass_transitions = reinterpret_cast<ResourceTransitionDesc*>(_alloca((num_transitions + 1) * sizeof(ResourceTransitionDesc)));
-                memory::copy(final_pass_transitions, transitions, sizeof(ResourceTransitionDesc) * num_transitions);
-                final_pass_transitions[num_transitions] = ResourceTransitionDesc{ .type = ResourceTransitionType::TEXTURE, .texture = get_current_back_buffer_handle }
-            }
-            gfx::cmd::transition_resources(cmd_ctx, transitions, num_transitions);
+            // Transition Resources
+            {
+                const size_t offset = render_pass.resource_transitions_view.offset;
+                size_t size = render_pass.resource_transitions_view.size;
+                ASSERT(size < 15);
+                ResourceTransitionDesc transition_descs[16] = {};
+                // Submit any resource barriers
+                for (size_t transition_idx = 0; transition_idx < size; transition_idx++) {
+                    PassResourceTransitionDesc& transition_desc = render_list.resource_transition_descs[transition_idx + offset];
+                    ResourceState& resource_state = render_list.resource_map[transition_desc.name];
 
+                    if (transition_desc.usage == resource_state.last_usage) continue;
+
+                    if (transition_desc.type == ResourceTransitionType::BUFFER) {
+                        transition_descs[transition_idx] = {
+                            .type = transition_desc.type,
+                            .buffer = resource_state.buffer,
+                            .before = resource_state.last_usage,
+                            .after = transition_desc.usage
+                        };
+                    }
+                    else {
+                        transition_descs[transition_idx] = {
+                            .type = transition_desc.type,
+                            .texture = resource_state.texture,
+                            .before = resource_state.last_usage,
+                            .after = transition_desc.usage
+                        };
+                    }
+                    resource_state.last_usage = transition_desc.usage;
+                }
+                gfx::cmd::transition_resources(cmd_ctx, transition_descs, size);
+            }
+
+            // Run our 
             render_pass.execute(render_list, cmd_ctx, render_pass.context);
+
+            // Transition backbuffer
+            if (pass_idx == render_list.render_passes.size - 1) {
+                ResourceTransitionDesc transition_desc{
+                    .type = ResourceTransitionType::TEXTURE,
+                    .texture = backbuffer,
+                    .before = RESOURCE_USAGE_RENDER_TARGET,
+                    .after = RESOURCE_USAGE_PRESENT,
+                };
+                gfx::cmd::transition_resources(cmd_ctx, &transition_desc, 1);
+            }
         }
 
         // --------------- SUBMIT --------------- 

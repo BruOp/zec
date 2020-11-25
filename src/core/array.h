@@ -8,6 +8,12 @@ namespace zec
 {
     static constexpr size_t g_GB = 1024 * 1024 * 1024;
 
+    struct ArrayView
+    {
+        u32 offset = 0;
+        u32 size = 0;
+    };
+
     template<typename T, size_t Capacity>
     class FixedArray
     {
