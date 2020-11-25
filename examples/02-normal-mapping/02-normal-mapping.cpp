@@ -68,12 +68,7 @@ protected:
                 },
                 .num_constant_buffers = 2,
                 .tables = {
-                    {
-                        .ranges = {
-                            {.usage = ResourceAccess::READ, .count = ResourceLayoutRangeDesc::UNBOUNDED_COUNT },
-                        },
-                        .visibility = ShaderVisibility::PIXEL,
-                    }
+                    {.usage = ResourceAccess::READ, .count = 4096 },
                 },
                 .num_resource_tables = 1,
                 .static_samplers = {
@@ -108,7 +103,7 @@ protected:
             pso_handle = create_pipeline_state_object(pipeline_desc);
         }
 
-        begin_upload();
+        zec::begin_upload();
 
         // Create the vertex buffer.
         {

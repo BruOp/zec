@@ -63,15 +63,10 @@ protected:
             pso_handle = create_pipeline_state_object(pipeline_desc);
         }
 
-        // Initialize UI
-        ui::initialize(window);
-
         begin_upload();
-
         // Create the vertex buffer.
         {
             // Define the geometry for a triangle.
-
             constexpr float cube_positions[] = {
                 -0.5f,  0.5f, -0.5f, // +Y (top face)
                  0.5f,  0.5f, -0.5f,
@@ -133,7 +128,6 @@ protected:
 
             cube_mesh = create_mesh(mesh_desc);
         }
-
         end_upload();
 
         mesh_transform.model_transform = identity_mat4();
@@ -160,9 +154,7 @@ protected:
     }
 
     void shutdown() override final
-    {
-        ui::destroy();
-    }
+    { }
 
     void update(const zec::TimeData& time_data) override final
     {

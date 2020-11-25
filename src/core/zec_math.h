@@ -147,12 +147,12 @@ namespace zec
             float data[4] = {};
             struct { float x, y, z, w; };
             struct { float r, g, b, a; };
-            struct { vec3 xyz; float w; };
+            struct { vec3 xyz; float s; };
             struct { vec3 rgb; float a; };
         };
         vec4() : data{ 0.0f, 0.0f, 0.0f, 0.0f } { };
         vec4(const float x, const float y, const float z, const float w) : x(x), y(y), z(z), w(w) { };
-        vec4(vec3 xyz, const float w = 1.0f) : xyz(xyz), w(w) { };
+        vec4(vec3 xyz, const float w = 1.0f) : xyz(xyz), s(w) { };
 
         inline float& operator[](const size_t idx)
         {
@@ -373,14 +373,14 @@ namespace zec
         {
             float data[4] = {};
             struct { float x, y, z, w; };
-            struct { vec3 v; float w; };
+            struct { vec3 v; float u; };
         };
 
         quaternion() = default;
         quaternion(const float x, const float y, const float z, const float w) :
             x(x), y(y), z(z), w(w)
         { };
-        quaternion(vec3 v, float w) : v(v), w(w) { };
+        quaternion(vec3 v, float u) : v{ v }, u{ u } { };
 
 
         inline float& operator[](const size_t idx)

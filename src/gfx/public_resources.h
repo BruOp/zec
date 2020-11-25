@@ -82,8 +82,12 @@ namespace zec
         HALF_4,
         FLOAT_4,
 
+        // Compressed
+        UNORM8_BC7,
+
         // SRGB values
         UNORM8_4_SRGB,
+        UNORM8_BC7_SRGB,
 
         // Aliases
         R8G8B8A8_UINT = UINT8_4,

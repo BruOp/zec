@@ -17,7 +17,7 @@ namespace zec::dx12
 
     namespace TextureUtils
     {
-        TextureHandle push_back(TextureList& list, Texture& texture)
+        TextureHandle push_back(TextureList& list, const Texture& texture)
         {
             ASSERT(list.resources.size < UINT32_MAX);
             TextureHandle handle = { u32(list.resources.push_back(texture.resource)) };

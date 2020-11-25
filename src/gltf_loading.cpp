@@ -142,7 +142,7 @@ namespace zec
             for (const auto& texture : model.textures) {
                 const auto& image = model.images[texture.source];
                 std::filesystem::path image_path = folder_path / std::filesystem::path{ image.uri };
-                TextureHandle& texture = load_texture_from_file(image_path.string().c_str());
+                const TextureHandle texture = load_texture_from_file(image_path.string().c_str());
                 out_context.textures.push_back(texture);
 
                 // TODO: Process Samplers?
@@ -179,7 +179,7 @@ namespace zec
                     }
 
                     const auto& attributes = primitive.attributes;
-                    constexpr char* attr_names[] = {
+                    constexpr char const* attr_names[] = {
                         "POSITION",
                         "NORMAL",
                         "TEXCOORD_0"

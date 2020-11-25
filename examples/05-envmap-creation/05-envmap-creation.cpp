@@ -217,9 +217,6 @@ protected:
             100.0f // far
         );
 
-        // Initialize UI
-        ui::initialize(window);
-
         // (optional) set browser properties
         file_dialog.SetTitle("Save File as");
         file_dialog.SetTypeFilters({ ".dds" });
@@ -330,9 +327,7 @@ protected:
     }
 
     void shutdown() override final
-    {
-        ui::destroy();
-    }
+    { }
 
     void update(const zec::TimeData& time_data) override final
     {

@@ -147,8 +147,10 @@ namespace zec::dx12::CommandContextUtils
             list_idx = pool.cmd_lists.push_back(cmd_list);
         }
 
-        auto& heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
-        cmd_list->SetDescriptorHeaps(1, &heap.heap);
+        if (pool.type != CommandQueueType::COPY) {
+            auto& heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
+            cmd_list->SetDescriptorHeaps(1, &heap.heap);
+        }
 
         return encode_command_context_handle(pool.type, allocator_idx, list_idx);
     }
@@ -174,7 +176,7 @@ namespace zec::dx12::CommandContextUtils
 
             // Is this being closed here?
             ID3D12GraphicsCommandList* cmd_list = pool.cmd_lists[cmd_list_idx];
-            cmd_list->Close();
+            DXCall(cmd_list->Close());
             cmd_lists[i] = cmd_list;
 
             pool.free_cmd_list_indices.push_back(cmd_list_idx);
@@ -388,7 +390,7 @@ namespace zec::gfx::cmd
 
     void transition_textures(const CommandContextHandle ctx, TextureTransitionDesc* transition_descs, u64 num_transitions)
     {
-        constexpr u64 MAX_NUM_BARRIERS = 10;
+        constexpr u64 MAX_NUM_BARRIERS = 16;
         ASSERT(num_transitions <= MAX_NUM_BARRIERS);
         D3D12_RESOURCE_BARRIER barriers[MAX_NUM_BARRIERS];
         for (size_t i = 0; i < num_transitions; i++) {

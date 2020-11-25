@@ -68,9 +68,6 @@ protected:
             100.0f // far
         );
 
-        // Initialize UI
-        ui::initialize(window);
-
         // Create a root signature consisting of a descriptor table with a single CBV.
         {
             constexpr u32 num_textures = 1024;
@@ -82,12 +79,7 @@ protected:
                 },
                 .num_constant_buffers = 2,
                 .tables = {
-                    {
-                        .ranges = {
-                            {.usage = ResourceAccess::READ, .count = ResourceLayoutRangeDesc::UNBOUNDED_COUNT },
-                        },
-                        .visibility = ShaderVisibility::PIXEL,
-                    }
+                    {.usage = ResourceAccess::READ, .count = 4096 },
                 },
                 .num_resource_tables = 1,
                 .static_samplers = {
@@ -176,7 +168,6 @@ protected:
 
     void shutdown() override final
     {
-        ui::destroy();
     }
 
     void update(const zec::TimeData& time_data) override final

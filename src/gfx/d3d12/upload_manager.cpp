@@ -87,10 +87,11 @@ namespace zec
             Upload upload{ };
             const u64 upload_buffer_size = GetRequiredIntermediateSize(destination_resource, 0, 1);
             D3D12MA::ALLOCATION_DESC upload_alloc_desc = {};
+            D3D12_RESOURCE_DESC buffer_desc = CD3DX12_RESOURCE_DESC::Buffer(upload_buffer_size);
             upload_alloc_desc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
             DXCall(allocator->CreateResource(
                 &upload_alloc_desc,
-                &CD3DX12_RESOURCE_DESC::Buffer(upload_buffer_size),
+                &buffer_desc,
                 D3D12_RESOURCE_STATE_GENERIC_READ,
                 NULL,
                 &upload.allocation,
@@ -129,9 +130,10 @@ namespace zec
             Upload upload{ };
             D3D12MA::ALLOCATION_DESC upload_alloc_desc = {};
             upload_alloc_desc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
+            D3D12_RESOURCE_DESC buffer_desc = CD3DX12_RESOURCE_DESC::Buffer(mem_size);
             DXCall(allocator->CreateResource(
                 &upload_alloc_desc,
-                &CD3DX12_RESOURCE_DESC::Buffer(mem_size),
+                &buffer_desc,
                 D3D12_RESOURCE_STATE_GENERIC_READ,
                 NULL,
                 &upload.allocation,

@@ -35,7 +35,7 @@ namespace zec
 
     namespace gfx::textures
     {
-        TextureInfo get_texture_info(const TextureHandle texture_handle);
+        TextureInfo& get_texture_info(const TextureHandle texture_handle);
 
         void save_texture(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);
     }

@@ -65,6 +65,7 @@ namespace zec
         renderer_desc.window = window.hwnd;
         init_renderer(renderer_desc);
 
+        ui::initialize(window);
         input::initialize(width, height);
         init();
     }
@@ -72,6 +73,7 @@ namespace zec
     void App::shutdown_internal()
     {
         wait_for_gpu();
+        ui::destroy();
         shutdown();
         destroy_renderer();
     }

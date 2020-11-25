@@ -63,7 +63,7 @@ namespace zec
                 IID_PPV_ARGS(&buffer.resource)
             ));
             if (res == DXGI_ERROR_DEVICE_REMOVED) {
-                HRESULT error = g_device->GetDeviceRemovedReason();
+                debug_print(GetDXErrorString(g_device->GetDeviceRemovedReason()));
                 DXCall(res);
             }
             DXCall(res);
