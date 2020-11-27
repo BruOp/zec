@@ -72,7 +72,7 @@ namespace zec::RenderSystem
                     size_t transition_idx = in_render_list.resource_transition_descs.push_back({
                         .type = ResourceTransitionType(input.type),
                         .usage = input.usage });
-                    strcpy(in_render_list.resource_transition_descs[transition_idx].name, input.name);
+                    strcpy(in_render_list.resource_transition_descs[transition_idx].name, input.name.c_str());
                 }
                 else {
                     ASSERT_FAIL("Cannot use an input that is not declared as an corresponding input");
@@ -112,7 +112,7 @@ namespace zec::RenderSystem
                 size_t transition_idx = in_render_list.resource_transition_descs.push_back({
                     .type = ResourceTransitionType(output.type),
                     .usage = output.usage });
-                strcpy(in_render_list.resource_transition_descs[transition_idx].name, output.name);
+                strcpy(in_render_list.resource_transition_descs[transition_idx].name, output.name.c_str());
 
             }
 
@@ -135,7 +135,8 @@ namespace zec::RenderSystem
         // - A list of the number of passes at each depth in our tree
 
 
-        // Process list of resources
+        // Process list of resources, creating each one RENDER_LATENCY times
+        // (For each frame in flight)
         for (auto& pair : output_descs) {
             const std::string& name = pair.first;
             auto& resource_desc = pair.second.desc;
@@ -332,5 +333,17 @@ namespace zec::RenderSystem
         // TODO: Destroy resources?
     }
 
+    BufferHandle get_buffer_resource(RenderList& render_list, const std::string& resource_name)
+    {
+        ResourceState resource = render_list.resource_map.at(resource_name);
+        ASSERT(resource.type == PassResourceType::BUFFER);
+        return resource.buffer[get_current_frame_idx()];
+    }
 
+    TextureHandle get_texture_resource(RenderList& render_list, const std::string& resource_name)
+    {
+        ResourceState resource = render_list.resource_map.at(resource_name);
+        ASSERT(resource.type == PassResourceType::TEXTURE);
+        return resource.textures[get_current_frame_idx()];
+    }
 }

@@ -50,6 +50,7 @@ public:
     ResourceLayoutHandle resource_layout = {};
     PipelineStateHandle pso_handle = {};
 
+    // TODO: Shouldn't there be two of these?
     TextureHandle depth_target = {};
 
 protected:
@@ -167,8 +168,7 @@ protected:
     }
 
     void shutdown() override final
-    {
-    }
+    { }
 
     void update(const zec::TimeData& time_data) override final
     {

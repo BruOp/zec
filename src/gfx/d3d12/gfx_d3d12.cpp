@@ -167,7 +167,7 @@ namespace zec
             ASSERT(g_adapter == nullptr);
             ASSERT(g_factory == nullptr);
             ASSERT(g_device == nullptr);
-            constexpr int ADAPTER_NUMBER = 1;
+            constexpr int ADAPTER_NUMBER = 0;
 
             UINT factory_flags = 0;
         #ifdef USE_DEBUG_DEVICE
@@ -390,6 +390,16 @@ namespace zec
         dx_destroy(&g_device);
         dx_destroy(&g_adapter);
         dx_destroy(&g_factory);
+    }
+
+    u64 get_current_frame_idx()
+    {
+        return g_current_frame_idx;
+    }
+
+    u64 get_current_cpu_frame()
+    {
+        return g_current_cpu_frame;
     }
 
     void wait_for_gpu()

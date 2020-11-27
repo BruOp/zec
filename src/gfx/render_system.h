@@ -49,7 +49,7 @@ namespace zec::RenderSystem
 
     struct PassOutputDesc
     {
-        char name[64] = "";
+        std::string name = "";
         PassResourceType type = PassResourceType::INVALID;
         ResourceUsage usage = RESOURCE_USAGE_UNUSED;
         union
@@ -61,7 +61,7 @@ namespace zec::RenderSystem
 
     struct PassInputDesc
     {
-        char name[64] = "";
+        std::string name = "";
         PassResourceType type = PassResourceType::INVALID;
         ResourceUsage usage = RESOURCE_USAGE_UNUSED;
     };
@@ -78,6 +78,7 @@ namespace zec::RenderSystem
         PassInputDesc inputs[8] = {};
         PassOutputDesc outputs[8] = {};
 
+        void* context = nullptr;
         SetupFn setup = nullptr;
         ExecuteFn execute = nullptr;
         DestroyFn destroy = nullptr;
@@ -87,7 +88,7 @@ namespace zec::RenderSystem
     {
         RenderPassDesc* render_pass_descs;
         u32 num_render_passes;
-        char resource_to_use_as_backbuffer[64];
+        std::string resource_to_use_as_backbuffer;
     };
 
     struct RenderPass
@@ -96,7 +97,8 @@ namespace zec::RenderSystem
         ArrayView resource_transitions_view = {};
         u32 receipt_idx_to_wait_on = UINT32_MAX; // Index into the graph's fence list
         bool requires_flush = false;
-        void* context;
+
+        void* context = nullptr;
         SetupFn setup = nullptr;
         ExecuteFn execute = nullptr;
         DestroyFn destroy = nullptr;
@@ -113,8 +115,8 @@ namespace zec::RenderSystem
     {
         PassResourceType type = PassResourceType::INVALID;
         ResourceUsage last_usage = RESOURCE_USAGE_UNUSED;
-        TextureHandle texture;
-        BufferHandle buffer;
+        TextureHandle textures[RENDER_LATENCY];
+        BufferHandle buffer[RENDER_LATENCY];
     };
 
     struct RenderList
@@ -134,4 +136,7 @@ namespace zec::RenderSystem
     void setup(RenderList& render_list);
     void execute(RenderList& render_list);
     void destroy(RenderList& render_list);
+
+    BufferHandle get_buffer_resource(RenderList& render_list, const std::string& resource_name);
+    TextureHandle get_texture_resource(RenderList& render_list, const std::string& resource_name);
 }

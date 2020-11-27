@@ -8,6 +8,9 @@ namespace zec
     void init_renderer(const RendererDesc& renderer_desc);
     void destroy_renderer();
 
+    u64 get_current_frame_idx();
+    u64 get_current_cpu_frame();
+
     void wait_for_gpu();
 
     void begin_upload();
