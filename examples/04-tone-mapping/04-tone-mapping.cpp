@@ -108,8 +108,6 @@ namespace ForwardPass
         forward_context->pso_handle = create_pipeline_state_object(pipeline_desc);
     }
 
-    void update(void* context) { }
-
     void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
     {
         constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -193,13 +191,12 @@ namespace ToneMapping
              .rtv_formats = {{ BufferFormat::R8G8B8A8_UNORM_SRGB }},
              .shader_file_path = L"shaders/basic_tone_map.hlsl",
         };
+        pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::OFF;
         pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
         pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
         tonemapping_context->pso = create_pipeline_state_object(pipeline_desc);
     }
-
-    void update(void* context) { }
 
     void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
     {
@@ -209,8 +206,15 @@ namespace ToneMapping
         TextureHandle sdr_buffer = RenderSystem::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
 
         gfx::cmd::set_render_targets(cmd_ctx, &sdr_buffer, 1);
+
+        TextureInfo& texture_info = gfx::textures::get_texture_info(sdr_buffer);
+        Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
+        Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
+
         gfx::cmd::set_active_resource_layout(cmd_ctx, tonemapping_context->resource_layout);
         gfx::cmd::set_pipeline_state(cmd_ctx, tonemapping_context->pso);
+        gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
+        gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
         TonemapPassConstants tonemapping_constants = {
             .src_texture = get_shader_readable_texture_index(hdr_buffer),
@@ -220,7 +224,6 @@ namespace ToneMapping
         gfx::cmd::bind_resource_table(cmd_ctx, 1);
 
         gfx::cmd::draw_mesh(cmd_ctx, tonemapping_context->fullscreen_mesh);
-
     };
 
     void destroy(void* context)
@@ -269,9 +272,6 @@ protected:
             0.1f, // near
             100.0f // far
         );
-
-        // Initialize UI
-        ui::initialize(window);
 
         begin_upload();
 
@@ -374,14 +374,43 @@ protected:
                     {
                         .name = ResourceNames::HDR_BUFFER,
                         .type = RenderSystem::PassResourceType::TEXTURE,
-                        .usage =
+                        .usage = RESOURCE_USAGE_RENDER_TARGET,
+                        .texture_desc = {.format = BufferFormat::R16G16B16A16_FLOAT}
+                    },
+                    {
+                        .name = ResourceNames::DEPTH_TARGET,
+                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .usage = RESOURCE_USAGE_DEPTH_STENCIL,
+                        .texture_desc = {.format = BufferFormat::D32 }
                     }
-                    { .name = ResourceNames::DEPTH_TARGET }
- }
+                },
+                .context = &forward_context,
+                .setup = &ForwardPass::setup,
+                .execute = &ForwardPass::record,
+                .destroy = &ForwardPass::destroy
             },
             {
-
+                .queue_type = CommandQueueType::GRAPHICS,
+                .inputs = {
+                {
+                    .name = ResourceNames::HDR_BUFFER,
+                    .type = RenderSystem::PassResourceType::TEXTURE,
+                    .usage = RESOURCE_USAGE_SHADER_READABLE
+                }
             },
+            .outputs = {
+                {
+                    .name = ResourceNames::SDR_BUFFER,
+                    .type = RenderSystem::PassResourceType::TEXTURE,
+                    .usage = RESOURCE_USAGE_RENDER_TARGET,
+                    .texture_desc = {.format = BufferFormat::R8G8B8A8_UNORM_SRGB }
+                }
+            },
+            .context = &tonemapping_context,
+            .setup = &ToneMapping::setup,
+            .execute = &ToneMapping::record,
+            .destroy = &ToneMapping::destroy
+        },
         };
         RenderSystem::RenderListDesc render_list_desc = {
             .render_pass_descs = render_pass_descs,
@@ -390,12 +419,12 @@ protected:
         };
 
         RenderSystem::compile_render_list(render_list, render_list_desc);
-        setup(render_list);
+        RenderSystem::setup(render_list);
     }
 
     void shutdown() override final
     {
-        ui::destroy();
+        RenderSystem::destroy(render_list);
     }
 
     void update(const zec::TimeData& time_data) override final
@@ -413,28 +442,11 @@ protected:
 
     void render() override final
     {
-        //CommandContextHandle cmd_ctx = begin_frame();
+        reset_for_frame();
 
-        //ui::begin_frame();
+        RenderSystem::execute(render_list);
 
-        //{
-        //    const auto framerate = ImGui::GetIO().Framerate;
-
-        //    ImGui::Begin("GLTF Loader");                          // Create a window called "Hello, world!" and append into it.
-
-        //    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / framerate, framerate);
-
-        //    ImGui::PlotHistogram("Frame Times", frame_times, IM_ARRAYSIZE(frame_times), 0, 0, 0, D3D12_FLOAT32_MAX, ImVec2(240.0f, 80.0f));
-
-        //    ImGui::DragFloat("Exposure", &exposure, 0.01f, 0.0f, 5.0f);
-
-        //    ImGui::End();
-        //}
-
-        //ui::end_frame(cmd_ctx);
-        //end_frame(cmd_ctx);
-
-
+        present_frame();
     }
 
     void before_reset() override final

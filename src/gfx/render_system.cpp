@@ -31,6 +31,7 @@ namespace zec::RenderSystem
         std::unordered_map<std::string, PassOutput> output_descs = {};
 
         in_render_list.render_passes.grow(num_render_passes);
+        in_render_list.receipts.grow(num_render_passes);
 
         // Process passes
         for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
@@ -40,6 +41,7 @@ namespace zec::RenderSystem
             auto& render_pass = in_render_list.render_passes[pass_idx];
             render_pass.queue_type = render_pass_desc.queue_type;
             // Store function pointers
+            render_pass.context = render_pass_desc.context;
             render_pass.setup = render_pass_desc.setup;
             render_pass.execute = render_pass_desc.execute;
             render_pass.destroy = render_pass_desc.destroy;
@@ -107,6 +109,7 @@ namespace zec::RenderSystem
                     ASSERT(output.usage == RESOURCE_USAGE_RENDER_TARGET);
 
                     writes_to_backbuffer_resource = true;
+                    render_pass.requires_flush = true;
                 }
 
                 size_t transition_idx = in_render_list.resource_transition_descs.push_back({
@@ -134,7 +137,6 @@ namespace zec::RenderSystem
         // - A list containing the depths for each RenderPass
         // - A list of the number of passes at each depth in our tree
 
-
         // Process list of resources, creating each one RENDER_LATENCY times
         // (For each frame in flight)
         for (auto& pair : output_descs) {
@@ -153,14 +155,15 @@ namespace zec::RenderSystem
                 };
 
                 BufferHandle buffer = create_buffer(buffer_desc);
+                ResourceState resource_state = {
+                    .type = PassResourceType::BUFFER,
+                    .last_usages = { pair.second.initial_state, pair.second.initial_state },
+                };
+                for (size_t j = 0; j < RENDER_LATENCY; j++) {
 
-                in_render_list.resource_map.insert({
-                    name,
-                    {
-                        .type = PassResourceType::BUFFER,
-                        .last_usage = pair.second.initial_state,
-                        .buffer = buffer
-                    } });
+                    resource_state.buffers[j] = create_buffer(buffer_desc);;
+                }
+                in_render_list.resource_map[name] = resource_state;
             }
             else {
                 u32 width, height;
@@ -186,14 +189,14 @@ namespace zec::RenderSystem
                     .initial_state = pair.second.initial_state,
                 };
 
-                TextureHandle texture = create_texture(texture_desc);
-                in_render_list.resource_map.insert({
-                    name,
-                    {
-                        .type = PassResourceType::TEXTURE,
-                        .last_usage = pair.second.initial_state,
-                        .texture = texture
-                    } });
+                ResourceState resource_state = {
+                    .type = PassResourceType::TEXTURE,
+                    .last_usages = { pair.second.initial_state, pair.second.initial_state }
+                };
+                for (size_t j = 0; j < RENDER_LATENCY; j++) {
+                    resource_state.textures[j] = create_texture(texture_desc);
+                }
+                in_render_list.resource_map[name] = resource_state;
             }
         }
     }
@@ -211,8 +214,8 @@ namespace zec::RenderSystem
         // Alias the backbuffer as the resource;
         render_list.resource_map[render_list.backbuffer_resource_name] = {
             .type = PassResourceType::TEXTURE,
-            .last_usage = RESOURCE_USAGE_PRESENT,
-            .texture = backbuffer,
+            .last_usages = { RESOURCE_USAGE_PRESENT, RESOURCE_USAGE_PRESENT },
+            .textures = { backbuffer, backbuffer }, // Bit of a hack
         };
 
         // --------------- RECORD --------------- 
@@ -228,35 +231,40 @@ namespace zec::RenderSystem
             // Transition Resources
             {
                 const size_t offset = render_pass.resource_transitions_view.offset;
-                size_t size = render_pass.resource_transitions_view.size;
+                const size_t size = render_pass.resource_transitions_view.size;
+                size_t num_recorded_transitions = 0;
                 ASSERT(size < 15);
                 ResourceTransitionDesc transition_descs[16] = {};
                 // Submit any resource barriers
                 for (size_t transition_idx = 0; transition_idx < size; transition_idx++) {
                     PassResourceTransitionDesc& transition_desc = render_list.resource_transition_descs[transition_idx + offset];
-                    ResourceState& resource_state = render_list.resource_map[transition_desc.name];
+                    u64 current_frame_idx = get_current_frame_idx();
+                    ResourceState& resource_state = render_list.resource_map.at(transition_desc.name);
 
-                    if (transition_desc.usage == resource_state.last_usage) continue;
+                    if (transition_desc.usage == resource_state.last_usages[current_frame_idx]) continue;
 
                     if (transition_desc.type == ResourceTransitionType::BUFFER) {
-                        transition_descs[transition_idx] = {
+                        transition_descs[num_recorded_transitions] = {
                             .type = transition_desc.type,
-                            .buffer = resource_state.buffer,
-                            .before = resource_state.last_usage,
+                            .buffer = resource_state.buffers[current_frame_idx],
+                            .before = resource_state.last_usages[current_frame_idx],
                             .after = transition_desc.usage
                         };
                     }
                     else {
-                        transition_descs[transition_idx] = {
+                        transition_descs[num_recorded_transitions] = {
                             .type = transition_desc.type,
-                            .texture = resource_state.texture,
-                            .before = resource_state.last_usage,
+                            .texture = resource_state.textures[current_frame_idx],
+                            .before = resource_state.last_usages[current_frame_idx],
                             .after = transition_desc.usage
                         };
                     }
-                    resource_state.last_usage = transition_desc.usage;
+                    num_recorded_transitions++;
+                    resource_state.last_usages[current_frame_idx] = transition_desc.usage;
                 }
-                gfx::cmd::transition_resources(cmd_ctx, transition_descs, size);
+                if (num_recorded_transitions > 0) {
+                    gfx::cmd::transition_resources(cmd_ctx, transition_descs, num_recorded_transitions);
+                }
             }
 
             // Run our 
@@ -297,6 +305,7 @@ namespace zec::RenderSystem
             }
 
             CommandStream& stream = render_pass.queue_type == CommandQueueType::ASYNC_COMPUTE ? async_compute_stream : gfx_stream;
+            stream.contexts_to_submit[stream.pending_count++] = cmd_contexts[pass_idx];
 
             // If we've reached the max or need to flush at this pass (for synchronization 
             // purposes), we submit our command contexts and store the receipt
@@ -321,6 +330,7 @@ namespace zec::RenderSystem
         ASSERT(gfx_stream.pending_count == 0);
 
         // TODO: Figure out where to put PRESENT
+
     }
 
 
@@ -337,7 +347,7 @@ namespace zec::RenderSystem
     {
         ResourceState resource = render_list.resource_map.at(resource_name);
         ASSERT(resource.type == PassResourceType::BUFFER);
-        return resource.buffer[get_current_frame_idx()];
+        return resource.buffers[get_current_frame_idx()];
     }
 
     TextureHandle get_texture_resource(RenderList& render_list, const std::string& resource_name)

@@ -167,7 +167,7 @@ namespace zec
             ASSERT(g_adapter == nullptr);
             ASSERT(g_factory == nullptr);
             ASSERT(g_device == nullptr);
-            constexpr int ADAPTER_NUMBER = 0;
+            constexpr int ADAPTER_NUMBER = 1;
 
             UINT factory_flags = 0;
         #ifdef USE_DEBUG_DEVICE
@@ -422,32 +422,9 @@ namespace zec
 
     CommandContextHandle begin_frame()
     {
-        g_current_frame_idx = g_swap_chain.swap_chain->GetCurrentBackBufferIndex();
-
-        if (g_current_cpu_frame != 0) {
-            // Wait for the GPU to catch up so we can freely reset our frame's command allocator
-            const u64 gpu_lag = g_current_cpu_frame - g_current_gpu_frame;
-            ASSERT(gpu_lag <= RENDER_LATENCY);
-
-            if (gpu_lag == RENDER_LATENCY) {
-                wait(g_frame_fence, g_current_gpu_frame + 1);
-                ++g_current_gpu_frame;
-            }
-
-            for (size_t i = 0; i < ARRAY_SIZE(g_command_pools); i++) {
-                CommandContextUtils::reset(g_command_pools[i]);
-            }
-        }
-
-        // Process resources queued for destruction
-        process_destruction_queue(g_destruction_queue);
-
-        for (auto& descriptor_heap : g_descriptor_heaps) {
-            DescriptorUtils::process_destruction_queue(descriptor_heap, g_current_frame_idx);
-        }
+        reset_for_frame();
 
         auto& heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
-
 
         CommandContextHandle command_context = gfx::cmd::provision(CommandQueueType::GRAPHICS);
         // TODO: Provide interface for creating barriers? Maybe that needs to be handled as part of the render graph though
@@ -482,6 +459,39 @@ namespace zec
         CommandContextUtils::insert_resource_barrier(command_context, &barrier, 1);
         CommandContextUtils::return_and_execute(&command_context, 1);
 
+        present_frame();
+    }
+
+    void reset_for_frame()
+    {
+        g_current_frame_idx = g_swap_chain.swap_chain->GetCurrentBackBufferIndex();
+
+        if (g_current_cpu_frame != 0) {
+            // Wait for the GPU to catch up so we can freely reset our frame's command allocator
+            const u64 gpu_lag = g_current_cpu_frame - g_current_gpu_frame;
+            ASSERT(gpu_lag <= RENDER_LATENCY);
+
+            if (gpu_lag == RENDER_LATENCY) {
+                wait(g_frame_fence, g_current_gpu_frame + 1);
+                ++g_current_gpu_frame;
+            }
+
+            for (size_t i = 0; i < ARRAY_SIZE(g_command_pools); i++) {
+                CommandContextUtils::reset(g_command_pools[i]);
+            }
+        }
+
+        // Process resources queued for destruction
+        // TODO: I don't think this works properly at all atm
+        //process_destruction_queue(g_destruction_queue);
+
+        for (auto& descriptor_heap : g_descriptor_heaps) {
+            DescriptorUtils::process_destruction_queue(descriptor_heap, g_current_frame_idx);
+        }
+    }
+
+    CmdReceipt present_frame()
+    {
         // Present the frame.
         if (g_swap_chain.swap_chain != nullptr) {
             u32 sync_intervals = g_swap_chain.vsync ? 1 : 0;
@@ -489,7 +499,10 @@ namespace zec
         }
 
         // Increment our cpu frame couter to indicate submission
-        signal(g_frame_fence, g_gfx_queue, g_current_cpu_frame++);
+        signal(g_frame_fence, g_gfx_queue, g_current_cpu_frame);
+        return CmdReceipt{
+            .queue_type = CommandQueueType::GRAPHICS,
+            .fence_value = g_current_cpu_frame++ };
     }
 
     // ---------- Resource Queries ----------

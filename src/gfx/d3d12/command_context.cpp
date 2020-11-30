@@ -405,4 +405,29 @@ namespace zec::gfx::cmd
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
         cmd_list->ResourceBarrier(u32(num_transitions), barriers);
     };
+
+    void transition_resources(const CommandContextHandle ctx, ResourceTransitionDesc* transition_descs, u64 num_transitions)
+    {
+        constexpr u64 MAX_NUM_BARRIERS = 16;
+        ASSERT(num_transitions <= MAX_NUM_BARRIERS);
+        D3D12_RESOURCE_BARRIER barriers[MAX_NUM_BARRIERS];
+        for (size_t i = 0; i < num_transitions; i++) {
+            D3D12_RESOURCE_BARRIER& barrier = barriers[i];
+            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            ID3D12Resource* resource = nullptr;
+            if (transition_descs[i].type == ResourceTransitionType::TEXTURE) {
+                resource = get_resource(g_textures, transition_descs[i].texture);
+            }
+            else {
+                resource = g_buffers.get(transition_descs[i].buffer).resource;
+            }
+            barrier.Transition.pResource = resource;
+            barrier.Transition.StateBefore = to_d3d_resource_state(transition_descs[i].before);
+            barrier.Transition.StateAfter = to_d3d_resource_state(transition_descs[i].after);
+            barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        }
+        ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+        cmd_list->ResourceBarrier(u32(num_transitions), barriers);
+    }
 }

@@ -19,6 +19,9 @@ namespace zec
     CommandContextHandle begin_frame();
     void end_frame(const CommandContextHandle command_context);
 
+    void reset_for_frame();
+    CmdReceipt present_frame();
+
     // ---------- Resource Queries ----------
     u32 get_shader_readable_texture_index(const TextureHandle handle);
     u32 get_shader_writable_texture_index(const TextureHandle handle);

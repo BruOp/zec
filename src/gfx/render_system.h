@@ -114,9 +114,9 @@ namespace zec::RenderSystem
     struct ResourceState
     {
         PassResourceType type = PassResourceType::INVALID;
-        ResourceUsage last_usage = RESOURCE_USAGE_UNUSED;
-        TextureHandle textures[RENDER_LATENCY];
-        BufferHandle buffer[RENDER_LATENCY];
+        ResourceUsage last_usages[RENDER_LATENCY] = { RESOURCE_USAGE_UNUSED, RESOURCE_USAGE_UNUSED };
+        TextureHandle textures[RENDER_LATENCY] = {};
+        BufferHandle buffers[RENDER_LATENCY] = {};
     };
 
     struct RenderList
