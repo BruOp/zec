@@ -16,12 +16,12 @@ RWTexture2DArray<half4> rw_tex2D_array_table[4096] : register(u0, space2);
 
 SamplerState cube_sampler : register(s0);
 
-float3 to_world_coords(uint3 globalId, uint size)
+float3 to_world_coords(uint3 dispatch_id, uint size)
 {
-    float2 uvc = (float2(globalId.xy) + 0.5) / float(size);
+    float2 uvc = (float2(dispatch_id.xy) + 0.5) / float(size);
     uvc = 2.0 * uvc - 1.0;
     uvc.y *= -1.0;
-    switch (globalId.z) {
+    switch (dispatch_id.z) {
     case 0:
         return float3(1.0, uvc.y, -uvc.x);
     case 1:
@@ -131,7 +131,7 @@ void CSMain(
         float4 color = src_texture.SampleLevel(cube_sampler, dir, float(mip_idx));
         out_texture[dispatch_id] = half4(color);
     } else {
-        float alpha = float(mip_idx) / log2(img_width);
-        out_texture[dispatch_id] = half4(prefilter_env_map(src_texture, alpha, dir, img_width), 1.0f);
+        float roughness = float(mip_idx) / log2(img_width);
+        out_texture[dispatch_id] = half4(prefilter_env_map(src_texture, roughness, dir, img_width), 1.0f);
     }
 }

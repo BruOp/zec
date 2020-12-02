@@ -697,7 +697,16 @@ namespace zec
             DescriptorRangeHandle srv = DescriptorUtils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, &cpu_handle);
             texture.srv = srv;
 
-            D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = { };
+            D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
+                .Format = d3d_desc.Format,
+                .ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
+                .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .Texture2D = {
+                    .MostDetailedMip = 0,
+                    .MipLevels = u32(-1),
+                    .ResourceMinLODClamp = 0.0f,
+                 },
+            };
 
             if (desc.is_cubemap) {
                 ASSERT(texture.info.array_size == 6);
@@ -718,7 +727,6 @@ namespace zec
                 g_device->CreateShaderResourceView(texture.resource, &srv_desc, cpu_handle);
             }
         }
-
 
         if (desc.usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
             constexpr u32 MAX_NUM_MIPS = 16;
@@ -871,25 +879,29 @@ namespace zec
             }
 
             if (srv_count > 0) {
-                D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_count++];
-                parameter.ShaderVisibility = to_d3d_visibility(ShaderVisibility::ALL);
-                parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-                parameter.DescriptorTable = {
-                    .NumDescriptorRanges = srv_count,
-                    .pDescriptorRanges = srv_ranges,
-                };
-                remaining_dwords--;
+                for (size_t srv_table_idx = 0; srv_table_idx < srv_count; srv_table_idx++) {
+                    D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_count++];
+                    parameter.ShaderVisibility = to_d3d_visibility(ShaderVisibility::ALL);
+                    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    parameter.DescriptorTable = {
+                        .NumDescriptorRanges = 1,
+                        .pDescriptorRanges = &srv_ranges[srv_table_idx],
+                    };
+                    remaining_dwords--;
+                }
             }
 
             if (uav_count > 0) {
-                D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_count++];
-                parameter.ShaderVisibility = to_d3d_visibility(ShaderVisibility::ALL);
-                parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-                parameter.DescriptorTable = {
-                    .NumDescriptorRanges = uav_count,
-                    .pDescriptorRanges = uav_ranges,
-                };
-                remaining_dwords--;
+                for (size_t uav_table_idx = 0; uav_table_idx < uav_count; uav_table_idx++) {
+                    D3D12_ROOT_PARAMETER& parameter = root_parameters[parameter_count++];
+                    parameter.ShaderVisibility = to_d3d_visibility(ShaderVisibility::ALL);
+                    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    parameter.DescriptorTable = {
+                        .NumDescriptorRanges = uav_count,
+                        .pDescriptorRanges = &uav_ranges[uav_table_idx],
+                    };
+                    remaining_dwords--;
+                }
             }
         }
 

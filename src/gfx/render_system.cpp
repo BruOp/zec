@@ -9,7 +9,7 @@ namespace zec::RenderSystem
     {
         PassOutputDesc desc;
         ResourceUsage initial_state;
-        u32 output_by_pass_idx;
+        u32 last_written_to_by_pass_idx;
     };
 
     constexpr size_t GRAPH_DEPTH_LIMIT = 16; //totally arbitrary
@@ -59,7 +59,7 @@ namespace zec::RenderSystem
                     ASSERT(output_descs[input_name].desc.type == input.type);
                     output_descs[input_name].desc.usage = ResourceUsage(output_descs[input_name].desc.usage | input.usage);
 
-                    u32 parent_pass_idx = output_descs[input_name].output_by_pass_idx;
+                    u32 parent_pass_idx = output_descs[input_name].last_written_to_by_pass_idx;
                     ASSERT(parent_pass_idx < pass_idx);
 
                     auto& parent_pass = in_render_list.render_passes[parent_pass_idx];
@@ -67,7 +67,6 @@ namespace zec::RenderSystem
                     parent_pass.requires_flush = true;
 
                     if (render_pass_descs[parent_pass_idx].queue_type != render_pass_desc.queue_type) {
-
                         render_pass.receipt_idx_to_wait_on = parent_pass_idx;
                     }
 
@@ -88,28 +87,36 @@ namespace zec::RenderSystem
                     break;
                 }
 
-                // We do not currently allow outputing to the same resource more than once in a render list
                 std::string output_name = output.name;
-                ASSERT(!output_descs.contains(output_name));
 
-                // Add it to our list
-                output_descs[output_name].initial_state = output.usage;
-                output_descs[output_name].desc = output;
-                output_descs[output_name].output_by_pass_idx = pass_idx;
+                if (output_descs.contains(output_name)) {
+                    u32 previously_written_by = output_descs[output_name].last_written_to_by_pass_idx;
+                    auto& previous_pass = in_render_list.render_passes[previously_written_by];
+                    previous_pass.requires_flush = true;
 
-                if (output_name == backbuffer_resource_name) {
-                    ASSERT(output.type == PassResourceType::TEXTURE);
-                    ASSERT(output.texture_desc.size_class == SizeClass::RELATIVE_TO_SWAP_CHAIN);
-                    ASSERT(output.texture_desc.width == 1.0f);
-                    ASSERT(output.texture_desc.height == 1.0f);
-                    ASSERT(output.texture_desc.num_mips == 1);
-                    ASSERT(output.texture_desc.depth == 1);
-                    ASSERT(output.texture_desc.is_3d == false);
-                    ASSERT(output.texture_desc.is_cubemap == false);
-                    ASSERT(output.usage == RESOURCE_USAGE_RENDER_TARGET);
+                    output_descs[output_name].last_written_to_by_pass_idx = pass_idx;
 
-                    writes_to_backbuffer_resource = true;
-                    render_pass.requires_flush = true;
+                }
+                else {
+                    // Add it to our list
+                    output_descs[output_name].initial_state = output.usage;
+                    output_descs[output_name].desc = output;
+                    output_descs[output_name].last_written_to_by_pass_idx = pass_idx;
+
+                    if (output_name == backbuffer_resource_name) {
+                        ASSERT(output.type == PassResourceType::TEXTURE);
+                        ASSERT(output.texture_desc.size_class == SizeClass::RELATIVE_TO_SWAP_CHAIN);
+                        ASSERT(output.texture_desc.width == 1.0f);
+                        ASSERT(output.texture_desc.height == 1.0f);
+                        ASSERT(output.texture_desc.num_mips == 1);
+                        ASSERT(output.texture_desc.depth == 1);
+                        ASSERT(output.texture_desc.is_3d == false);
+                        ASSERT(output.texture_desc.is_cubemap == false);
+                        ASSERT(output.usage == RESOURCE_USAGE_RENDER_TARGET);
+
+                        writes_to_backbuffer_resource = true;
+                        render_pass.requires_flush = true;
+                    }
                 }
 
                 size_t transition_idx = in_render_list.resource_transition_descs.push_back({

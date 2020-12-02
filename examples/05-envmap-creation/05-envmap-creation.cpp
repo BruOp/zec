@@ -22,7 +22,7 @@ struct ViewConstantData
     mat4 invVP;
     float exposure = 1.0f;
     u32 mip_level = 0;
-    u32 envmap_idx;
+    u32 env_map_idx;
     float padding[45];
 };
 static_assert(sizeof(ViewConstantData) == 256);
@@ -336,7 +336,7 @@ protected:
 
             camera_controller.update(time_data.delta_seconds_f);
             view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
-            view_constant_data.envmap_idx = get_shader_readable_texture_index(prefiltering_task.out_texture);
+            view_constant_data.env_map_idx = get_shader_readable_texture_index(prefiltering_task.out_texture);
 
             update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
         }

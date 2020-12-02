@@ -58,6 +58,8 @@ namespace zec
                 return DXGI_FORMAT_R8G8_UNORM;
             case BufferFormat::UNORM16_2:
                 return DXGI_FORMAT_R16G16_UNORM;
+            case BufferFormat::HALF_2:
+                return DXGI_FORMAT_R16G16_FLOAT;
             case BufferFormat::FLOAT_2:
                 return DXGI_FORMAT_R32G32_FLOAT;
             case BufferFormat::FLOAT_3:

@@ -73,6 +73,7 @@ namespace zec
         UINT32,
         UNORM8_2,
         UNORM16_2,
+        HALF_2,
         FLOAT_2,
         FLOAT_3,
         UINT8_4,
