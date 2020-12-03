@@ -122,6 +122,7 @@ namespace ForwardPass
         pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
         forward_context->pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+        gfx::pipelines::set_debug_name(forward_context->pso_handle, L"Forward Rendering Pipeline");
     }
 
     void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)

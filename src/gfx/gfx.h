@@ -26,17 +26,22 @@ namespace zec::gfx
 
     MeshHandle create_mesh(MeshDesc mesh_desc);
 
+    namespace pipelines
+    {
+        ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
+        PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
+
+        void set_debug_name(ResourceLayoutHandle handle, wchar* name);
+        void set_debug_name(PipelineStateHandle handle, wchar* name);
+    }
+
     namespace buffers
     {
         BufferHandle create(BufferDesc buffer_desc);
 
         void update(const BufferHandle buffer_id, const void* data, u64 byte_size);
-    }
 
-    namespace pipelines
-    {
-        ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
-        PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
+        void set_debug_name(const BufferHandle handle, const wchar* name);
     }
 
     namespace textures
@@ -50,6 +55,8 @@ namespace zec::gfx
 
         TextureHandle load_from_file(const char* file_path, const bool force_srgb = false);
         void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);
+
+        void set_debug_name(const TextureHandle handle, const wchar* name);
     }
 
     namespace cmd

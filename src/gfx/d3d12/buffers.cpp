@@ -117,4 +117,10 @@ namespace zec::gfx::buffers
         Buffer& buffer = g_buffers[buffer_id];
         update_buffer(buffer, data, byte_size, g_current_frame_idx);
     }
+
+    void set_debug_name(const BufferHandle handle, const wchar* name)
+    {
+        ID3D12Resource* resource = g_buffers[handle].resource;
+        resource->SetName(name);
+    }
 }

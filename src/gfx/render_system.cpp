@@ -162,14 +162,16 @@ namespace zec::RenderSystem
                     .stride = resource_desc.buffer_desc.stride,
                 };
 
-                BufferHandle buffer = buffers::create(buffer_desc);
                 ResourceState resource_state = {
                     .type = PassResourceType::BUFFER,
                     .last_usages = { pair.second.initial_state, pair.second.initial_state },
                 };
                 for (size_t j = 0; j < RENDER_LATENCY; j++) {
 
-                    resource_state.buffers[j] = buffers::create(buffer_desc);;
+                    resource_state.buffers[j] = buffers::create(buffer_desc);
+                    std::wstring debug_name = ansi_to_wstring(name.c_str()) + to_string(j);
+                    buffers::set_debug_name(resource_state.buffers[j], debug_name.c_str());
+
                 }
                 in_render_list.resource_map[name] = resource_state;
             }
@@ -203,6 +205,8 @@ namespace zec::RenderSystem
                 };
                 for (size_t j = 0; j < RENDER_LATENCY; j++) {
                     resource_state.textures[j] = textures::create(texture_desc);
+                    std::wstring debug_name = ansi_to_wstring(name.c_str()) + to_string(j);
+                    textures::set_debug_name(resource_state.textures[j], debug_name.c_str());
                 }
                 in_render_list.resource_map[name] = resource_state;
             }

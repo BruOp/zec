@@ -383,4 +383,10 @@ namespace zec::gfx::textures
 
         DXCall(DirectX::SaveToDDSFile(scratch.GetImages(), scratch.GetImageCount(), scratch.GetMetadata(), DirectX::DDS_FLAGS_NONE, file_path));
     }
+
+    void set_debug_name(const TextureHandle handle, const wchar* name)
+    {
+        ID3D12Resource* resource = dx12::get_resource(g_textures, handle);
+        resource->SetName(name);
+    }
 }
