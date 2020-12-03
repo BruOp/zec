@@ -34,7 +34,7 @@ namespace zec
     ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
     PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
 
-    TextureHandle load_texture_from_file(const char* file_path);
+    TextureHandle load_texture_from_file(const char* file_path, const bool force_srgb = false);
 
     // ---------- Resource updates ----------
     void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size);

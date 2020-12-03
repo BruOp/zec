@@ -10,7 +10,8 @@
 //*********************************************************
 #pragma pack_matrix( row_major )
 
-cbuffer background_constants : register(b0) {
+cbuffer background_constants : register(b0)
+{
     float mip_level;
 }
 

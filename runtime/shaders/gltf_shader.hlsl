@@ -36,6 +36,7 @@ cbuffer view_constants_buffer : register(b1)
 };
 
 SamplerState default_sampler : register(s0);
+SamplerState lut_sampler : register(s1);
 
 Texture2D tex2D_table[4096] : register(t0, space1);
 TextureCube tex_cube_table[4096] : register(t0, space2);
@@ -226,12 +227,12 @@ float4 PSMain(PSInput input) : SV_TARGET
         TextureCube radiance_map = tex_cube_table[radiance_map_idx];
         TextureCube irradiance_map = tex_cube_table[irradiance_map_idx];
 
-        float NoV = clamp(dot(normal, -view_dir), 0.00005, 1.0);
-        float2 f_ab = brdf_lut.Sample(default_sampler, float2(NoV, roughness)).rg;
+        float NoV = clamp(dot(normal, view_dir), 0.00005, 1.0);
+        float2 f_ab = brdf_lut.Sample(lut_sampler, float2(NoV, roughness)).rg;
         float3 sample_dir = reflect(-view_dir, normal);
         float3 radiance = radiance_map.SampleLevel(default_sampler, sample_dir, roughness * num_env_levels).rgb;
         float3 irradiance = irradiance_map.Sample(default_sampler, sample_dir).rgb;
-        
+
         // Multiple scattering, from Fdez-Aguera
         // See https://bruop.github.io/ibl/ for additional explanation
         //float3 Fr = max(float3_splat(1.0 - roughness), f0) - f0;
@@ -243,13 +244,14 @@ float4 PSMain(PSInput input) : SV_TARGET
         float3 f_avg = f0 + (1.0 - f0) / 21.0;
         float3 FmsEms = Ems * FssEss * f_avg / (1.0 - f_avg * Ems);
         float3 k_D = base_color.rgb * (1.0 - FssEss - FmsEms);
-        
-        light_out += FssEss * radiance + (k_D + FmsEms) * irradiance;
+
+        light_out += occlusion * (FssEss * radiance + base_color.rgb * irradiance);
     }
-    
+
     //float3 diffuse = calc_diffuse(base_color.xyz, metallic);
     //float3 specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
-    //light_out += emissive + occlusion * light_in * (diffuse + PI * specular);
+    //light_out += occlusion * light_in * (diffuse + PI * specular);
+    light_out += emissive;
 
     return float4(light_out, 1.0);
 }

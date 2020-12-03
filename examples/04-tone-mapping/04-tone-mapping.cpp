@@ -92,8 +92,14 @@ namespace ForwardPass
                     .wrap_v = SamplerWrapMode::WRAP,
                     .binding_slot = 0,
                 },
+                {
+                    .filtering = SamplerFilterType::MIN_LINEAR_MAG_LINEAR_MIP_LINEAR,
+                    .wrap_u = SamplerWrapMode::CLAMP,
+                    .wrap_v = SamplerWrapMode::CLAMP,
+                    .binding_slot = 1,
+                },
             },
-            .num_static_samplers = 1,
+            .num_static_samplers = 2,
         };
 
         forward_context->resource_layout = create_resource_layout(layout_desc);
@@ -162,7 +168,7 @@ namespace BackgroundPass
         BufferHandle view_cb_handle = {};
         MeshHandle fullscreen_quad = {};
         // Owned
-        float mip_level = 1.5f;
+        float mip_level = 1.0f;
         ResourceLayoutHandle resource_layout = {};
         PipelineStateHandle pso_handle = {};
     };
@@ -338,8 +344,6 @@ namespace ToneMapping
 
 namespace BRDFLutCreator
 {
-    static constexpr u32 LUT_WIDTH = 128;
-
     struct Context
     {
         TextureHandle out_texture = {};
@@ -384,7 +388,9 @@ namespace BRDFLutCreator
         gfx::cmd::bind_constant(cmd_ctx, &pass_context->out_texture, 1, 0);
         gfx::cmd::bind_resource_table(cmd_ctx, 1);
 
-        const u32 dispatch_size = LUT_WIDTH / 8u;
+        const u32 lut_width = gfx::textures::get_texture_info(pass_context->out_texture).width;
+
+        const u32 dispatch_size = lut_width / 8u;
         gfx::cmd::dispatch(cmd_ctx, dispatch_size, dispatch_size, 1);
     }
 }
@@ -545,8 +551,8 @@ protected:
         fullscreen_mesh = create_mesh(fullscreen_desc);
 
         TextureDesc brdf_lut_desc{
-            .width = 128,
-            .height = 128,
+            .width = 256,
+            .height = 256,
             .depth = 1,
             .num_mips = 1,
             .array_size = 1,
@@ -573,8 +579,9 @@ protected:
         irradiance_map = create_texture(irradiance_desc);
         radiance_map = load_texture_from_file("textures/prefiltered_paper_mill.dds");
 
-        //gltf::load_gltf_file("models/damaged_helmet/DamagedHelmet.gltf", gltf_context);
-        gltf::load_gltf_file("models/environment_test/EnvironmentTest.gltf", gltf_context);
+        gltf::load_gltf_file("models/damaged_helmet/DamagedHelmet.gltf", gltf_context);
+        //gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", gltf_context);
+        //gltf::load_gltf_file("models/environment_test/EnvironmentTest.gltf", gltf_context);
 
         end_upload();
 
@@ -620,7 +627,7 @@ protected:
         background_context = {
             .view_cb_handle = view_cb_handle,
             .fullscreen_quad = fullscreen_mesh,
-            .mip_level = 1.5f,
+            .mip_level = 1.0f,
         };
 
         tonemapping_context = {

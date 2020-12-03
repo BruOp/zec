@@ -142,6 +142,7 @@ namespace zec
             for (const auto& texture : model.textures) {
                 const auto& image = model.images[texture.source];
                 std::filesystem::path image_path = folder_path / std::filesystem::path{ image.uri };
+
                 const TextureHandle texture = load_texture_from_file(image_path.string().c_str());
                 out_context.textures.push_back(texture);
 

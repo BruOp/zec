@@ -105,7 +105,7 @@ void CSMain(
     float2 dims;
     out_texture.GetDimensions(dims.x, dims.y);
     // Normalized pixel coordinates (from 0 to 1)
-    float2 uv = (float2(dispatch_id.xy) - 1.0) / dims;
+    float2 uv = (float2(dispatch_id.xy) + 0.5) / dims;
     float NoV = uv.x;
     float roughness = uv.y;
 

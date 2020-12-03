@@ -167,7 +167,7 @@ namespace zec
             ASSERT(g_adapter == nullptr);
             ASSERT(g_factory == nullptr);
             ASSERT(g_device == nullptr);
-            constexpr int ADAPTER_NUMBER = 1;
+            constexpr int ADAPTER_NUMBER = 0;
 
             UINT factory_flags = 0;
         #ifdef USE_DEBUG_DEVICE
@@ -955,7 +955,7 @@ namespace zec
         return g_root_signatures.push_back(root_signature);
     }
 
-    TextureHandle zec::load_texture_from_file(const char* file_path)
+    TextureHandle zec::load_texture_from_file(const char* file_path, const bool force_srgb)
     {
         std::wstring path = ansi_to_wstring(file_path);
         const std::filesystem::path filesystem_path{ file_path };
@@ -976,6 +976,10 @@ namespace zec
         const DirectX::TexMetadata meta_data = image.GetMetadata();
         bool is_3d = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
 
+        DXGI_FORMAT d3d_format = meta_data.format;
+        if (force_srgb) {
+            d3d_format = to_srgb_format(d3d_format);
+        }
 
         Texture texture = {
             .info = {
@@ -984,7 +988,7 @@ namespace zec
                 .depth = u32(meta_data.depth),
                 .num_mips = u32(meta_data.mipLevels),
                 .array_size = u32(meta_data.arraySize),
-                .format = from_d3d_format(meta_data.format),
+                .format = from_d3d_format(d3d_format),
                 .is_cubemap = u16(meta_data.IsCubemap())
             }
         };
@@ -998,7 +1002,7 @@ namespace zec
             .Height = texture.info.height,
             .DepthOrArraySize = is_3d ? u16(texture.info.depth) : u16(texture.info.array_size),
             .MipLevels = u16(meta_data.mipLevels),
-            .Format = meta_data.format,
+            .Format = d3d_format,
             .SampleDesc = {
                 .Count = 1,
                 .Quality = 0,
@@ -1025,7 +1029,7 @@ namespace zec
         texture.srv = srv;
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
-            .Format = meta_data.format,
+            .Format = d3d_format,
             .ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
             .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
             .Texture2D = {

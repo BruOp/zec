@@ -18,6 +18,7 @@ namespace zec
 
         DXGI_FORMAT to_d3d_format(const BufferFormat format);
         BufferFormat from_d3d_format(const DXGI_FORMAT format);
+        DXGI_FORMAT to_srgb_format(const DXGI_FORMAT format);
 
         D3D12_RASTERIZER_DESC to_d3d_rasterizer_desc(const RasterStateDesc& desc);
 

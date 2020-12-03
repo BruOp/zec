@@ -84,7 +84,7 @@ namespace zec
             cosf(pitch),
             sinf(pitch) * sinf(yaw),
         };
-        camera->position *= radius;
-        set_camera_view(*camera, look_at(camera->position + origin, origin, k_up));
+        camera->position = camera->position * radius + origin;
+        set_camera_view(*camera, look_at(camera->position, origin, k_up));
     }
 }
