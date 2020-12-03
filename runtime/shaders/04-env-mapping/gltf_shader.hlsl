@@ -25,16 +25,21 @@ cbuffer draw_constants_buffer : register(b0)
 
 cbuffer view_constants_buffer : register(b1)
 {
-    float4x4 view;
-    float4x4 proj;
     float4x4 VP;
+    float4x4 invVP;
     float3 camera_pos;
+    uint radiance_map_idx;
+    uint irradiance_map_idx;
+    uint brdf_lut_idx;
+    float num_env_levels;
     float time;
 };
 
 SamplerState default_sampler : register(s0);
+SamplerState lut_sampler : register(s1);
 
 Texture2D tex2D_table[4096] : register(t0, space1);
+TextureCube tex_cube_table[4096] : register(t0, space2);
 
 struct PSInput
 {
@@ -163,16 +168,20 @@ float4 PSMain(PSInput input) : SV_TARGET
     const float3 light_color = float3_splat(1.0);
 
     float4 base_color = base_color_factor;
-    if (base_color_texture_idx != INVALID_TEXTURE_IDX) {
+    if (base_color_texture_idx != INVALID_TEXTURE_IDX)
+    {
         Texture2D base_color_texture = tex2D_table[base_color_texture_idx];
         base_color *= base_color_texture.Sample(default_sampler, input.uv);
     }
 
     float3 normal = input.normal_ws;
-    if (normal_texture_idx != INVALID_TEXTURE_IDX) {
+    if (normal_texture_idx != INVALID_TEXTURE_IDX)
+    {
         Texture2D normal_texture = tex2D_table[normal_texture_idx];
         normal = perturb_normal(normal_texture, normal, view_dir, input.uv);
-    } else {
+    }
+    else
+    {
         normal = normalize(input.normal_ws);
     }
 
@@ -180,20 +189,23 @@ float4 PSMain(PSInput input) : SV_TARGET
     float roughness = roughness_factor;
     float metallic = metallic_factor;
 
-    if (metallic_roughness_texture_idx != INVALID_TEXTURE_IDX) {
+    if (metallic_roughness_texture_idx != INVALID_TEXTURE_IDX)
+    {
         Texture2D metallic_roughness_texture = tex2D_table[metallic_roughness_texture_idx];
         float4 mr_texture_read = metallic_roughness_texture.Sample(default_sampler, input.uv);
         metallic *= mr_texture_read.b;
         roughness *= mr_texture_read.g;
     }
     roughness = max(MIN_ROUGHNESS, roughness);
-    if (occlusion_texture_idx != INVALID_TEXTURE_IDX) {
+    if (occlusion_texture_idx != INVALID_TEXTURE_IDX)
+    {
         Texture2D occlusion_texture = tex2D_table[occlusion_texture_idx];
         occlusion = occlusion_texture.Sample(default_sampler, input.uv).r;
     }
 
     float3 emissive = emissive_factor;
-    if (emissive_texture_idx != INVALID_TEXTURE_IDX) {
+    if (emissive_texture_idx != INVALID_TEXTURE_IDX)
+    {
         Texture2D emissive_texture = tex2D_table[emissive_texture_idx];
         emissive *= emissive_texture.Sample(default_sampler, input.uv).rgb;
     }
@@ -207,9 +219,39 @@ float4 PSMain(PSInput input) : SV_TARGET
 
 
     float3 f0 = lerp(float3_splat(DIELECTRIC_SPECULAR), base_color.rgb, metallic);
-    float3 diffuse = calc_diffuse(base_color.xyz, metallic);
-    float3 specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
-    float3 light_out = emissive + occlusion * light_in * (diffuse + PI * specular);
+    float3 light_out = float3(0.0, 0.0, 0.0);
+
+    if (irradiance_map_idx != INVALID_TEXTURE_IDX && radiance_map_idx != INVALID_TEXTURE_IDX)
+    {
+        Texture2D brdf_lut = tex2D_table[brdf_lut_idx];
+        TextureCube radiance_map = tex_cube_table[radiance_map_idx];
+        TextureCube irradiance_map = tex_cube_table[irradiance_map_idx];
+
+        float NoV = clamp(dot(normal, view_dir), 0.00005, 1.0);
+        float2 f_ab = brdf_lut.Sample(lut_sampler, float2(NoV, roughness)).rg;
+        float3 sample_dir = reflect(-view_dir, normal);
+        float3 radiance = radiance_map.SampleLevel(default_sampler, sample_dir, roughness * num_env_levels).rgb;
+        float3 irradiance = irradiance_map.Sample(default_sampler, sample_dir).rgb;
+
+        // Multiple scattering, from Fdez-Aguera
+        // See https://bruop.github.io/ibl/ for additional explanation
+        //float3 Fr = max(float3_splat(1.0 - roughness), f0) - f0;
+        //float3 k_S = f0 + Fr * pow(1.0 - NoV, 5.0);
+        //float3 FssEss = k_S * f_ab.x + f_ab.y;
+        // Typically, simply:
+        float3 FssEss = f0 * f_ab.x + f_ab.y;
+        float Ems = (1.0 - (f_ab.x + f_ab.y));
+        float3 f_avg = f0 + (1.0 - f0) / 21.0;
+        float3 FmsEms = Ems * FssEss * f_avg / (1.0 - f_avg * Ems);
+        float3 k_D = base_color.rgb * (1.0 - FssEss - FmsEms);
+
+        light_out += occlusion * (FssEss * radiance + base_color.rgb * irradiance);
+    }
+
+    //float3 diffuse = calc_diffuse(base_color.xyz, metallic);
+    //float3 specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
+    //light_out += occlusion * light_in * (diffuse + PI * specular);
+    light_out += emissive;
 
     return float4(light_out, 1.0);
 }
