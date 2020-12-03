@@ -111,7 +111,7 @@ namespace ForwardPass
             { MESH_ATTRIBUTE_NORMAL, 0, BufferFormat::FLOAT_3, 1 },
             { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::FLOAT_2, 2 },
         } };
-        pipeline_desc.shader_file_path = L"shaders/04-env-mapping/gltf_shader.hlsl";
+        pipeline_desc.shader_file_path = L"shaders/04-ibl/gltf_shader.hlsl";
         pipeline_desc.rtv_formats[0] = BufferFormat::R16G16B16A16_FLOAT;
         pipeline_desc.depth_buffer_format = BufferFormat::D32;
         pipeline_desc.resource_layout = forward_context->resource_layout;
@@ -211,7 +211,7 @@ namespace BackgroundPass
             { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
             { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::FLOAT_2, 1 },
         } };
-        pipeline_desc.shader_file_path = L"shaders/04-env-mapping/background_pass.hlsl";
+        pipeline_desc.shader_file_path = L"shaders/04-ibl/background_pass.hlsl";
         pipeline_desc.rtv_formats[0] = BufferFormat::R16G16B16A16_FLOAT;
         pipeline_desc.depth_buffer_format = BufferFormat::D32;
         pipeline_desc.resource_layout = background_context->resource_layout;
@@ -299,7 +299,7 @@ namespace ToneMapping
                 { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::FLOAT_2, 1 },
              } },
              .rtv_formats = {{ BufferFormat::R8G8B8A8_UNORM_SRGB }},
-             .shader_file_path = L"shaders/04-env-mapping/basic_tone_map.hlsl",
+             .shader_file_path = L"shaders/04-ibl/basic_tone_map.hlsl",
         };
         pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::OFF;
         pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
@@ -375,7 +375,7 @@ namespace BRDFLutCreator
         PipelineStateObjectDesc pipeline_desc = {
             .resource_layout = pass_context->resource_layout,
             .used_stages = PIPELINE_STAGE_COMPUTE,
-            .shader_file_path = L"shaders/04-env-mapping/brdf_lut_creator.hlsl",
+            .shader_file_path = L"shaders/04-ibl/brdf_lut_creator.hlsl",
         };
         pass_context->pso_handle = create_pipeline_state_object(pipeline_desc);
     }
@@ -438,7 +438,7 @@ namespace IrradiancePass
         PipelineStateObjectDesc pipeline_desc = {
             .resource_layout = pass_context->resource_layout,
             .used_stages = PIPELINE_STAGE_COMPUTE,
-            .shader_file_path = L"shaders/04-env-mapping/env_map_irradiance.hlsl",
+            .shader_file_path = L"shaders/04-ibl/env_map_irradiance.hlsl",
         };
         pass_context->pso_handle = create_pipeline_state_object(pipeline_desc);
     }

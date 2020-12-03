@@ -31,8 +31,8 @@ workspace "zec"
     "directxtex_desktop_win10:2020.8.15.1"
   }
 
-  targetdir (BUILD_DIR .. "bin/%{prj.name}/%{cfg.longname}")
-  objdir (BUILD_DIR .. "obj/%{prj.name}/%{cfg.longname}")
+  targetdir (BUILD_DIR .. "bin/%{cfg.longname}/%{prj.name}")
+  objdir (BUILD_DIR .. "obj/%{cfg.longname}/%{prj.name}")
 
   floatingpoint "fast"
 
@@ -142,6 +142,6 @@ exampleProject(
     "01-hello-world",
     "02-normal-mapping",
     "03-gltf-loading",
-    "04-tone-mapping",
+    "04-ibl",
     "05-envmap-creation"
 )
