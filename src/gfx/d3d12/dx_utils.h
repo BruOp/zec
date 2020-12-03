@@ -3,9 +3,8 @@
 #include "utils/exceptions.h"
 #include "DXErr.h"
 
-namespace zec::dx12
+namespace zec::gfx::dx12
 {
-
     inline std::wstring GetDXErrorString(HRESULT hr)
     {
         const u32 errStringSize = 1024;
@@ -61,7 +60,7 @@ namespace zec::dx12
 #define DXCall(x)   \
         do {                                                                        \
         HRESULT hr_ = x;                                                            \
-        ASSERT_MSG(SUCCEEDED(hr_), zec::dx12::GetDXErrorStringAnsi(hr_).c_str());   \
+        ASSERT_MSG(SUCCEEDED(hr_), zec::gfx::dx12::GetDXErrorStringAnsi(hr_).c_str());   \
         } while (0);
 #endif // DXCall
 #else // USE_ASSERTS

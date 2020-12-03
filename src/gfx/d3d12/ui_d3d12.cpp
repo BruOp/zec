@@ -9,11 +9,13 @@
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+using namespace zec::gfx::dx12;
+
 namespace zec::ui
 {
     struct UIState
     {
-        dx12::DescriptorRangeHandle srv_handle = {};
+        DescriptorRangeHandle srv_handle = {};
     };
 
     static UIState g_ui_state;
@@ -33,14 +35,14 @@ namespace zec::ui
 
         window.register_message_callback(window_callback, nullptr);
 
-        dx12::DescriptorHeap& srv_heap = dx12::g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
+        DescriptorHeap& srv_heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-        g_ui_state.srv_handle = dx12::DescriptorUtils::allocate_descriptors(srv_heap, 1, &cpu_handle);
-        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = dx12::DescriptorUtils::get_gpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
+        g_ui_state.srv_handle = DescriptorUtils::allocate_descriptors(srv_heap, 1, &cpu_handle);
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = DescriptorUtils::get_gpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
         ImGui_ImplDX12_Init(
-            dx12::g_device,
+            g_device,
             RENDER_LATENCY,
-            dx12::g_swap_chain.format,
+            g_swap_chain.format,
             srv_heap.heap,
             cpu_handle,
             gpu_handle);
@@ -48,7 +50,7 @@ namespace zec::ui
 
     void destroy()
     {
-        dx12::DescriptorUtils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
+        DescriptorUtils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
         ImGui_ImplDX12_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
@@ -64,7 +66,7 @@ namespace zec::ui
 
     void end_frame(const CommandContextHandle handle)
     {
-        ID3D12GraphicsCommandList* cmd_list = dx12::CommandContextUtils::get_command_list(handle);
+        ID3D12GraphicsCommandList* cmd_list = CommandContextUtils::get_command_list(handle);
         ImGui::Render();
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
     }

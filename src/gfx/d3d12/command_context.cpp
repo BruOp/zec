@@ -4,8 +4,9 @@
 #include "dx_helpers.h"
 #include "dx_utils.h"
 #include "globals.h"
+#include "textures.h"
 
-namespace zec::dx12::CommandContextUtils
+namespace zec::gfx::dx12::CommandContextUtils
 {
     constexpr u64 CMD_LIST_IDX_BIT_WIDTH = 8;
     constexpr u64 CMD_ALLOCATOR_IDX_BIT_WIDTH = 16;
@@ -209,8 +210,8 @@ namespace zec::dx12::CommandContextUtils
 
 namespace zec::gfx::cmd
 {
-    using namespace dx12;
-    using namespace dx12::CommandContextUtils;
+    using namespace zec::gfx::dx12;
+    using namespace zec::gfx::dx12::CommandContextUtils;
 
     CommandContextHandle provision(const CommandQueueType type)
     {
@@ -376,13 +377,13 @@ namespace zec::gfx::cmd
         D3D12_CPU_DESCRIPTOR_HANDLE dsv;
         D3D12_CPU_DESCRIPTOR_HANDLE* dsv_ptr = nullptr;
         if (is_valid(depth_target)) {
-            DescriptorRangeHandle descriptor_handle = TextureUtils::get_dsv(g_textures, depth_target);
+            DescriptorRangeHandle descriptor_handle = dx12::TextureUtils::get_dsv(g_textures, depth_target);
             dsv = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, descriptor_handle);
             dsv_ptr = &dsv;
         }
         D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
         for (size_t i = 0; i < num_render_targets; i++) {
-            DescriptorRangeHandle descriptor_handle = TextureUtils::get_rtv(g_textures, render_textures[i]);
+            DescriptorRangeHandle descriptor_handle = dx12::TextureUtils::get_rtv(g_textures, render_textures[i]);
             rtvs[i] = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, descriptor_handle);
         }
         cmd_list->OMSetRenderTargets(num_render_targets, rtvs, FALSE, dsv_ptr);

@@ -3,7 +3,7 @@
 #include "core/zec_math.h"
 #include "public_resources.h"
 
-namespace zec
+namespace zec::gfx
 {
     void init_renderer(const RendererDesc& renderer_desc);
     void destroy_renderer();
@@ -22,31 +22,37 @@ namespace zec
     void reset_for_frame();
     CmdReceipt present_frame();
 
-    // ---------- Resource Queries ----------
-    u32 get_shader_readable_texture_index(const TextureHandle handle);
-    u32 get_shader_writable_texture_index(const TextureHandle handle);
     TextureHandle get_current_back_buffer_handle();
 
-    // ---------- Resource creation ----------
-    BufferHandle create_buffer(BufferDesc buffer_desc);
     MeshHandle create_mesh(MeshDesc mesh_desc);
-    TextureHandle create_texture(TextureDesc texture_desc);
-    ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
-    PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
 
-    TextureHandle load_texture_from_file(const char* file_path, const bool force_srgb = false);
-
-    // ---------- Resource updates ----------
-    void update_buffer(const BufferHandle buffer_id, const void* data, u64 byte_size);
-
-    namespace gfx::textures
+    namespace buffers
     {
-        TextureInfo& get_texture_info(const TextureHandle texture_handle);
+        BufferHandle create(BufferDesc buffer_desc);
 
-        void save_texture(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);
+        void update(const BufferHandle buffer_id, const void* data, u64 byte_size);
     }
 
-    namespace gfx::cmd
+    namespace pipelines
+    {
+        ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
+        PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
+    }
+
+    namespace textures
+    {
+        TextureHandle create(TextureDesc texture_desc);
+
+        u32 get_shader_readable_index(const TextureHandle handle);
+        u32 get_shader_writable_index(const TextureHandle handle);
+
+        TextureInfo& get_texture_info(const TextureHandle texture_handle);
+
+        TextureHandle load_from_file(const char* file_path, const bool force_srgb = false);
+        void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);
+    }
+
+    namespace cmd
     {
         // ---------- Command Contexts ----------
         CommandContextHandle provision(CommandQueueType type);

@@ -143,7 +143,7 @@ namespace zec
                 const auto& image = model.images[texture.source];
                 std::filesystem::path image_path = folder_path / std::filesystem::path{ image.uri };
 
-                const TextureHandle texture = load_texture_from_file(image_path.string().c_str());
+                const TextureHandle texture = gfx::textures::load_from_file(image_path.string().c_str());
                 out_context.textures.push_back(texture);
 
                 // TODO: Process Samplers?
@@ -205,7 +205,7 @@ namespace zec
                     }
 
                     // Create mesh
-                    out_context.meshes.push_back(create_mesh(mesh_desc));
+                    out_context.meshes.push_back(gfx::create_mesh(mesh_desc));
                 }
             }
         }
@@ -227,31 +227,31 @@ namespace zec
                     const auto& color_texture = material.values.find("baseColorTexture");
                     if (color_texture != values_end) {
                         const TextureHandle handle = out_context.textures[color_texture->second.TextureIndex()];
-                        material_data.base_color_texture_idx = get_shader_readable_texture_index(handle);
+                        material_data.base_color_texture_idx = gfx::textures::get_shader_readable_index(handle);
                     }
 
                     const auto& m_r_texture = material.values.find("metallicRoughnessTexture");
                     if (m_r_texture != values_end) {
                         const TextureHandle handle = out_context.textures[m_r_texture->second.TextureIndex()];
-                        material_data.metallic_roughness_texture_idx = get_shader_readable_texture_index(handle);
+                        material_data.metallic_roughness_texture_idx = gfx::textures::get_shader_readable_index(handle);
                     }
 
                     const auto& normal_texture = material.additionalValues.find("normalTexture");
                     if (normal_texture != additional_values_end) {
                         const TextureHandle handle = out_context.textures[normal_texture->second.TextureIndex()];
-                        material_data.normal_texture_idx = get_shader_readable_texture_index(handle);
+                        material_data.normal_texture_idx = gfx::textures::get_shader_readable_index(handle);
                     }
 
                     const auto& occlusion_texture = material.additionalValues.find("occlusionTexture");
                     if (occlusion_texture != additional_values_end) {
                         const TextureHandle handle = out_context.textures[occlusion_texture->second.TextureIndex()];
-                        material_data.occlusion_texture_idx = get_shader_readable_texture_index(handle);
+                        material_data.occlusion_texture_idx = gfx::textures::get_shader_readable_index(handle);
                     }
 
                     const auto& emissive_texture = material.additionalValues.find("emissiveTexture");
                     if (emissive_texture != additional_values_end) {
                         const TextureHandle handle = out_context.textures[emissive_texture->second.TextureIndex()];
-                        material_data.emissive_texture_idx = get_shader_readable_texture_index(handle);
+                        material_data.emissive_texture_idx = gfx::textures::get_shader_readable_index(handle);
                     }
                 }
 

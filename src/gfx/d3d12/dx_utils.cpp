@@ -10,10 +10,10 @@ void DXCall(HRESULT hr)
 {
     if (FAILED(hr)) {
         if (hr == DXGI_ERROR_DEVICE_REMOVED) {
-            throw zec::dx12::DXException(zec::dx12::g_device->GetDeviceRemovedReason());
+            throw zec::gfx::dx12::DXException(zec::gfx::dx12::g_device->GetDeviceRemovedReason());
         }
         else {
-            throw zec::dx12::DXException(hr);
+            throw zec::gfx::dx12::DXException(hr);
         }
     }
 }

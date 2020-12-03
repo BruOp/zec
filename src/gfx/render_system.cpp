@@ -4,6 +4,7 @@
 
 namespace zec::RenderSystem
 {
+    using namespace zec::gfx;
 
     struct PassOutput
     {
@@ -161,14 +162,14 @@ namespace zec::RenderSystem
                     .stride = resource_desc.buffer_desc.stride,
                 };
 
-                BufferHandle buffer = create_buffer(buffer_desc);
+                BufferHandle buffer = buffers::create(buffer_desc);
                 ResourceState resource_state = {
                     .type = PassResourceType::BUFFER,
                     .last_usages = { pair.second.initial_state, pair.second.initial_state },
                 };
                 for (size_t j = 0; j < RENDER_LATENCY; j++) {
 
-                    resource_state.buffers[j] = create_buffer(buffer_desc);;
+                    resource_state.buffers[j] = buffers::create(buffer_desc);;
                 }
                 in_render_list.resource_map[name] = resource_state;
             }
@@ -201,7 +202,7 @@ namespace zec::RenderSystem
                     .last_usages = { pair.second.initial_state, pair.second.initial_state }
                 };
                 for (size_t j = 0; j < RENDER_LATENCY; j++) {
-                    resource_state.textures[j] = create_texture(texture_desc);
+                    resource_state.textures[j] = textures::create(texture_desc);
                 }
                 in_render_list.resource_map[name] = resource_state;
             }

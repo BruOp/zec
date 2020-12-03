@@ -6,7 +6,7 @@
 #include "gfx/gfx.h"
 #include "wrappers.h"
 
-namespace zec::dx12
+namespace zec::gfx::dx12
 {
     struct CommandContextPool
     {

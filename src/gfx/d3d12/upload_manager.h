@@ -11,67 +11,64 @@ namespace DirectX
     class ScratchImage;
 }
 
-namespace zec
+namespace zec::gfx::dx12
 {
-    namespace dx12
+    struct UploadManagerDesc
     {
-        struct UploadManagerDesc
+        CommandQueueType type;
+        ID3D12Device* device;
+        D3D12MA::Allocator* allocator;
+    };
+
+    struct TextureUploadDesc
+    {
+        DirectX::ScratchImage* data = nullptr;
+        D3D12_RESOURCE_DESC d3d_texture_desc = {};
+        u64 num_subresources = 0;
+        bool is_cube_map = false;
+    };
+
+    class UploadManager
+    {
+        struct UploadBatchInfo
         {
-            CommandQueueType type;
-            ID3D12Device* device;
-            D3D12MA::Allocator* allocator;
+            u64 fence_value;
+            u64 size;
         };
 
-        struct TextureUploadDesc
+        struct Upload
         {
-            DirectX::ScratchImage* data = nullptr;
-            D3D12_RESOURCE_DESC d3d_texture_desc = {};
-            u64 num_subresources = 0;
-            bool is_cube_map = false;
+            ID3D12Resource* resource = nullptr;
+            D3D12MA::Allocation* allocation = nullptr;
         };
 
-        class UploadManager
-        {
-            struct UploadBatchInfo
-            {
-                u64 fence_value;
-                u64 size;
-            };
+    public:
+        UploadManager() = default;
+        ~UploadManager();
 
-            struct Upload
-            {
-                ID3D12Resource* resource = nullptr;
-                D3D12MA::Allocation* allocation = nullptr;
-            };
+        void init(const UploadManagerDesc& desc);
+        void destroy();
 
-        public:
-            UploadManager() = default;
-            ~UploadManager();
+        void begin_upload();
+        CmdReceipt end_upload();
 
-            void init(const UploadManagerDesc& desc);
-            void destroy();
+        void queue_upload(const BufferDesc& buffer_desc, ID3D12Resource* destination_resource);
+        void queue_upload(const TextureUploadDesc& texture_upload_desc, Texture& texture);
 
-            void begin_upload();
-            CmdReceipt end_upload();
+    private:
 
-            void queue_upload(const BufferDesc& buffer_desc, ID3D12Resource* destination_resource);
-            void queue_upload(const TextureUploadDesc& texture_upload_desc, Texture& texture);
+        CommandQueueType type = CommandQueueType::COPY;
+        // Non-owning
+        ID3D12Device* device;
+        D3D12MA::Allocator* allocator;
 
-        private:
+        CommandContextHandle cmd_ctx = {};
 
-            CommandQueueType type = CommandQueueType::COPY;
-            // Non-owning
-            ID3D12Device* device;
-            D3D12MA::Allocator* allocator;
+        // Owned
+        u64 num_pending_resources;
 
-            CommandContextHandle cmd_ctx = {};
-
-            // Owned
-            u64 num_pending_resources;
-
-            static constexpr u64 MAX_IN_FLIGHT_UPLOAD_BATCHES = 8; // Totally arbitrary
-            RingBuffer<Upload> upload_queue = {};
-            FixedRingBuffer<UploadBatchInfo, MAX_IN_FLIGHT_UPLOAD_BATCHES> upload_batch_info = {};
-        };
-    }
+        static constexpr u64 MAX_IN_FLIGHT_UPLOAD_BATCHES = 8; // Totally arbitrary
+        RingBuffer<Upload> upload_queue = {};
+        FixedRingBuffer<UploadBatchInfo, MAX_IN_FLIGHT_UPLOAD_BATCHES> upload_batch_info = {};
+    };
 }

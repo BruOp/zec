@@ -102,7 +102,7 @@ namespace ForwardPass
             .num_static_samplers = 2,
         };
 
-        forward_context->resource_layout = create_resource_layout(layout_desc);
+        forward_context->resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
 
         // Create the Pipeline State Object
         PipelineStateObjectDesc pipeline_desc = {};
@@ -121,7 +121,7 @@ namespace ForwardPass
         pipeline_desc.depth_stencil_state.depth_write = TRUE;
         pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
-        forward_context->pso_handle = create_pipeline_state_object(pipeline_desc);
+        forward_context->pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
     }
 
     void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
@@ -203,7 +203,7 @@ namespace BackgroundPass
             .num_static_samplers = 1,
         };
 
-        background_context->resource_layout = create_resource_layout(layout_desc);
+        background_context->resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
 
         // Create the Pipeline State Object
         PipelineStateObjectDesc pipeline_desc = {};
@@ -221,7 +221,7 @@ namespace BackgroundPass
         pipeline_desc.depth_stencil_state.depth_write = FALSE;
         pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
-        background_context->pso_handle = create_pipeline_state_object(pipeline_desc);
+        background_context->pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
     }
 
     void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
@@ -291,7 +291,7 @@ namespace ToneMapping
             .num_static_samplers = 1,
         };
 
-        tonemapping_context->resource_layout = create_resource_layout(tonemapping_layout_desc);
+        tonemapping_context->resource_layout = gfx::pipelines::create_resource_layout(tonemapping_layout_desc);
         PipelineStateObjectDesc pipeline_desc = {
              .resource_layout = tonemapping_context->resource_layout,
             .input_assembly_desc = {{
@@ -305,7 +305,7 @@ namespace ToneMapping
         pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
         pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
-        tonemapping_context->pso = create_pipeline_state_object(pipeline_desc);
+        tonemapping_context->pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
     }
 
     void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
@@ -327,7 +327,7 @@ namespace ToneMapping
         gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
         TonemapPassConstants tonemapping_constants = {
-            .src_texture = get_shader_readable_texture_index(hdr_buffer),
+            .src_texture = gfx::textures::get_shader_readable_index(hdr_buffer),
             .exposure = tonemapping_context->exposure
         };
         gfx::cmd::bind_constant(cmd_ctx, &tonemapping_constants, 2, 0);
@@ -369,7 +369,7 @@ namespace BRDFLutCreator
             .num_static_samplers = 0,
         };
 
-        pass_context->resource_layout = create_resource_layout(layout_desc);
+        pass_context->resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
 
         // Create the Pipeline State Object
         PipelineStateObjectDesc pipeline_desc = {
@@ -377,7 +377,7 @@ namespace BRDFLutCreator
             .used_stages = PIPELINE_STAGE_COMPUTE,
             .shader_file_path = L"shaders/04-ibl/brdf_lut_creator.hlsl",
         };
-        pass_context->pso_handle = create_pipeline_state_object(pipeline_desc);
+        pass_context->pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
     }
 
     void record(CommandContextHandle cmd_ctx, Context* pass_context)
@@ -432,7 +432,7 @@ namespace IrradiancePass
             .num_static_samplers = 1,
         };
 
-        pass_context->resource_layout = create_resource_layout(layout_desc);
+        pass_context->resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
 
         // Create the Pipeline State Object
         PipelineStateObjectDesc pipeline_desc = {
@@ -440,7 +440,7 @@ namespace IrradiancePass
             .used_stages = PIPELINE_STAGE_COMPUTE,
             .shader_file_path = L"shaders/04-ibl/env_map_irradiance.hlsl",
         };
-        pass_context->pso_handle = create_pipeline_state_object(pipeline_desc);
+        pass_context->pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
     }
 
     void record(CommandContextHandle cmd_ctx, Context* pass_context)
@@ -454,8 +454,8 @@ namespace IrradiancePass
         TextureInfo out_texture_info = gfx::textures::get_texture_info(pass_context->out_texture);
 
         IrradiancePassConstants constants = {
-            .src_texture_idx = get_shader_readable_texture_index(pass_context->src_texture),
-            .out_texture_idx = get_shader_writable_texture_index(pass_context->out_texture),
+            .src_texture_idx = gfx::textures::get_shader_readable_index(pass_context->src_texture),
+            .out_texture_idx = gfx::textures::get_shader_writable_index(pass_context->out_texture),
             .src_img_width = src_texture_info.width,
         };
         gfx::cmd::bind_constant(cmd_ctx, &constants, 3, 0);
@@ -510,7 +510,7 @@ protected:
             100.0f // far
         );
 
-        begin_upload();
+        gfx::begin_upload();
 
         constexpr float fullscreen_positions[] = {
              1.0f,  3.0f, 1.0f,
@@ -548,7 +548,7 @@ protected:
            .data = (void*)(fullscreen_uvs)
         };
 
-        fullscreen_mesh = create_mesh(fullscreen_desc);
+        fullscreen_mesh = gfx::create_mesh(fullscreen_desc);
 
         TextureDesc brdf_lut_desc{
             .width = 256,
@@ -562,7 +562,7 @@ protected:
             .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_COMPUTE_WRITABLE,
             .initial_state = RESOURCE_USAGE_COMPUTE_WRITABLE
         };
-        brdf_lut_map = create_texture(brdf_lut_desc);
+        brdf_lut_map = gfx::textures::create(brdf_lut_desc);
 
         TextureDesc irradiance_desc{
             .width = 64,
@@ -576,14 +576,14 @@ protected:
             .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_COMPUTE_WRITABLE,
             .initial_state = RESOURCE_USAGE_COMPUTE_WRITABLE
         };
-        irradiance_map = create_texture(irradiance_desc);
-        radiance_map = load_texture_from_file("textures/prefiltered_paper_mill.dds");
+        irradiance_map = gfx::textures::create(irradiance_desc);
+        radiance_map = gfx::textures::load_from_file("textures/prefiltered_paper_mill.dds");
 
         //gltf::load_gltf_file("models/damaged_helmet/DamagedHelmet.gltf", gltf_context);
         gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", gltf_context);
         //gltf::load_gltf_file("models/environment_test/EnvironmentTest.gltf", gltf_context);
 
-        end_upload();
+        gfx::end_upload();
 
         BufferDesc cb_desc = {
             .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
@@ -593,7 +593,7 @@ protected:
             .data = nullptr,
         };
 
-        view_cb_handle = create_buffer(cb_desc);
+        view_cb_handle = gfx::buffers::create(cb_desc);
 
         const size_t num_draws = gltf_context.draw_calls.size;
         draw_constant_data.reserve(num_draws);
@@ -614,7 +614,7 @@ protected:
             draw_cb_desc.data = &draw_constant_data[i];
 
             const size_t node_idx = draw_data_buffer_handles.push_back(
-                create_buffer(draw_cb_desc)
+                gfx::buffers::create(draw_cb_desc)
             );
         }
 
@@ -757,7 +757,7 @@ protected:
 
     void update(const zec::TimeData& time_data) override final
     {
-        frame_times[get_current_cpu_frame() % 120] = time_data.delta_milliseconds_f;
+        frame_times[gfx::get_current_cpu_frame() % 120] = time_data.delta_milliseconds_f;
 
         const TextureInfo& radiance_map_info = gfx::textures::get_texture_info(radiance_map);
 
@@ -765,23 +765,23 @@ protected:
         view_constant_data.VP = camera.projection * camera.view;
         view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
         view_constant_data.camera_position = camera.position;
-        view_constant_data.radiance_map_idx = get_shader_readable_texture_index(radiance_map);
-        view_constant_data.irradiance_map_idx = get_shader_readable_texture_index(irradiance_map);
-        view_constant_data.brdf_LUT = get_shader_readable_texture_index(brdf_lut_map);
+        view_constant_data.radiance_map_idx = gfx::textures::get_shader_readable_index(radiance_map);
+        view_constant_data.irradiance_map_idx = gfx::textures::get_shader_readable_index(irradiance_map);
+        view_constant_data.brdf_LUT = gfx::textures::get_shader_readable_index(brdf_lut_map);
         view_constant_data.num_env_levels = float(radiance_map_info.num_mips);
         view_constant_data.time = time_data.elapsed_seconds_f;
     }
 
     void render() override final
     {
-        reset_for_frame();
+        gfx::reset_for_frame();
 
         // Copy data over. Don't do this in Update!
-        update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
+        gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
 
         RenderSystem::execute(render_list);
 
-        present_frame();
+        gfx::present_frame();
     }
 
     void before_reset() override final
