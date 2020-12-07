@@ -13,6 +13,8 @@ using namespace zec::gfx::dx12;
 
 namespace zec::ui
 {
+    static bool g_is_ui_initialized = false;
+
     struct UIState
     {
         DescriptorRangeHandle srv_handle = {};
@@ -28,6 +30,7 @@ namespace zec::ui
     void initialize(Window& window)
     {
         IMGUI_CHECKVERSION();
+        ASSERT_MSG(!g_is_ui_initialized, "UI can only be initialized once!");
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO(); (void)io;
         ImGui::StyleColorsDark();
@@ -46,18 +49,22 @@ namespace zec::ui
             srv_heap.heap,
             cpu_handle,
             gpu_handle);
+        g_is_ui_initialized = true;
     }
 
     void destroy()
     {
+        ASSERT(g_is_ui_initialized);
         DescriptorUtils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
         ImGui_ImplDX12_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
+        g_is_ui_initialized = false;
     }
 
     void begin_frame()
     {
+        ASSERT(g_is_ui_initialized);
         // Start the Dear ImGui frame
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame();
@@ -66,6 +73,7 @@ namespace zec::ui
 
     void end_frame(const CommandContextHandle handle)
     {
+        ASSERT(g_is_ui_initialized);
         ID3D12GraphicsCommandList* cmd_list = CommandContextUtils::get_command_list(handle);
         ImGui::Render();
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);

@@ -329,13 +329,13 @@ namespace zec::gfx::pipelines
         return { g_pipelines.push_back(pipeline) };
     }
 
-    void set_debug_name(ResourceLayoutHandle handle, wchar* name)
+    void set_debug_name(ResourceLayoutHandle handle, const wchar* name)
     {
         ID3D12RootSignature* root_signature = g_root_signatures[handle];
         root_signature->SetName(name);
     }
 
-    void set_debug_name(PipelineStateHandle handle, wchar* name)
+    void set_debug_name(PipelineStateHandle handle, const wchar* name)
     {
         ID3D12PipelineState* pso = g_pipelines[handle];
         pso->SetName(name);

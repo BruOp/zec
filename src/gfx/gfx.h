@@ -31,8 +31,8 @@ namespace zec::gfx
         ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
         PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
 
-        void set_debug_name(ResourceLayoutHandle handle, wchar* name);
-        void set_debug_name(PipelineStateHandle handle, wchar* name);
+        void set_debug_name(ResourceLayoutHandle handle, const wchar* name);
+        void set_debug_name(PipelineStateHandle handle, const wchar* name);
     }
 
     namespace buffers
