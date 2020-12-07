@@ -25,7 +25,7 @@ namespace zec::gfx::dx12
         RingBuffer<u64> in_flight_fence_values = {};
     };
 
-    namespace CommandContextUtils
+    namespace cmd_utils
     {
         CommandContextPool& get_pool(const CommandQueueType type);
         ID3D12GraphicsCommandList* get_command_list(const CommandContextHandle handle);

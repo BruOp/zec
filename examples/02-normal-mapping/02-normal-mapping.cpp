@@ -233,7 +233,7 @@ protected:
                .data = (void*)(cube_uvs)
             };
 
-            cube_mesh = create_mesh(mesh_desc);
+            cube_mesh = create(mesh_desc);
         }
 
         // Texture creation

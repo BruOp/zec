@@ -205,7 +205,7 @@ namespace zec
                     }
 
                     // Create mesh
-                    out_context.meshes.push_back(gfx::create_mesh(mesh_desc));
+                    out_context.meshes.push_back(gfx::meshes::create(mesh_desc));
                 }
             }
         }

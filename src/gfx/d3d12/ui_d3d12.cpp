@@ -40,8 +40,8 @@ namespace zec::ui
 
         DescriptorHeap& srv_heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-        g_ui_state.srv_handle = DescriptorUtils::allocate_descriptors(srv_heap, 1, &cpu_handle);
-        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = DescriptorUtils::get_gpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
+        g_ui_state.srv_handle = descriptor_utils::allocate_descriptors(srv_heap, 1, &cpu_handle);
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = descriptor_utils::get_gpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
         ImGui_ImplDX12_Init(
             g_device,
             RENDER_LATENCY,
@@ -55,7 +55,7 @@ namespace zec::ui
     void destroy()
     {
         ASSERT(g_is_ui_initialized);
-        DescriptorUtils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
+        descriptor_utils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
         ImGui_ImplDX12_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
@@ -74,7 +74,7 @@ namespace zec::ui
     void end_frame(const CommandContextHandle handle)
     {
         ASSERT(g_is_ui_initialized);
-        ID3D12GraphicsCommandList* cmd_list = CommandContextUtils::get_command_list(handle);
+        ID3D12GraphicsCommandList* cmd_list = cmd_utils::get_command_list(handle);
         ImGui::Render();
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
     }

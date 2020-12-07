@@ -24,8 +24,6 @@ namespace zec::gfx
 
     TextureHandle get_current_back_buffer_handle();
 
-    MeshHandle create_mesh(MeshDesc mesh_desc);
-
     namespace pipelines
     {
         ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
@@ -42,6 +40,11 @@ namespace zec::gfx
         void update(const BufferHandle buffer_id, const void* data, u64 byte_size);
 
         void set_debug_name(const BufferHandle handle, const wchar* name);
+    }
+
+    namespace meshes
+    {
+        MeshHandle create(MeshDesc mesh_desc);
     }
 
     namespace textures

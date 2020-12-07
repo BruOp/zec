@@ -64,15 +64,15 @@ namespace zec::gfx
                 ID3D12Resource* resource = get_resource(g_textures, texture_handle);
                 if (resource != nullptr) dx_destroy(&resource);
 
-                const auto rtv_handle = TextureUtils::get_rtv(g_textures, texture_handle);
-                DescriptorUtils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv_handle);
+                const auto rtv_handle = texture_utils::get_rtv(g_textures, texture_handle);
+                descriptor_utils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv_handle);
 
                 DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&resource)));
                 set_resource(g_textures, resource, texture_handle);
 
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle{};
-                DescriptorRangeHandle rtv = DescriptorUtils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, &cpu_handle);
-                TextureUtils::set_rtv(g_textures, g_swap_chain.back_buffers[i], rtv);
+                DescriptorRangeHandle rtv = descriptor_utils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, &cpu_handle);
+                texture_utils::set_rtv(g_textures, g_swap_chain.back_buffers[i], rtv);
 
                 D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = { };
                 rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
@@ -85,7 +85,7 @@ namespace zec::gfx
                 resource->SetName(make_string(L"Back Buffer %llu", i).c_str());
 
                 // Copy properties from swap chain to backbuffer textures, in case we need em
-                TextureInfo& texture_info = TextureUtils::get_texture_info(g_textures, texture_handle);
+                TextureInfo& texture_info = texture_utils::get_texture_info(g_textures, texture_handle);
                 texture_info.width = swap_chain.width;
                 texture_info.height = swap_chain.height;
                 texture_info.depth = 1;
@@ -166,7 +166,7 @@ namespace zec::gfx
             ASSERT(g_adapter == nullptr);
             ASSERT(g_factory == nullptr);
             ASSERT(g_device == nullptr);
-            constexpr int ADAPTER_NUMBER = 1;
+            constexpr int ADAPTER_NUMBER = 0;
 
             UINT factory_flags = 0;
         #ifdef USE_DEBUG_DEVICE
@@ -288,18 +288,18 @@ namespace zec::gfx
             }
 
 
-            dx12::CommandContextUtils::initialize_pools();
+            dx12::cmd_utils::initialize_pools();
         }
 
         // Initialize descriptor heaps
-        DescriptorUtils::init_descriptor_heaps();
+        descriptor_utils::init_descriptor_heaps();
 
         // Swapchain initialization
         {
             ASSERT(g_swap_chain.swap_chain == nullptr);
 
             for (size_t i = 0; i < NUM_BACK_BUFFERS; i++) {
-                g_swap_chain.back_buffers[i] = TextureUtils::push_back(g_textures, Texture{});
+                g_swap_chain.back_buffers[i] = texture_utils::push_back(g_textures, Texture{});
             }
 
             SwapChainDesc swap_chain_desc{ };
@@ -375,9 +375,9 @@ namespace zec::gfx
         destroy(g_destruction_queue, g_buffers);
         destroy(g_destruction_queue, g_fences);
 
-        DescriptorUtils::destroy_descriptor_heaps();
+        descriptor_utils::destroy_descriptor_heaps();
 
-        CommandContextUtils::destroy_pools();
+        cmd_utils::destroy_pools();
 
         dx_destroy(&g_gfx_queue);
         dx_destroy(&g_compute_queue);
@@ -405,7 +405,7 @@ namespace zec::gfx
     {
         for (size_t i = 0; i < ARRAY_SIZE(g_command_pools); i++) {
             wait(g_command_pools[i].fence, g_command_pools[i].last_used_fence_value);
-            CommandContextUtils::reset(g_command_pools[i]);
+            cmd_utils::reset(g_command_pools[i]);
         }
     }
 
@@ -438,7 +438,7 @@ namespace zec::gfx
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
-        CommandContextUtils::insert_resource_barrier(command_context, &barrier, 1);
+        cmd_utils::insert_resource_barrier(command_context, &barrier, 1);
 
         return command_context;
     }
@@ -455,8 +455,8 @@ namespace zec::gfx
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
-        CommandContextUtils::insert_resource_barrier(command_context, &barrier, 1);
-        CommandContextUtils::return_and_execute(&command_context, 1);
+        cmd_utils::insert_resource_barrier(command_context, &barrier, 1);
+        cmd_utils::return_and_execute(&command_context, 1);
 
         present_frame();
     }
@@ -476,7 +476,7 @@ namespace zec::gfx
             }
 
             for (size_t i = 0; i < ARRAY_SIZE(g_command_pools); i++) {
-                CommandContextUtils::reset(g_command_pools[i]);
+                cmd_utils::reset(g_command_pools[i]);
             }
         }
 
@@ -485,7 +485,7 @@ namespace zec::gfx
         //process_destruction_queue(g_destruction_queue);
 
         for (auto& descriptor_heap : g_descriptor_heaps) {
-            DescriptorUtils::process_destruction_queue(descriptor_heap, g_current_frame_idx);
+            descriptor_utils::process_destruction_queue(descriptor_heap, g_current_frame_idx);
         }
     }
 
@@ -507,55 +507,6 @@ namespace zec::gfx
     TextureHandle get_current_back_buffer_handle()
     {
         return dx12::get_current_back_buffer_handle(g_swap_chain, g_current_frame_idx);
-    }
-
-    MeshHandle create_mesh(MeshDesc mesh_desc)
-    {
-        Mesh mesh{};
-        // Index buffer creation
-        {
-            ASSERT(mesh_desc.index_buffer_desc.usage == RESOURCE_USAGE_INDEX);
-            mesh.index_buffer_handle = buffers::create(mesh_desc.index_buffer_desc);
-
-            const Buffer& index_buffer = g_buffers[mesh.index_buffer_handle];
-            mesh.index_buffer_view.BufferLocation = index_buffer.gpu_address;
-            ASSERT(index_buffer.size < u64(UINT32_MAX));
-            mesh.index_buffer_view.SizeInBytes = u32(index_buffer.size);
-
-            switch (mesh_desc.index_buffer_desc.stride) {
-            case 2u:
-                mesh.index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
-                break;
-            case 4u:
-                mesh.index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
-                break;
-            default:
-                throw std::runtime_error("Cannot create an index buffer that isn't u16 or u32");
-            }
-
-            mesh.index_count = mesh_desc.index_buffer_desc.byte_size / mesh_desc.index_buffer_desc.stride;
-        }
-
-        for (size_t i = 0; i < ARRAY_SIZE(mesh_desc.vertex_buffer_descs); i++) {
-            const BufferDesc& attr_desc = mesh_desc.vertex_buffer_descs[i];
-            if (attr_desc.usage == RESOURCE_USAGE_UNUSED) break;
-
-            // TODO: Is this actually needed?
-            ASSERT(attr_desc.usage == RESOURCE_USAGE_VERTEX);
-            ASSERT(attr_desc.type == BufferType::DEFAULT);
-
-            mesh.vertex_buffer_handles[i] = buffers::create(attr_desc);
-            const Buffer& buffer = g_buffers[mesh.vertex_buffer_handles[i]];
-
-            D3D12_VERTEX_BUFFER_VIEW& view = mesh.buffer_views[i];
-            view.BufferLocation = buffer.gpu_address;
-            view.StrideInBytes = attr_desc.stride;
-            view.SizeInBytes = attr_desc.byte_size;
-            mesh.num_vertex_buffers++;
-        }
-
-        // TODO: Support blend weights, indices
-        return { u32(g_meshes.push_back(mesh)) };
     }
 }
 #endif // USE_D3D_RENDERER

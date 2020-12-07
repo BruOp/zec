@@ -299,7 +299,7 @@ protected:
            .data = (void*)(fullscreen_uvs)
         };
 
-        fullscreen_mesh = create_mesh(fullscreen_desc);
+        fullscreen_mesh = create(fullscreen_desc);
 
         end_upload();
 

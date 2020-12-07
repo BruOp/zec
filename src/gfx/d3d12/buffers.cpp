@@ -1,9 +1,9 @@
 #include "pch.h"
 #include "gfx/gfx.h"
+#include "buffers.h"
 #include "globals.h"
 #include "dx_utils.h"
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
-#include "resources.h"
 
 namespace zec::gfx::dx12
 {

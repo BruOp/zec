@@ -4,7 +4,7 @@
 #include "dx_utils.h"
 
 
-namespace zec::gfx::dx12::DescriptorUtils
+namespace zec::gfx::dx12::descriptor_utils
 {
     void init(ID3D12Device* device, DescriptorHeap& heap, const DescriptorHeapDesc& desc)
     {

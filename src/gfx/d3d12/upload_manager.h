@@ -5,6 +5,9 @@
 #include "gfx/public_resources.h"
 #include "wrappers.h"
 #include "resource_managers.h"
+#include "textures.h"
+#include "buffers.h"
+
 
 namespace DirectX
 {

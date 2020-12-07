@@ -1,12 +1,13 @@
 #include "pch.h"
 #include "command_context.h"
-#include "gfx/gfx.h"
 #include "dx_helpers.h"
 #include "dx_utils.h"
 #include "globals.h"
+#include "buffers.h"
 #include "textures.h"
+#include "meshes.h"
 
-namespace zec::gfx::dx12::CommandContextUtils
+namespace zec::gfx::dx12::cmd_utils
 {
     constexpr u64 CMD_LIST_IDX_BIT_WIDTH = 8;
     constexpr u64 CMD_ALLOCATOR_IDX_BIT_WIDTH = 16;
@@ -211,17 +212,17 @@ namespace zec::gfx::dx12::CommandContextUtils
 namespace zec::gfx::cmd
 {
     using namespace zec::gfx::dx12;
-    using namespace zec::gfx::dx12::CommandContextUtils;
+    using namespace zec::gfx::dx12::cmd_utils;
 
     CommandContextHandle provision(const CommandQueueType type)
     {
         CommandContextPool& pool = get_pool(type);
-        return CommandContextUtils::provision(pool);
+        return cmd_utils::provision(pool);
     }
 
     CmdReceipt return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts)
     {
-        return dx12::CommandContextUtils::return_and_execute(context_handles, num_contexts);
+        return dx12::cmd_utils::return_and_execute(context_handles, num_contexts);
     };
 
     bool check_status(const CmdReceipt receipt)
@@ -334,16 +335,16 @@ namespace zec::gfx::cmd
     void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const float* clear_color)
     {
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-        DescriptorRangeHandle rtv = TextureUtils::get_rtv(g_textures, render_texture);
-        auto cpu_handle = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv);
+        DescriptorRangeHandle rtv = texture_utils::get_rtv(g_textures, render_texture);
+        auto cpu_handle = descriptor_utils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv);
         cmd_list->ClearRenderTargetView(cpu_handle, clear_color, 0, nullptr);
     };
 
     void clear_depth_target(const CommandContextHandle ctx, const TextureHandle depth_stencil_buffer, const float depth_value, const u8 stencil_value)
     {
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-        DescriptorRangeHandle dsv = TextureUtils::get_dsv(g_textures, depth_stencil_buffer);
-        auto cpu_handle = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, dsv);
+        DescriptorRangeHandle dsv = texture_utils::get_dsv(g_textures, depth_stencil_buffer);
+        auto cpu_handle = descriptor_utils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, dsv);
         cmd_list->ClearDepthStencilView(cpu_handle, D3D12_CLEAR_FLAG_DEPTH, depth_value, stencil_value, 0, nullptr);
 
     };
@@ -377,14 +378,14 @@ namespace zec::gfx::cmd
         D3D12_CPU_DESCRIPTOR_HANDLE dsv;
         D3D12_CPU_DESCRIPTOR_HANDLE* dsv_ptr = nullptr;
         if (is_valid(depth_target)) {
-            DescriptorRangeHandle descriptor_handle = dx12::TextureUtils::get_dsv(g_textures, depth_target);
-            dsv = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, descriptor_handle);
+            DescriptorRangeHandle descriptor_handle = dx12::texture_utils::get_dsv(g_textures, depth_target);
+            dsv = descriptor_utils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, descriptor_handle);
             dsv_ptr = &dsv;
         }
         D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
         for (size_t i = 0; i < num_render_targets; i++) {
-            DescriptorRangeHandle descriptor_handle = dx12::TextureUtils::get_rtv(g_textures, render_textures[i]);
-            rtvs[i] = DescriptorUtils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, descriptor_handle);
+            DescriptorRangeHandle descriptor_handle = dx12::texture_utils::get_rtv(g_textures, render_textures[i]);
+            rtvs[i] = descriptor_utils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, descriptor_handle);
         }
         cmd_list->OMSetRenderTargets(num_render_targets, rtvs, FALSE, dsv_ptr);
     }

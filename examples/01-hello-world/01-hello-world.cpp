@@ -126,7 +126,7 @@ protected:
                (void*)(cube_colors)
             };
 
-            cube_mesh = create_mesh(mesh_desc);
+            cube_mesh = create(mesh_desc);
         }
         end_upload();
 

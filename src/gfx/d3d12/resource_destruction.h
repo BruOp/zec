@@ -5,7 +5,6 @@
 #include "gfx/public_resources.h"
 #include "descriptor_heap.h"
 #include "wrappers.h"
-#include "resources.h"
 #include "resource_managers.h"
 #include "textures.h"
 

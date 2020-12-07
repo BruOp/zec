@@ -1,14 +1,32 @@
 #pragma once
 #include "pch.h"
-#include "utils/utils.h"
 #include "gfx/public_resources.h"
-#include "command_context.h"
-#include <DirectXTex.h>
-#include "resources.h"
+#include "utils/utils.h"
 #include "dx_utils.h"
+#include "descriptor_heap.h"
+#include "D3D12MemAlloc/D3D12MemAlloc.h"
+#include <DirectXTex.h>
 
 namespace zec::gfx::dx12
 {
+    struct RenderTargetInfo
+    {
+        u8 mssa_samples = 0;
+        u8 msaa_quality = 0;
+    };
+
+    struct Texture
+    {
+        ID3D12Resource* resource = nullptr;
+        D3D12MA::Allocation* allocation = nullptr;
+        DescriptorRangeHandle srv = INVALID_HANDLE;
+        DescriptorRangeHandle uav = INVALID_HANDLE;
+        DescriptorRangeHandle rtv = INVALID_HANDLE;
+        DescriptorRangeHandle dsv = INVALID_HANDLE;
+        TextureInfo info = {};
+        RenderTargetInfo render_target_info = {};
+    };
+
     struct DepthStencilInfo
     {
         TextureHandle handle;
@@ -37,18 +55,18 @@ namespace zec::gfx::dx12
         Array<DepthStencilInfo> dsv_infos = {};
     };
 
-    namespace TextureUtils
+    namespace texture_utils
     {
         TextureHandle push_back(TextureList& list, const Texture& texture);
 
         inline u32 get_srv_index(TextureList& texture_list, TextureHandle handle)
         {
-            return DescriptorUtils::get_offset(texture_list.srvs[handle.idx]);
+            return descriptor_utils::get_offset(texture_list.srvs[handle.idx]);
         };
 
         inline u32 get_uav_index(TextureList& texture_list, TextureHandle handle)
         {
-            return DescriptorUtils::get_offset(texture_list.uavs[handle.idx]);
+            return descriptor_utils::get_offset(texture_list.uavs[handle.idx]);
         };
 
         inline DescriptorRangeHandle get_rtv(TextureList& texture_list, TextureHandle handle)

@@ -3,7 +3,6 @@
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 #include "gfx/public_resources.h"
 #include "wrappers.h"
-#include "resources.h"
 #include "utils/utils.h"
 
 namespace zec::gfx::dx12

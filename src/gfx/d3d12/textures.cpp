@@ -7,7 +7,7 @@
 
 namespace zec::gfx::dx12
 {
-    namespace TextureUtils
+    namespace texture_utils
     {
         TextureHandle push_back(TextureList& list, const Texture& texture)
         {
@@ -20,7 +20,7 @@ namespace zec::gfx::dx12
             list.infos.push_back(texture.info);
             list.render_target_infos.push_back(texture.render_target_info);
 
-            if (DescriptorUtils::is_valid(texture.dsv)) {
+            if (descriptor_utils::is_valid(texture.dsv)) {
                 list.dsv_infos.push_back({ handle, texture.dsv });
             };
 
@@ -141,7 +141,7 @@ namespace zec::gfx::textures
         if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
 
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-            DescriptorRangeHandle srv = DescriptorUtils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, &cpu_handle);
+            DescriptorRangeHandle srv = descriptor_utils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, &cpu_handle);
             texture.srv = srv;
 
             D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
@@ -179,7 +179,7 @@ namespace zec::gfx::textures
             constexpr u32 MAX_NUM_MIPS = 16;
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_handles[MAX_NUM_MIPS] = {};
             ASSERT(texture.info.num_mips < MAX_NUM_MIPS);
-            DescriptorRangeHandle uav = DescriptorUtils::allocate_descriptors(
+            DescriptorRangeHandle uav = descriptor_utils::allocate_descriptors(
                 D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
                 texture.info.num_mips,
                 cpu_handles
@@ -217,7 +217,7 @@ namespace zec::gfx::textures
 
         if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-            DescriptorRangeHandle rtv = DescriptorUtils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, &cpu_handle);
+            DescriptorRangeHandle rtv = descriptor_utils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, &cpu_handle);
             texture.rtv = rtv;
 
             g_device->CreateRenderTargetView(texture.resource, nullptr, cpu_handle);
@@ -225,7 +225,7 @@ namespace zec::gfx::textures
 
         if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-            DescriptorRangeHandle dsv = DescriptorUtils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, texture.info.array_size, &cpu_handle);
+            DescriptorRangeHandle dsv = descriptor_utils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, texture.info.array_size, &cpu_handle);
             texture.dsv = dsv;
 
             D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {
@@ -240,22 +240,22 @@ namespace zec::gfx::textures
             g_device->CreateDepthStencilView(texture.resource, &dsv_desc, cpu_handle);
         }
 
-        return TextureUtils::push_back(g_textures, texture);
+        return texture_utils::push_back(g_textures, texture);
     }
 
     u32 get_shader_readable_index(const TextureHandle handle)
     {
-        return TextureUtils::get_srv_index(g_textures, handle);
+        return texture_utils::get_srv_index(g_textures, handle);
     }
 
     u32 get_shader_writable_index(const TextureHandle handle)
     {
-        return TextureUtils::get_uav_index(g_textures, handle);
+        return texture_utils::get_uav_index(g_textures, handle);
     }
 
     TextureInfo& get_texture_info(const TextureHandle texture_handle)
     {
-        return dx12::TextureUtils::get_texture_info(dx12::g_textures, texture_handle);
+        return dx12::texture_utils::get_texture_info(dx12::g_textures, texture_handle);
     };
 
     TextureHandle load_from_file(const char* file_path, const bool force_srgb)
@@ -328,7 +328,7 @@ namespace zec::gfx::textures
         ));
 
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle{};
-        DescriptorRangeHandle srv = DescriptorUtils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, &cpu_handle);
+        DescriptorRangeHandle srv = descriptor_utils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, &cpu_handle);
         texture.srv = srv;
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
@@ -363,7 +363,7 @@ namespace zec::gfx::textures
         };
         g_upload_manager.queue_upload(texture_upload_desc, texture);
 
-        return TextureUtils::push_back(g_textures, texture);
+        return texture_utils::push_back(g_textures, texture);
     }
 
     void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage)
@@ -371,7 +371,7 @@ namespace zec::gfx::textures
         DirectX::ScratchImage scratch{ };
         TextureInfo& texture_info = get_texture_info(texture_handle);
         ID3D12Resource* resource = dx12::get_resource(dx12::g_textures, texture_handle);
-        ID3D12CommandQueue* gfx_queue = dx12::CommandContextUtils::get_pool(CommandQueueType::GRAPHICS).queue;
+        ID3D12CommandQueue* gfx_queue = dx12::cmd_utils::get_pool(CommandQueueType::GRAPHICS).queue;
         DXCall(DirectX::CaptureTexture(
             gfx_queue,
             resource,

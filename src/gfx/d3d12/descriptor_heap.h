@@ -45,7 +45,7 @@ namespace zec::gfx::dx12
         Array<DescriptorRangeHandle> dead_list;
     };
 
-    namespace DescriptorUtils
+    namespace descriptor_utils
     {
 
         inline u32 get_offset(const DescriptorRangeHandle handle)

@@ -7,6 +7,7 @@
 
 using namespace zec;
 
+constexpr u32 DESCRIPTOR_TABLE_SIZE = 4096;
 
 namespace ResourceNames
 {
@@ -81,8 +82,8 @@ namespace ForwardPass
             },
             .num_constant_buffers = 2,
             .tables = {
-                {.usage = ResourceAccess::READ, .count = 4096 },
-                {.usage = ResourceAccess::READ, .count = 4096 },
+                {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
+                {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
             },
             .num_resource_tables = 2,
             .static_samplers = {
@@ -190,7 +191,7 @@ namespace BackgroundPass
             },
             .num_constant_buffers = 1,
             .tables = {
-                {.usage = ResourceAccess::READ, .count = 4096 },
+                {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
             },
             .num_resource_tables = 1,
             .static_samplers = {
@@ -278,7 +279,7 @@ namespace ToneMapping
             .num_constants = 1,
             .num_constant_buffers = 0,
             .tables = {
-                {.usage = ResourceAccess::READ, .count = 4096 },
+                {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
             },
             .num_resource_tables = 1,
             .static_samplers = {
@@ -364,7 +365,7 @@ namespace BRDFLutCreator
             .num_constants = 1,
             .num_constant_buffers = 0,
             .tables = {
-                {.usage = ResourceAccess::WRITE, .count = 4096 },
+                {.usage = ResourceAccess::WRITE, .count = DESCRIPTOR_TABLE_SIZE },
             },
             .num_resource_tables = 1,
             .num_static_samplers = 0,
@@ -418,8 +419,8 @@ namespace IrradiancePass
             .num_constants = 1,
             .num_constant_buffers = 0,
             .tables = {
-                {.usage = ResourceAccess::READ, .count = 4096 },
-                {.usage = ResourceAccess::WRITE, .count = 4096 },
+                {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
+                {.usage = ResourceAccess::WRITE, .count = DESCRIPTOR_TABLE_SIZE },
             },
             .num_resource_tables = 2,
             .static_samplers = {
@@ -549,7 +550,7 @@ protected:
            .data = (void*)(fullscreen_uvs)
         };
 
-        fullscreen_mesh = gfx::create_mesh(fullscreen_desc);
+        fullscreen_mesh = gfx::meshes::create(fullscreen_desc);
 
         TextureDesc brdf_lut_desc{
             .width = 256,

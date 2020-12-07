@@ -104,7 +104,7 @@ namespace zec::gfx::dx12
         memory::copy(mapped_ptr, desc.data, desc.byte_size);
         upload.resource->Unmap(0, NULL);
 
-        CommandContextUtils::get_command_list(cmd_ctx)->CopyBufferRegion(destination_resource, 0, upload.resource, 0, desc.byte_size);
+        cmd_utils::get_command_list(cmd_ctx)->CopyBufferRegion(destination_resource, 0, upload.resource, 0, desc.byte_size);
     }
 
     void UploadManager::queue_upload(const TextureUploadDesc& texture_upload_desc, Texture& texture)
@@ -169,7 +169,7 @@ namespace zec::gfx::dx12
             }
         }
 
-        ID3D12GraphicsCommandList* cmd_list = CommandContextUtils::get_command_list(cmd_ctx);
+        ID3D12GraphicsCommandList* cmd_list = cmd_utils::get_command_list(cmd_ctx);
         for (u64 subresource_idx = 0; subresource_idx < texture_upload_desc.num_subresources; ++subresource_idx) {
             D3D12_TEXTURE_COPY_LOCATION dst = { };
             dst.pResource = texture.resource;
