@@ -81,7 +81,7 @@ void init(PrefilterEnvMapTask& task)
     .num_static_samplers = 1,
     };
 
-    task.layout = create_resource_layout(prefiltering_layout_desc);
+    task.layout = gfx::pipelines::create_resource_layout(prefiltering_layout_desc);
 
     PipelineStateObjectDesc pipeline_desc = {
         .resource_layout = task.layout,
@@ -90,7 +90,7 @@ void init(PrefilterEnvMapTask& task)
     pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
     pipeline_desc.used_stages = PIPELINE_STAGE_COMPUTE;
 
-    task.pso = create_pipeline_state_object(pipeline_desc);
+    task.pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
 
 }
 
@@ -108,7 +108,7 @@ void issue_commands(PrefilterEnvMapTask& task, const PrefilterEnvMapDesc desc)
         .usage = RESOURCE_USAGE_COMPUTE_WRITABLE | RESOURCE_USAGE_SHADER_READABLE,
         .initial_state = RESOURCE_USAGE_COMPUTE_WRITABLE
     };
-    task.out_texture = create_texture(output_envmap_desc);
+    task.out_texture = gfx::textures::create(output_envmap_desc);
 
     CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::ASYNC_COMPUTE);
 
@@ -125,8 +125,8 @@ void issue_commands(PrefilterEnvMapTask& task, const PrefilterEnvMapDesc desc)
         u32 mip_width = texture_info.width >> mip_idx;
 
         PrefilteringPassConstants prefilter_constants = {
-            .src_texture_idx = get_shader_readable_texture_index(desc.src_texture),
-            .out_texture_initial_idx = get_shader_writable_texture_index(task.out_texture),
+            .src_texture_idx = gfx::textures::get_shader_readable_index(desc.src_texture),
+            .out_texture_initial_idx = gfx::textures::get_shader_writable_index(task.out_texture),
             .mip_idx = mip_idx,
             .img_width = texture_info.width,
         };
@@ -164,9 +164,9 @@ void handle_transition(PrefilterEnvMapTask& task, const CommandContextHandle cmd
 
 void load_src_envmap(PrefilterEnvMapTask& prefiltering_task, const char* file_path)
 {
-    begin_upload();
-    TextureHandle input_envmap = load_texture_from_file(file_path);
-    CmdReceipt receipt = end_upload();
+    gfx::begin_upload();
+    TextureHandle input_envmap = gfx::textures::load_from_file(file_path);
+    CmdReceipt receipt = gfx::end_upload();
     gfx::cmd::gpu_wait(CommandQueueType::COMPUTE, receipt);
     issue_commands(prefiltering_task, { .src_texture = input_envmap, .out_texture_width = 512 });
 }
@@ -243,7 +243,7 @@ protected:
                 },
                 .num_static_samplers = 1,
             };
-            background_pass_layout = create_resource_layout(background_pass_layout_desc);
+            background_pass_layout = gfx::pipelines::create_resource_layout(background_pass_layout_desc);
 
             PipelineStateObjectDesc pipeline_desc = {
                     .resource_layout = background_pass_layout,
@@ -256,12 +256,12 @@ protected:
             };
             pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
-            background_pass_pso = create_pipeline_state_object(pipeline_desc);
+            background_pass_pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
         }
 
         ::init(prefiltering_task);
 
-        begin_upload();
+        gfx::begin_upload();
 
         constexpr float fullscreen_positions[] = {
              1.0f,  3.0f, 1.0f,
@@ -299,9 +299,9 @@ protected:
            .data = (void*)(fullscreen_uvs)
         };
 
-        fullscreen_mesh = create(fullscreen_desc);
+        fullscreen_mesh = gfx::meshes::create(fullscreen_desc);
 
-        end_upload();
+        gfx::end_upload();
 
         BufferDesc cb_desc = {
             .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
@@ -310,7 +310,7 @@ protected:
             .stride = 0,
             .data = nullptr,
         };
-        view_cb_handle = create_buffer(cb_desc);
+        view_cb_handle = gfx::buffers::create(cb_desc);
 
         TextureDesc hdr_buffer_desc = {
             .width = width,
@@ -336,9 +336,15 @@ protected:
 
             camera_controller.update(time_data.delta_seconds_f);
             view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
-            view_constant_data.env_map_idx = get_shader_readable_texture_index(prefiltering_task.out_texture);
+            view_constant_data.env_map_idx = gfx::textures::get_shader_readable_index(prefiltering_task.out_texture);
+        }
+    }
 
-            update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
+    void copy() override final
+    {
+        if (is_valid(prefiltering_task.out_texture)) {
+
+            gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
         }
     }
 
@@ -346,7 +352,7 @@ protected:
     {
         check_status(prefiltering_task);
 
-        CommandContextHandle cmd_ctx = begin_frame();
+        CommandContextHandle cmd_ctx = gfx::begin_frame();
 
         ui::begin_frame();
 
@@ -390,7 +396,7 @@ protected:
                 file_dialog.Display();
 
                 if (file_dialog.HasSelected()) {
-                    gfx::textures::save_texture(
+                    gfx::textures::save_to_file(
                         prefiltering_task.out_texture,
                         file_dialog.GetSelected().c_str(),
                         RESOURCE_USAGE_SHADER_READABLE
@@ -405,7 +411,7 @@ protected:
         }
 
         vec4 clear_color = { 0.1f, 0.0f, 0.1f, 1.0f };
-        TextureHandle render_target = get_current_back_buffer_handle();
+        TextureHandle render_target = gfx::get_current_back_buffer_handle();
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         Scissor scissor{ 0, 0, width, height };
 
@@ -428,7 +434,7 @@ protected:
         }
 
         ui::end_frame(cmd_ctx);
-        end_frame(cmd_ctx);
+        gfx::end_frame(cmd_ctx);
     }
 
     void before_reset() override final

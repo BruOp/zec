@@ -88,7 +88,10 @@ namespace zec
 
     void App::render_internal()
     {
+        gfx::reset_for_frame();
+        copy();
         render();
+        gfx::present_frame();
     }
 
     void App::before_reset_internal()

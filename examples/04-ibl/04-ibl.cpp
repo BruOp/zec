@@ -774,16 +774,14 @@ protected:
         view_constant_data.time = time_data.elapsed_seconds_f;
     }
 
+    void copy() override final
+    {
+        gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
+    }
+
     void render() override final
     {
-        gfx::reset_for_frame();
-
-        // Copy data over. Don't do this in Update!
-        gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
-
         RenderSystem::execute(render_list);
-
-        gfx::present_frame();
     }
 
     void before_reset() override final

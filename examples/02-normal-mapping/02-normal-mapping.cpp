@@ -82,7 +82,7 @@ protected:
                 .num_static_samplers = 1,
             };
 
-            resource_layout = create_resource_layout(layout_desc);
+            resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
         }
 
         // Create the Pipeline State Object
@@ -100,10 +100,10 @@ protected:
             pipeline_desc.depth_stencil_state.depth_write = FALSE;
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
-            pso_handle = create_pipeline_state_object(pipeline_desc);
+            pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
         }
 
-        zec::begin_upload();
+        gfx::begin_upload();
 
         // Create the vertex buffer.
         {
@@ -233,16 +233,16 @@ protected:
                .data = (void*)(cube_uvs)
             };
 
-            cube_mesh = create(mesh_desc);
+            cube_mesh = gfx::meshes::create(mesh_desc);
         }
 
         // Texture creation
         {
-            albedo_map = load_texture_from_file("textures/stone01.dds");
-            normal_map = load_texture_from_file("textures/bump01.dds");
+            albedo_map = gfx::textures::load_from_file("textures/stone01.dds");
+            normal_map = gfx::textures::load_from_file("textures/bump01.dds");
         }
 
-        end_upload();
+        gfx::end_upload();
 
         camera.projection = perspective_projection(
             float(width) / float(height),
@@ -261,10 +261,10 @@ protected:
                 .data = nullptr,
             };
 
-            view_cb_handle = create_buffer(cb_desc);
+            view_cb_handle = gfx::buffers::create(cb_desc);
 
             // Same size and usage etc, so we can use the same desc
-            draw_cb_handle = create_buffer(cb_desc);
+            draw_cb_handle = gfx::buffers::create(cb_desc);
         }
     }
 
@@ -279,24 +279,28 @@ protected:
         view_constant_data.VP = camera.projection * camera.view;
         view_constant_data.camera_position = get_translation(camera.view);
         view_constant_data.time = time_data.elapsed_seconds_f;
-        update_buffer(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
 
         draw_constant_data.model = identity_mat4();
         draw_constant_data.inv_model = identity_mat4();
         // TODO: Actually grab the relevant descriptors?
-        draw_constant_data.albedo_map_idx = get_shader_readable_texture_index(albedo_map);
-        draw_constant_data.normal_map_idx = get_shader_readable_texture_index(normal_map);
-        update_buffer(draw_cb_handle, &draw_constant_data, sizeof(draw_constant_data));
+        draw_constant_data.albedo_map_idx = gfx::textures::get_shader_readable_index(albedo_map);
+        draw_constant_data.normal_map_idx = gfx::textures::get_shader_readable_index(normal_map);
+    }
+
+    void copy() override final
+    {
+        gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
+        gfx::buffers::update(draw_cb_handle, &draw_constant_data, sizeof(draw_constant_data));
     }
 
     void render() override final
     {
-        CommandContextHandle cmd_ctx = begin_frame();
+        CommandContextHandle cmd_ctx = gfx::begin_frame();
 
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         Scissor scissor{ 0, 0, width, height };
 
-        TextureHandle backbuffer = get_current_back_buffer_handle();
+        TextureHandle backbuffer = gfx::get_current_back_buffer_handle();
         gfx::cmd::clear_render_target(cmd_ctx, backbuffer, clear_color);
 
         gfx::cmd::set_active_resource_layout(cmd_ctx, resource_layout);
@@ -312,7 +316,7 @@ protected:
         gfx::cmd::set_render_targets(cmd_ctx, &backbuffer, 1);
         gfx::cmd::draw_mesh(cmd_ctx, cube_mesh);
 
-        end_frame(cmd_ctx);
+        gfx::end_frame(cmd_ctx);
     }
 
     void before_reset() override final

@@ -421,8 +421,6 @@ namespace zec::gfx
 
     CommandContextHandle begin_frame()
     {
-        reset_for_frame();
-
         auto& heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
 
         CommandContextHandle command_context = gfx::cmd::provision(CommandQueueType::GRAPHICS);
@@ -457,8 +455,6 @@ namespace zec::gfx
 
         cmd_utils::insert_resource_barrier(command_context, &barrier, 1);
         cmd_utils::return_and_execute(&command_context, 1);
-
-        present_frame();
     }
 
     void reset_for_frame()

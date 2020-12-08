@@ -25,6 +25,7 @@ namespace zec
         virtual void shutdown() = 0;
 
         virtual void update(const TimeData& time_data) = 0;
+        virtual void copy() = 0;
         virtual void render() = 0;
 
         virtual void before_reset() = 0;

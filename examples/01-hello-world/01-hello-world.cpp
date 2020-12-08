@@ -42,7 +42,7 @@ protected:
                 .num_constant_buffers = 1,
             };
 
-            resource_layout = create_resource_layout(layout_desc);
+            resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
         }
 
         // Create the Pipeline State Object
@@ -60,10 +60,10 @@ protected:
             pipeline_desc.depth_stencil_state.depth_write = FALSE;
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
-            pso_handle = create_pipeline_state_object(pipeline_desc);
+            pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
         }
 
-        begin_upload();
+        gfx::begin_upload();
         // Create the vertex buffer.
         {
             // Define the geometry for a triangle.
@@ -126,9 +126,9 @@ protected:
                (void*)(cube_colors)
             };
 
-            cube_mesh = create(mesh_desc);
+            cube_mesh = gfx::meshes::create(mesh_desc);
         }
-        end_upload();
+        gfx::end_upload();
 
         mesh_transform.model_transform = identity_mat4();
         mesh_transform.view_transform = look_at({ 0.0f, 0.0f, -2.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
@@ -149,7 +149,7 @@ protected:
             cb_desc.type = BufferType::DEFAULT;
             cb_desc.usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC;
 
-            cb_handle = create_buffer(cb_desc);
+            cb_handle = gfx::buffers::create(cb_desc);
         }
     }
 
@@ -158,17 +158,20 @@ protected:
 
     void update(const zec::TimeData& time_data) override final
     {
-        frame_times[dx12::g_current_cpu_frame % 120] = time_data.delta_milliseconds_f;
+        frame_times[gfx::get_current_cpu_frame() % 120] = time_data.delta_milliseconds_f;
 
         quaternion q = from_axis_angle(vec3{ 0.0f, 1.0f, -1.0f }, time_data.delta_seconds_f);
         rotate(mesh_transform.model_transform, q);
+    }
 
-        update_buffer(cb_handle, &mesh_transform, sizeof(mesh_transform));
+    void copy() override final
+    {
+        gfx::buffers::update(cb_handle, &mesh_transform, sizeof(mesh_transform));
     }
 
     void render() override final
     {
-        CommandContextHandle command_ctx = begin_frame();
+        CommandContextHandle command_ctx = gfx::begin_frame();
         ui::begin_frame();
 
         {
@@ -190,7 +193,7 @@ protected:
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         Scissor scissor{ 0, 0, width, height };
 
-        TextureHandle render_target = get_current_back_buffer_handle();
+        TextureHandle render_target = gfx::get_current_back_buffer_handle();
         gfx::cmd::clear_render_target(command_ctx, render_target, clear_color);
 
         gfx::cmd::set_active_resource_layout(command_ctx, resource_layout);
@@ -203,7 +206,7 @@ protected:
         gfx::cmd::draw_mesh(command_ctx, cube_mesh);
 
         ui::end_frame(command_ctx);
-        end_frame(command_ctx);
+        gfx::end_frame(command_ctx);
     }
 
     void before_reset() override final
