@@ -144,5 +144,6 @@ exampleProject(
   "02-normal-mapping",
   "03-gltf-loading",
   "04-ibl",
-  "05-envmap-creation"
+  "05-envmap-creation",
+  "06-frustum-culling"
 )
