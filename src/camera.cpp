@@ -4,6 +4,24 @@
 
 namespace zec
 {
+    Camera create_camera(const float aspect_ratio, const float vertical_fov, const float near_plane, const float far_plane)
+    {
+        Camera camera{
+            .aspect_ratio = aspect_ratio,
+            .vertical_fov = vertical_fov,
+            .near_plane = near_plane,
+            .far_plane = far_plane,
+        };
+        camera.projection = perspective_projection(
+            camera.aspect_ratio,
+            camera.vertical_fov,
+            camera.near_plane,
+            camera.far_plane
+        );
+        return camera;
+    }
+
+
     using input::MouseInput;
     using input::Key;
 

@@ -297,7 +297,7 @@ namespace zec::gfx::pipelines
         pso_desc.BlendState = d3d_blend_desc;
         pso_desc.DepthStencilState = to_d3d_depth_stencil_desc(desc.depth_stencil_state);
         pso_desc.SampleMask = UINT_MAX;
-        pso_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        pso_desc.PrimitiveTopologyType = to_d3d_topology_type(desc.topology_type);
         pso_desc.SampleDesc.Count = 1;
         if (desc.depth_buffer_format != BufferFormat::INVALID) {
             pso_desc.DSVFormat = to_d3d_format(desc.depth_buffer_format);

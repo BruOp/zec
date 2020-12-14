@@ -399,4 +399,18 @@ namespace zec::gfx::dx12
             throw std::runtime_error("Cannot do anything with UNUSED or DYNAMIC you dullard.");
         }
     }
+
+    D3D12_PRIMITIVE_TOPOLOGY_TYPE to_d3d_topology_type(const TopologyType type)
+    {
+        switch (type) {
+        case TopologyType::POINT:
+            return D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+        case TopologyType::LINE:
+            return D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+        case TopologyType::TRIANGLE:
+            return D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        default:
+            throw std::runtime_error("Cannot handle this topology type");
+        }
+    }
 }

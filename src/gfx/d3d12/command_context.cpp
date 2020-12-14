@@ -314,6 +314,24 @@ namespace zec::gfx::cmd
         }
     };
 
+    // Note: Only supports line strips for now
+    void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices)
+    {
+        ASSERT(get_command_queue_type(ctx) == CommandQueueType::GRAPHICS);
+        ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+
+        const Buffer& vertex_buffer = g_buffers[vertices];
+        u32 stride = sizeof(float) * 3;
+        D3D12_VERTEX_BUFFER_VIEW vb_view = {
+            .BufferLocation = vertex_buffer.gpu_address,
+            .SizeInBytes = u32(vertex_buffer.size),
+            .StrideInBytes = stride,
+        };
+        cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINESTRIP);
+        cmd_list->IASetVertexBuffers(0, 1, &vb_view);
+        cmd_list->DrawInstanced(u32(vertex_buffer.size) / stride, 1, 0, 0);
+    }
+
     void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id)
     {
         ASSERT(get_command_queue_type(ctx) == CommandQueueType::GRAPHICS);

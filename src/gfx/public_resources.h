@@ -214,6 +214,13 @@ namespace zec
         MAX
     };
 
+    enum struct TopologyType : u8
+    {
+        POINT = 0,
+        LINE,
+        TRIANGLE,
+    };
+
     enum PipelineStage : u8
     {
         PIPELINE_STAGE_INVALID = 0,
@@ -433,6 +440,7 @@ namespace zec
         BlendStateDesc blend_state = {};
         BufferFormat rtv_formats[8] = {};
         BufferFormat depth_buffer_format = BufferFormat::INVALID;
+        TopologyType topology_type = TopologyType::TRIANGLE;
         u8 used_stages = PIPELINE_STAGE_INVALID;
         std::wstring shader_file_path = L"";
     };

@@ -192,15 +192,19 @@ namespace zec
             }
 
             const SysInfo& sys_info = get_sys_info();
-            void* currentEnd = (void*)(data + capacity);
-            size_t additional_memory_required = (new_capacity - capacity) * sizeof(T);
+            size_t pages_used = size_t(ceil(double(capacity * sizeof(T)) / double(sys_info.page_size)));
+            size_t current_size = pages_used * sys_info.page_size;
+            void* current_end = (void*)(u64(data) + current_size);
+
+            size_t additional_memory_required = (new_capacity * sizeof(T)) - current_size;
             // Grows the new memory required to the next page boundary
             size_t additional_pages_required = size_t(ceil(double(additional_memory_required) / double(sys_info.page_size)));
             additional_memory_required = additional_pages_required * sys_info.page_size;
+
             // Commit the new page(s) of our reserved virtual memory
-            memory::virtual_commit(currentEnd, additional_memory_required);
+            memory::virtual_commit(current_end, additional_memory_required);
             // Update capacity to reflect new size
-            capacity += additional_memory_required / sizeof(T);
+            capacity = (current_size + additional_memory_required) / sizeof(T);
             // Since capacity is potentiall larger than just old_capacity + additional_slots, we return it
             return capacity;
         }

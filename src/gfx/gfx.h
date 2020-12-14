@@ -89,6 +89,7 @@ namespace zec::gfx
         void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
 
         // Draw / Dispatch
+        void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices);
         void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
 
         void dispatch(

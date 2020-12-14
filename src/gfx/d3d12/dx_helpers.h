@@ -42,6 +42,8 @@ namespace zec::gfx::dx12
 
     D3D12_RESOURCE_STATES to_d3d_resource_state(const ResourceUsage usage);
 
+    D3D12_PRIMITIVE_TOPOLOGY_TYPE to_d3d_topology_type(const TopologyType type);
+
     template <typename T, typename ResourceHandle>
     class DXPtrArray
     {

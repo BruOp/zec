@@ -482,8 +482,6 @@ public:
 
     BufferHandle view_cb_handle = {};
     Array<BufferHandle> draw_data_buffer_handles = {};
-    ResourceLayoutHandle compute_resource_layout = {};
-    PipelineStateHandle brdf_creation_pso = {};
     MeshHandle fullscreen_mesh;
 
     TextureHandle brdf_lut_map = {};

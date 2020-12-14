@@ -136,12 +136,13 @@ project("zec_lib")
   configuration {}
 
 include("./tests.lua")
+include("./clustered_forward.lua")
 
 group "examples"
 exampleProject(
-    "01-hello-world",
-    "02-normal-mapping",
-    "03-gltf-loading",
-    "04-ibl",
-    "05-envmap-creation"
+  "01-hello-world",
+  "02-normal-mapping",
+  "03-gltf-loading",
+  "04-ibl",
+  "05-envmap-creation"
 )

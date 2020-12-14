@@ -349,7 +349,7 @@ namespace zec::RenderSystem
     void destroy(RenderList& render_list)
     {
         for (auto& render_pass : render_list.render_passes) {
-            render_pass.setup(render_pass.context);
+            render_pass.destroy(render_pass.context);
         }
 
         // TODO: Destroy resources?
