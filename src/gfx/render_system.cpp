@@ -6,6 +6,7 @@ namespace zec::RenderSystem
 {
     using namespace zec::gfx;
 
+
     struct PassOutput
     {
         PassOutputDesc desc;
@@ -13,7 +14,14 @@ namespace zec::RenderSystem
         u32 last_written_to_by_pass_idx;
     };
 
+    const static i32 RENDER_SYSTEM_PIX_COLOR = ::PIX_COLOR(255, 0, 255);
     constexpr size_t GRAPH_DEPTH_LIMIT = 16; //totally arbitrary
+
+    /*void pix_marker(const char* msg);
+    void pix_marker(const wchar* msg);
+    void gpu_pix_marker(const CommandContextHandle* msg, const char* );
+    void gpu_pix_marker(const wchar* msg);*/
+
 
     void compile_render_list(RenderList& in_render_list, const RenderListDesc& render_list_desc)
     {
@@ -40,6 +48,8 @@ namespace zec::RenderSystem
             // Create RenderPass instance
             const auto& render_pass_desc = render_pass_descs[pass_idx];
             auto& render_pass = in_render_list.render_passes[pass_idx];
+
+            strcpy(render_pass.name, render_pass_desc.name);
             render_pass.queue_type = render_pass_desc.queue_type;
             // Store function pointers
             render_pass.context = render_pass_desc.context;
@@ -103,21 +113,21 @@ namespace zec::RenderSystem
                     output_descs[output_name].initial_state = output.usage;
                     output_descs[output_name].desc = output;
                     output_descs[output_name].last_written_to_by_pass_idx = pass_idx;
+                }
 
-                    if (output_name == backbuffer_resource_name) {
-                        ASSERT(output.type == PassResourceType::TEXTURE);
-                        ASSERT(output.texture_desc.size_class == SizeClass::RELATIVE_TO_SWAP_CHAIN);
-                        ASSERT(output.texture_desc.width == 1.0f);
-                        ASSERT(output.texture_desc.height == 1.0f);
-                        ASSERT(output.texture_desc.num_mips == 1);
-                        ASSERT(output.texture_desc.depth == 1);
-                        ASSERT(output.texture_desc.is_3d == false);
-                        ASSERT(output.texture_desc.is_cubemap == false);
-                        ASSERT(output.usage == RESOURCE_USAGE_RENDER_TARGET);
+                if (output_name == backbuffer_resource_name) {
+                    ASSERT(output.type == PassResourceType::TEXTURE);
+                    ASSERT(output.texture_desc.size_class == SizeClass::RELATIVE_TO_SWAP_CHAIN);
+                    ASSERT(output.texture_desc.width == 1.0f);
+                    ASSERT(output.texture_desc.height == 1.0f);
+                    ASSERT(output.texture_desc.num_mips == 1);
+                    ASSERT(output.texture_desc.depth == 1);
+                    ASSERT(output.texture_desc.is_3d == false);
+                    ASSERT(output.texture_desc.is_cubemap == false);
+                    ASSERT(output.usage == RESOURCE_USAGE_RENDER_TARGET);
 
-                        writes_to_backbuffer_resource = true;
-                        render_pass.requires_flush = true;
-                    }
+                    writes_to_backbuffer_resource = true;
+                    render_pass.requires_flush = true;
                 }
 
                 size_t transition_idx = in_render_list.resource_transition_descs.push_back({
@@ -215,13 +225,20 @@ namespace zec::RenderSystem
 
     void setup(RenderList& render_list)
     {
+        PIXBeginEvent(RENDER_SYSTEM_PIX_COLOR, L"Render System Setup");
         for (auto& render_pass : render_list.render_passes) {
+            PIXBeginEvent(RENDER_SYSTEM_PIX_COLOR, "Setting up %s", render_pass.name);
+
             render_pass.setup(render_pass.context);
+
+            PIXEndEvent();
         }
+        PIXEndEvent();
     }
 
     void execute(RenderList& render_list)
     {
+
         TextureHandle backbuffer = get_current_back_buffer_handle();
         // Alias the backbuffer as the resource;
         render_list.resource_map[render_list.backbuffer_resource_name] = {
@@ -231,14 +248,19 @@ namespace zec::RenderSystem
         };
 
         // --------------- RECORD --------------- 
+        //PIXBeginEvent(RENDER_SYSTEM_PIX_COLOR, L"Render System Recording");
+
         constexpr size_t MAX_CMD_LIST_SUMISSIONS = 8; // Totally arbitrary
         // Each render_pass gets a command context
         Array<CommandContextHandle> cmd_contexts{ render_list.render_passes.size };
         // Can be parallelized!
         for (size_t pass_idx = 0; pass_idx < render_list.render_passes.size; ++pass_idx) {
             const auto& render_pass = render_list.render_passes[pass_idx];
+
             CommandContextHandle& cmd_ctx = cmd_contexts[pass_idx];
             cmd_ctx = gfx::cmd::provision(render_pass.queue_type);
+
+            gfx::cmd::begin_pix_event(cmd_ctx, RENDER_SYSTEM_PIX_COLOR, make_string("Recording Pass %s", render_pass.name).c_str());
 
             // Transition Resources
             {
@@ -279,7 +301,7 @@ namespace zec::RenderSystem
                 }
             }
 
-            // Run our 
+            // Run our "execute" function for the pass
             render_pass.execute(render_list, cmd_ctx, render_pass.context);
 
             // Transition backbuffer
@@ -292,9 +314,12 @@ namespace zec::RenderSystem
                 };
                 gfx::cmd::transition_resources(cmd_ctx, &transition_desc, 1);
             }
+            gfx::cmd::end_pix_event(cmd_ctx);
         }
+        //PIXEndEvent();
 
         // --------------- SUBMIT --------------- 
+        PIXBeginEvent(RENDER_SYSTEM_PIX_COLOR, L"Render System Submission");
         // TODO: Move this struct
         struct CommandStream
         {
@@ -341,7 +366,7 @@ namespace zec::RenderSystem
         // We cannot have any pending submissions at this point
         ASSERT(gfx_stream.pending_count == 0);
 
-        // TODO: Figure out where to put PRESENT
+        PIXEndEvent();
 
     }
 

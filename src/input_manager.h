@@ -19,6 +19,8 @@ namespace zec
             S = gainput::KeyS,
             A = gainput::KeyA,
             D = gainput::KeyD,
+            E = gainput::KeyE,
+            Q = gainput::KeyQ,
         };
 
         enum struct MouseInput : u32

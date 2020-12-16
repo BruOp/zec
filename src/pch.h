@@ -70,6 +70,10 @@ typedef wchar_t wchar;
 //#include <DirectXPackedVector.h>
 // #include <DirectXCollision.h>
 
+// Pix for Windows
+#define USE_PIX
+#include "pix3.h"
+
 // C RunTime Header Files
 #include <stdlib.h>
 #include <malloc.h>

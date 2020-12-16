@@ -83,6 +83,8 @@ namespace zec
         HALF_4,
         FLOAT_4,
 
+        B8G8R8A8_UNORM,
+
         // Compressed
         UNORM8_BC7,
 

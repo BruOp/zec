@@ -250,6 +250,20 @@ namespace zec::gfx::cmd
         dest_queue->Wait(source_pool.fence.d3d_fence, receipt_to_wait_on.fence_value);
     }
 
+    void begin_pix_event(const CommandContextHandle ctx, const u32 color, const char* msg, ...)
+    {
+        ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+        va_list args;
+        va_start(args, msg);
+        PIXBeginEvent(cmd_list, color, msg, args);
+    }
+
+    void end_pix_event(const CommandContextHandle ctx)
+    {
+        ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+        PIXEndEvent(cmd_list);
+    }
+
     void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id)
     {
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);

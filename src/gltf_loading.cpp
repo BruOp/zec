@@ -53,7 +53,9 @@ namespace zec
         // The resulting list also provides a mapping between our_node_idx -> gltf_node_idx
         void flatten_gltf_scene_graph(const tinygltf::Model& model, Array<ChildParentPair>& node_processing_list)
         {
-            const tinygltf::Scene& scene = model.scenes[model.defaultScene];
+            u32 scene_idx = model.defaultScene >= 0 ? u32(model.defaultScene) : 0;
+            ASSERT(model.scenes.size() > 0);
+            const tinygltf::Scene& scene = model.scenes[scene_idx];
             Array<ChildParentPair> node_queue = {};
             node_processing_list.reserve(model.nodes.size());
 
@@ -158,7 +160,7 @@ namespace zec
                 mesh_to_mesh_mapping.push_back({ .offset = u32(out_context.meshes.size), .count = u32(mesh.primitives.size()) });
                 for (const auto& primitive : mesh.primitives) {
                     MeshDesc mesh_desc{};
-
+                    AABB aabb = {};
                     // Indices
                     {
                         const auto& accessor = model.accessors[primitive.indices];
@@ -185,6 +187,27 @@ namespace zec
                         "NORMAL",
                         "TEXCOORD_0"
                     };
+
+                    {
+                        const int attr_idx = attributes.at("POSITION");
+                        const auto& accessor = model.accessors[attr_idx];
+                        vec3 aabb_min = {
+                            float(accessor.minValues[0]),
+                            float(accessor.minValues[1]),
+                            float(accessor.minValues[2])
+                        };
+                        vec3 aabb_max = {
+                            float(accessor.maxValues[0]),
+                            float(accessor.maxValues[1]),
+                            float(accessor.maxValues[2])
+                        };
+
+                        out_context.aabbs.push_back({
+                            .max = aabb_max,
+                            .min = aabb_min,
+                            });
+
+                    }
 
                     for (size_t i = 0; i < ARRAY_SIZE(attr_names); ++i) {
                         const auto& attr_idx = attributes.at(attr_names[i]);
@@ -316,7 +339,7 @@ namespace zec
             }
         }
 
-        void load_gltf_file(const std::string& gltf_file, Context& out_context)
+        void load_gltf_file(const std::string& gltf_file, Context& out_context, bool is_binary)
         {
             tinygltf::TinyGLTF loader;
             loader.SetImageLoader(loadImageDataCallback, nullptr);
@@ -324,7 +347,13 @@ namespace zec
             std::string err, warn;
             tinygltf::Model model;
 
-            bool res = loader.LoadASCIIFromFile(&model, &err, &warn, gltf_file);
+            bool res = false;
+            if (is_binary) {
+                res = loader.LoadBinaryFromFile(&model, &err, &warn, gltf_file);
+            }
+            else {
+                res = loader.LoadASCIIFromFile(&model, &err, &warn, gltf_file);
+            }
 
             if (!warn.empty()) {
                 write_log(warn.c_str());

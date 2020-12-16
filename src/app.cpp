@@ -54,6 +54,8 @@ namespace zec
 
     void App::init_internal()
     {
+        PIXBeginEvent(0, L"App Initialization");
+
         init_time_data(time_data);
         window.show(true);
 
@@ -68,6 +70,8 @@ namespace zec
         ui::initialize(window);
         input::initialize(width, height);
         init();
+
+        PIXEndEvent();
     }
 
     void App::shutdown_internal()
@@ -80,18 +84,28 @@ namespace zec
 
     void App::update_internal()
     {
+        PIXBeginEvent(0, L"App Update");
+
         input::update(time_data);
         update_time_data(time_data);
 
         update(time_data);
+
+        PIXEndEvent();
     }
 
     void App::render_internal()
     {
+
         gfx::reset_for_frame();
+        PIXBeginEvent(0, L"App Copy");
         copy();
+        PIXEndEvent();
+
+        PIXBeginEvent(0, L"App Render");
         render();
         gfx::present_frame();
+        PIXEndEvent();
     }
 
     void App::before_reset_internal()

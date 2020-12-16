@@ -51,8 +51,29 @@ namespace zec
     }
 
     // ---------- vec3 ----------
+    template<typename T>
+    struct Vector3
+    {
+        union
+        {
+            T data[3] = {};
+            struct { T x, y, z; };
+            struct { T r, g, b; };
+        };
 
-    struct vec3
+        inline T& operator[](const size_t idx)
+        {
+            return data[idx];
+        }
+
+        inline const T& operator[](const size_t idx) const
+        {
+            return data[idx];
+        }
+    };
+
+    using uvec3 = Vector3<u32>;
+    template <> struct Vector3<float>
     {
         union
         {
@@ -71,50 +92,71 @@ namespace zec
             return data[idx];
         }
     };
+    using vec3 = Vector3<float>;
+
 
     extern vec3 k_up;
 
-    inline vec3 operator+(const vec3& v1, const vec3& v2)
+    template<typename T>
+    inline vec3 operator+(const Vector3<T>& v1, const T s)
+    {
+        return { v1.x + s, v1.y + s, v1.z + s };
+    }
+    template<typename T>
+    inline vec3 operator+(const Vector3<T>& v1, const Vector3<T>& v2)
     {
         return { v1.x + v2.x, v1.y + v2.y, v1.z + v2.z };
     }
-    inline vec3 operator-(const vec3& v1)
+    template<typename T>
+    inline Vector3<T> operator-(const Vector3<T>& v1)
     {
         return { -v1.x, -v1.y, -v1.z };
     }
-    inline vec3 operator-(const vec3& v1, const vec3& v2)
+    template<typename T>
+    inline Vector3<T> operator-(const Vector3<T>& v1, const Vector3<T>& v2)
     {
         return { v1.x - v2.x, v1.y - v2.y, v1.z - v2.z };
     }
-    inline vec3 operator*(const vec3& v1, const float s)
+    template<typename T>
+    inline Vector3<T> operator*(const Vector3<T>& v1, const T s)
     {
         return { v1.x * s, v1.y * s, v1.z * s };
     }
-    inline vec3 operator*(const float s, const vec3& v1)
+    template<typename T>
+    inline Vector3<T> operator*(const T s, const Vector3<T>& v1)
     {
         return { v1.x * s, v1.y * s, v1.z * s };
     }
-    inline vec3 operator/(const vec3& v1, const float s)
+    template<typename T>
+    inline Vector3<T> operator/(const Vector3<T>& v1, const T s)
     {
         float inv_s = 1.0f / s;
         return { v1.x * inv_s, v1.y * inv_s, v1.z * inv_s };
     }
+    template<typename T>
+    inline Vector3<T> operator/(const float s, const Vector3<T>& v)
+    {
+        return { s / v.x, s / v.y, s / v.z };
+    }
 
-    inline vec3& operator+=(vec3& v1, const vec3& v2)
+    template<typename T>
+    inline Vector3<T>& operator+=(Vector3<T>& v1, const Vector3<T>& v2)
     {
         v1.x += v2.x;
         v1.y += v2.y;
         v1.z += v2.z;
         return v1;
     }
-    inline vec3& operator-=(vec3& v1, const vec3& v2)
+    template<typename T>
+    inline Vector3<T>& operator-=(Vector3<T>& v1, const Vector3<T>& v2)
     {
         v1.x -= v2.x;
         v1.y -= v2.y;
         v1.z -= v2.z;
         return v1;
     }
-    inline vec3& operator*=(vec3& v1, const float s)
+    template<typename T>
+    inline Vector3<T>& operator*=(Vector3<T>& v1, const T s)
     {
         v1.x *= s;
         v1.y *= s;
@@ -122,21 +164,43 @@ namespace zec
         return v1;
     }
 
-    inline float length_squared(vec3 v)
+    template<typename T>
+    inline T length_squared(Vector3<T> v)
     {
         return v.x * v.x + v.y * v.y + v.z * v.z;
     }
-    inline float length(vec3 v)
+
+    template<typename T>
+    inline T length(Vector3<T> v)
     {
         return sqrtf(length_squared(v));
     }
-    inline vec3 normalize(vec3 v)
+
+    template<typename T>
+    inline Vector3<T> normalize(Vector3<T> v)
     {
         return v / length(v);
     }
 
-    float dot(const vec3& a, const vec3& b);
-    vec3 cross(const vec3& a, const vec3& b);
+    template<typename T>
+    T dot(const Vector3<T>& a, const Vector3<T>& b)
+    {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+    };
+
+    template<typename T>
+    Vector3<T> cross(const Vector3<T>& a, const Vector3<T>& b)
+    {
+        T a1b2 = a[0] * b[1];
+        T a1b3 = a[0] * b[2];
+        T a2b1 = a[1] * b[0];
+        T a2b3 = a[1] * b[2];
+        T a3b1 = a[2] * b[0];
+        T a3b2 = a[2] * b[1];
+
+        return { a2b3 - a3b2, a3b1 - a1b3, a1b2 - a2b1 };
+    };
+
 
     // ---------- vec4 ----------
 
@@ -195,6 +259,10 @@ namespace zec
     {
         float inv_s = 1.0f / s;
         return { v1.x * inv_s, v1.y * inv_s, v1.z * inv_s, v1.w * inv_s };
+    }
+    inline vec4 operator/(const float s, const vec4& v1)
+    {
+        return { s / v1.x, s / v1.y, s / v1.z, s / v1.w };
     }
 
 
@@ -454,4 +522,39 @@ namespace zec
 
     // Aspect ratio is in radians, please
     mat4 perspective_projection(const float aspect_ratio, const float fov, const float z_near, const float z_far);
+
+    struct AABB
+    {
+        // Two different corners of the AABB bounding box
+        vec3 min;
+        vec3 max;
+    };
+
+    struct OBB
+    {
+        // These are vec4 because we use them in clip space
+        vec4 min;
+        vec4 max;
+    };
+
+    struct Plane
+    {
+        union
+        {
+            vec4 normal_d = {};
+            struct
+            {
+                vec3 normal;
+                // distance from original along normal
+                float d;
+            };
+        };
+    };
+
+    inline bool within(float a, float min, float max)
+    {
+        return a >= min && a <= max;
+    };
+
+    bool obb_in_frustum(const OBB& obb);
 }

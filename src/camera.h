@@ -50,4 +50,26 @@ namespace zec
         Camera* camera = nullptr;
         input::InputMapping input_map;
     };
+
+    class FPSCameraController : ICameraController
+    {
+    public:
+        FPSCameraController() : input_map{ input::create_mapping() }
+        { };
+
+        void init();
+        inline void set_camera(Camera* new_camera) { camera = new_camera; };
+
+        void update(const float deltaTime) override final;
+
+        float yaw_sensitivity = 5.0f;
+        float pitch_sensitivity = 5.0f;
+        float zoom_sensitivity = 0.1f;
+        float movement_sensitivity = 0.2f;
+        float pitch = k_half_pi;
+        float yaw = k_half_pi;
+    private:
+        Camera* camera = nullptr;
+        input::InputMapping input_map;
+    };
 }

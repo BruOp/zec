@@ -272,6 +272,9 @@ namespace zec::gfx::textures
         else if (extension.compare(L".hdr") == 0 || extension.compare(L".HDR") == 0) {
             DXCall(DirectX::LoadFromHDRFile(path.c_str(), nullptr, image));
         }
+        else if (extension.compare(L".png") == 0 || extension.compare(L".PNG") == 0) {
+            DXCall(DirectX::LoadFromWICFile(path.c_str(), DirectX::WIC_FLAGS_NONE, nullptr, image));
+        }
         else {
             throw std::runtime_error("Wasn't able to load file!");
         }

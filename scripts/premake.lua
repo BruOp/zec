@@ -28,7 +28,8 @@ workspace "zec"
   filter { }
 
   nuget {
-    "directxtex_desktop_win10:2020.8.15.1"
+    "directxtex_desktop_win10:2020.8.15.1",
+    "WinPixEventRuntime:1.0.200127001"
   }
 
   targetdir (BUILD_DIR .. "bin/%{cfg.longname}/%{prj.name}")

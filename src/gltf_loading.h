@@ -21,6 +21,12 @@ namespace zec
             u32 emissive_texture_idx = UINT32_MAX;
         };
 
+        struct AABB
+        {
+            vec3 max = {};
+            vec3 min = {};
+        };
+
         struct SceneGraph
         {
             Array<u32> parent_ids = {};
@@ -43,10 +49,11 @@ namespace zec
             SceneGraph scene_graph = {};
             Array<TextureHandle> textures = {};
             Array<MeshHandle> meshes = {};
+            Array<AABB> aabbs = {};
             Array<MaterialData> materials = {};
             Array<DrawCall> draw_calls = {};
         };
 
-        void load_gltf_file(const std::string& gltf_file, Context& context);
+        void load_gltf_file(const std::string& gltf_file, Context& context, bool is_binary = false);
     };
 }

@@ -76,7 +76,8 @@ namespace zec::gfx::dx12
             return DXGI_FORMAT_R16G16B16A16_FLOAT;
         case BufferFormat::FLOAT_4:
             return DXGI_FORMAT_R32G32B32A32_FLOAT;
-
+        case BufferFormat::B8G8R8A8_UNORM:
+            return DXGI_FORMAT_B8G8R8A8_UNORM;
         case BufferFormat::UNORM8_4_SRGB:
             //case BufferFormat::R8G8B8A8_UNORM_SRGB:
             return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
@@ -113,6 +114,8 @@ namespace zec::gfx::dx12
             return BufferFormat::UINT8_4;
         case DXGI_FORMAT_R8G8B8A8_UNORM:
             return BufferFormat::UNORM8_4;
+        case DXGI_FORMAT_B8G8R8A8_UNORM:
+            return BufferFormat::B8G8R8A8_UNORM;
         case DXGI_FORMAT_R16G16B16A16_UINT:
             return BufferFormat::UINT16_4;
         case DXGI_FORMAT_R16G16B16A16_UNORM:

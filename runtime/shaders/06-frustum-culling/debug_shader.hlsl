@@ -3,7 +3,6 @@
 cbuffer constant_buffer : register(b0)
 {
     float4x4 model;
-    float4 color;
 };
 
 cbuffer constant_buffer : register(b1)
@@ -12,7 +11,6 @@ cbuffer constant_buffer : register(b1)
     float4x4 invVP;
     float camera_position;
 };
-
 
 struct PSInput
 {
@@ -30,5 +28,5 @@ PSInput VSMain(float3 position : POSITION)
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    return color;
+    return float4(1.0f, 0.0f, 0.0f, 1.0f);
 }

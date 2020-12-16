@@ -16,6 +16,20 @@ namespace zec
             { 0.0f, 0.0f, -(z_far) / (z_far - z_near), -(z_near * z_far) / (z_far - z_near) },
             { 0.0f, 0.0f, -1.0f, 0.0f },
         };
+    }
+
+    bool obb_in_frustum(const OBB& obb)
+    {
+        u32 inside = 0;
+        // Max
+        inside += within(obb.max.x, -obb.max.w, obb.max.w) ? 0 : 1;
+        inside += within(obb.max.y, obb.max.w, -obb.max.w) ? 0 : 1;
+        inside += within(obb.max.z, 0.0f, obb.max.w) ? 0 : 1;
+        // Min
+        inside += within(obb.min.x, -obb.min.w, obb.min.w) ? 0 : 1;
+        inside += within(obb.min.y, obb.min.w, -obb.min.w) ? 0 : 1;
+        inside += within(obb.min.z, 0.0f, obb.min.w) ? 0 : 1;
+        return inside > 0;
     };
 
     mat4 quat_to_mat4(const quaternion& q)
@@ -37,23 +51,6 @@ namespace zec
             { 2 * (qxz - qyw),      2 * (qyz + qxw),        1 - 2 * (qx2 + qy2),    0 },
             { 0,                    0,                      0,                      1 },
         };
-    }
-
-    float dot(const vec3& a, const vec3& b)
-    {
-        return a.x * b.x + a.y * b.y + a.z * b.z;
-    }
-
-    vec3 cross(const vec3& a, const vec3& b)
-    {
-        float a1b2 = a[0] * b[1];
-        float a1b3 = a[0] * b[2];
-        float a2b1 = a[1] * b[0];
-        float a2b3 = a[1] * b[2];
-        float a3b1 = a[2] * b[0];
-        float a3b2 = a[2] * b[1];
-
-        return { a2b3 - a3b2, a3b1 - a1b3, a1b2 - a2b1 };
     }
 
     mat3 transpose(const mat3& m)

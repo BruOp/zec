@@ -77,6 +77,9 @@ namespace zec::gfx
 
         void gpu_wait(CommandQueueType type, const CmdReceipt receipt);
 
+        void begin_pix_event(const CommandContextHandle ctx, const u32 color, const char* msg, ...);
+        void end_pix_event(const CommandContextHandle ctx);
+
         //--------- Resource Binding ----------
         void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
 

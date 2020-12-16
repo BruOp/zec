@@ -74,6 +74,7 @@ namespace zec::RenderSystem
 
     struct RenderPassDesc
     {
+        char name[64] = "";
         CommandQueueType queue_type = CommandQueueType::GRAPHICS;
         PassInputDesc inputs[8] = {};
         PassOutputDesc outputs[8] = {};
@@ -93,6 +94,7 @@ namespace zec::RenderSystem
 
     struct RenderPass
     {
+        char name[64] = "";
         CommandQueueType queue_type = CommandQueueType::GRAPHICS;
         ArrayView resource_transitions_view = {};
         u32 receipt_idx_to_wait_on = UINT32_MAX; // Index into the graph's fence list
