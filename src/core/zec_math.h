@@ -533,8 +533,7 @@ namespace zec
     struct OBB
     {
         // These are vec4 because we use them in clip space
-        vec4 min;
-        vec4 max;
+        vec4 corners[8];
     };
 
     struct Plane
@@ -551,9 +550,9 @@ namespace zec
         };
     };
 
-    inline bool within(float a, float min, float max)
+    inline bool within(float min_val, float x, float max_val)
     {
-        return a >= min && a <= max;
+        return min_val <= x && x <= max_val;
     };
 
     bool obb_in_frustum(const OBB& obb);

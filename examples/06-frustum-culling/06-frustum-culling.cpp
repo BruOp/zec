@@ -5,6 +5,7 @@
 #include "gltf_loading.h"
 #include "gfx/render_system.h"
 #include "bounding_meshes.h"
+#include "view.h"
 
 using namespace zec;
 
@@ -53,6 +54,7 @@ namespace DebugPass
         Camera const* camera = nullptr;
         Camera const* debug_camera = nullptr;
         Scene const* scene = nullptr;
+        //Array<u32> const* visibility_list = nullptr;
         BufferHandle view_cb_handle = {};
         BufferHandle debug_view_cb_handle = {};
 
@@ -189,7 +191,6 @@ namespace DebugPass
     }
 }
 
-
 namespace ForwardPass
 {
     struct Context
@@ -197,6 +198,7 @@ namespace ForwardPass
         // Not owned
         BufferHandle view_cb_handle = {};
         Scene const* scene;
+        Array<u32> const* visibility_list = nullptr;
 
         // Owned
         ResourceLayoutHandle resource_layout = {};
@@ -264,7 +266,7 @@ namespace ForwardPass
     void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
     {
         constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-        Context* forward_context = reinterpret_cast<Context*>(context);
+        Context* pass_context = reinterpret_cast<Context*>(context);
 
         TextureHandle depth_target = RenderSystem::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
         TextureHandle render_target = RenderSystem::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
@@ -272,8 +274,8 @@ namespace ForwardPass
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
         Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-        gfx::cmd::set_active_resource_layout(cmd_ctx, forward_context->resource_layout);
-        gfx::cmd::set_pipeline_state(cmd_ctx, forward_context->pso_handle);
+        gfx::cmd::set_active_resource_layout(cmd_ctx, pass_context->resource_layout);
+        gfx::cmd::set_pipeline_state(cmd_ctx, pass_context->pso_handle);
         gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
         gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
@@ -281,13 +283,14 @@ namespace ForwardPass
         gfx::cmd::clear_depth_target(cmd_ctx, depth_target, 1.0f, 0);
         gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1, depth_target);
 
-        gfx::cmd::bind_constant_buffer(cmd_ctx, forward_context->view_cb_handle, 1);
+        gfx::cmd::bind_constant_buffer(cmd_ctx, pass_context->view_cb_handle, 1);
         gfx::cmd::bind_resource_table(cmd_ctx, 2);
         gfx::cmd::bind_resource_table(cmd_ctx, 3);
 
-        for (size_t i = 0; i < forward_context->scene->meshes.size; i++) {
-            gfx::cmd::bind_constant_buffer(cmd_ctx, forward_context->scene->draw_data_buffers[i], 0);
-            gfx::cmd::draw_mesh(cmd_ctx, forward_context->scene->meshes[i]);
+        for (size_t i = 0; i < pass_context->visibility_list->size; i++) {
+            u32 idx = (*pass_context->visibility_list)[i];
+            gfx::cmd::bind_constant_buffer(cmd_ctx, pass_context->scene->draw_data_buffers[idx], 0);
+            gfx::cmd::draw_mesh(cmd_ctx, pass_context->scene->meshes[idx]);
         }
     };
 
@@ -317,6 +320,8 @@ public:
     MeshHandle cube_mesh = {};
 
     Scene scene = {};
+    Array<u32> visibility_list = {};
+    Array<OBB> clip_space_obbs = {};
 
     ForwardPass::Context forward_context = {};
     DebugPass::Context debug_context = {};
@@ -336,7 +341,7 @@ protected:
         camera = create_camera(float(width) / float(height), vertical_fov, camera_near, camera_far - 10.0f);
         debug_camera = create_camera(float(width) / float(height), vertical_fov, camera_near, camera_far);
 
-        debug_camera.position = camera.position + vec3{ 0.0f, 5.0f, 0.0f };
+        debug_camera.position = camera.position + vec3{ 0.0f, 15.0f, 0.0f };
         mat4 view = look_at(debug_camera.position, camera.position, { 0.0f, 0.0f, 1.0f });
         set_camera_view(debug_camera, view);
 
@@ -416,25 +421,25 @@ protected:
                  0.0f,  1.0f,  0.0f,
                  0.0f,  1.0f,  0.0f,
                  1.0f,  0.0f,  0.0f, // +X (Right face)
-1.0f, 0.0f, 0.0f,
-1.0f, 0.0f, 0.0f,
-1.0f, 0.0f, 0.0f,
--1.0f, 0.0f, 0.0f, // -X (Left face)
--1.0f, 0.0f, 0.0f,
--1.0f, 0.0f, 0.0f,
--1.0f, 0.0f, 0.0f,
-0.0f, 0.0f, -1.0f, // -Z (Back face)
-0.0f, 0.0f, -1.0f,
-0.0f, 0.0f, -1.0f,
-0.0f, 0.0f, -1.0f,
-0.0f, 0.0f, 1.0f, // +Z (Front face)
-0.0f, 0.0f, 1.0f,
-0.0f, 0.0f, 1.0f,
-0.0f, 0.0f, 1.0f,
-0.0f, -1.0f, 0.0f, // -Y (Bottom face)
-0.0f, -1.0f, 0.0f,
-0.0f, -1.0f, 0.0f,
-0.0f, -1.0f, 0.0f,
+                 1.0f, 0.0f, 0.0f,
+                 1.0f, 0.0f, 0.0f,
+                 1.0f, 0.0f, 0.0f,
+                -1.0f, 0.0f, 0.0f, // -X (Left face)
+                -1.0f, 0.0f, 0.0f,
+                -1.0f, 0.0f, 0.0f,
+                -1.0f, 0.0f, 0.0f,
+                 0.0f, 0.0f, -1.0f, // -Z (Back face)
+                 0.0f, 0.0f, -1.0f,
+                 0.0f, 0.0f, -1.0f,
+                 0.0f, 0.0f, -1.0f,
+                 0.0f, 0.0f, 1.0f, // +Z (Front face)
+                 0.0f, 0.0f, 1.0f,
+                 0.0f, 0.0f, 1.0f,
+                 0.0f, 0.0f, 1.0f,
+                 0.0f, -1.0f, 0.0f, // -Y (Bottom face)
+                 0.0f, -1.0f, 0.0f,
+                 0.0f, -1.0f, 0.0f,
+                 0.0f, -1.0f, 0.0f,
             };
 
             constexpr float cube_uvs[] = {
@@ -549,7 +554,7 @@ protected:
             //const mat3 rotation_mat = identity_mat3();
 
 
-            vec3 grid_extent = 2.0f * vec3{ float(grid_size.x), float(grid_size.x), float(grid_size.x) };
+            vec3 grid_extent = 2.0f * vec3{ float(grid_size.x), float(grid_size.y), float(grid_size.z) };
 
             scene.meshes.grow(num_objects);
             scene.global_transforms.grow(num_objects);
@@ -589,6 +594,7 @@ protected:
         forward_context = {
             .view_cb_handle = view_cb_handle,
             .scene = &scene,
+            .visibility_list = &visibility_list,
         };
 
         debug_context.active = true;
@@ -674,6 +680,11 @@ protected:
         view_constant_data.VP = camera.projection * camera.view;
         view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
         view_constant_data.camera_position = camera.position;
+
+        // Generate visibility list
+        visibility_list.empty();
+        transform_aabb_to_clip_space(camera, scene.global_transforms, scene.aabbs, clip_space_obbs);
+        cull_obbs(clip_space_obbs, visibility_list);
     }
 
     void copy() override final

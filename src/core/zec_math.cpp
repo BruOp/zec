@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "utils/utils.h"
 #include "zec_math.h"
 
 namespace zec
@@ -20,16 +21,16 @@ namespace zec
 
     bool obb_in_frustum(const OBB& obb)
     {
-        u32 inside = 0;
+        bool inside = false;
         // Max
-        inside += within(obb.max.x, -obb.max.w, obb.max.w) ? 0 : 1;
-        inside += within(obb.max.y, obb.max.w, -obb.max.w) ? 0 : 1;
-        inside += within(obb.max.z, 0.0f, obb.max.w) ? 0 : 1;
-        // Min
-        inside += within(obb.min.x, -obb.min.w, obb.min.w) ? 0 : 1;
-        inside += within(obb.min.y, obb.min.w, -obb.min.w) ? 0 : 1;
-        inside += within(obb.min.z, 0.0f, obb.min.w) ? 0 : 1;
-        return inside > 0;
+        for (size_t corner_idx = 0; corner_idx < ARRAY_SIZE(obb.corners); corner_idx++) {
+            const vec4& corner = obb.corners[corner_idx];
+            inside = inside ||
+                within(-corner.w, corner.x, corner.w) &&
+                within(-corner.w, corner.y, corner.w) &&
+                within(0.0f, corner.z, corner.w);
+        }
+        return inside;
     };
 
     mat4 quat_to_mat4(const quaternion& q)
