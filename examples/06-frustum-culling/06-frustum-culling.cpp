@@ -628,7 +628,7 @@ protected:
                 .execute = &ForwardPass::record,
                 .destroy = &ForwardPass::destroy
             },
-            {
+            /*{
                 .name = "Debug Pass",
                 .queue_type = CommandQueueType::GRAPHICS,
                 .inputs = {
@@ -650,7 +650,7 @@ protected:
                 .setup = &DebugPass::setup,
                 .execute = &DebugPass::record,
                 .destroy = &DebugPass::destroy
-            },
+            },*/
         };
         RenderSystem::RenderListDesc render_list_desc = {
             .render_pass_descs = render_pass_descs,
@@ -699,7 +699,7 @@ protected:
         gfx::buffers::update(debug_view_cb_handle, &debug_view_data, sizeof(debug_view_data));
 
         gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
-        DebugPass::copy(&debug_context);
+        //DebugPass::copy(&debug_context);
     }
 
     void render() override final

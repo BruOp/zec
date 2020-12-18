@@ -6,6 +6,7 @@
 #include <xmmintrin.h>
 
 #define SPLAT(v, c) _mm_permute_ps(v, _MM_SHUFFLE(c, c, c, c))
+#define SPLAT256(v, c) _mm256_permute_ps(v, _MM_SHUFFLE(c, c, c,c))
 
 namespace zec
 {
@@ -81,6 +82,34 @@ namespace zec
         dest[3] = res;
     }
 
+    void transform_points_8(__m256 dest[4], const __m256 x, const __m256 y, const __m256 z, const mat4& transform)
+    {
+        // This first one is because our 4 points would all have w == 1.0f, so we can just skip the multiply
+        __m256 res = SPLAT256(_mm256_load_ps(&transform.rows[0].x), 3);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[0].x), 0), x, res);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[0].x), 1), y, res);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[0].x), 2), z, res);
+        dest[0] = res;
+
+        res = SPLAT256(_mm256_load_ps(&transform.rows[1].x), 3);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[1].x), 0), x, res);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[1].x), 1), y, res);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[1].x), 2), z, res);
+        dest[1] = res;
+
+        res = SPLAT256(_mm256_load_ps(&transform.rows[2].x), 3);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[2].x), 0), x, res);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[2].x), 1), y, res);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[2].x), 2), z, res);
+        dest[2] = res;
+
+        res = SPLAT256(_mm256_load_ps(&transform.rows[3].x), 3);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[3].x), 0), x, res);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[3].x), 1), y, res);
+        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[3].x), 2), z, res);
+        dest[3] = res;
+    }
+
     bool test_aabb_visiblity_against_frustum_sse(mat4& transform, const AABB& aabb)
     {
         vec4 min{ aabb.min, 1.0f };
@@ -127,6 +156,48 @@ namespace zec
         u32 res = 0u;
         _mm_store_ss(reinterpret_cast<float*>(&res), inside);
         return res != 0;
+    }
+
+    bool test_aabb_visiblity_against_frustum256(mat4& transform, const AABB& aabb)
+    {
+        vec4 min{ aabb.min, 1.0f };
+        vec4 max{ aabb.max, 1.0f };
+        const __m128 aabb_min = _mm_load_ps(&min.x);
+        const __m128 aabb_max = _mm_load_ps(&max.x);
+
+        __m128 minmax_x = _mm_shuffle_ps(aabb_min, aabb_max, _MM_SHUFFLE(0, 0, 0, 0));
+        minmax_x = _mm_shuffle_ps(minmax_x, minmax_x, _MM_SHUFFLE(2, 0, 2, 0)); // x X x X
+        const __m128 minmax_y = _mm_shuffle_ps(aabb_min, aabb_max, _MM_SHUFFLE(1, 1, 1, 1)); // y y Y Y
+        const __m128 minmax_z[] = {
+            SPLAT(aabb_min, 2), // z z z z
+            SPLAT(aabb_max, 2)  // Z Z Z Z
+        };
+
+        const __m256 x = _mm256_broadcast_ps(&minmax_x);
+        const __m256 y = _mm256_broadcast_ps(&minmax_y);
+        const __m256 z = _mm256_load_ps(reinterpret_cast<const float*>(minmax_z));
+
+        // corners[0] = { x, x, x, x, ... } ... corners[4] = {w, w, w, w ...};
+        __m256 corners[4];
+
+        transform_points_8(corners, x, y, z, transform);
+
+        const __m256 neg_ws = _mm256_sub_ps(_mm256_setzero_ps(), corners[3]);
+
+        // Test whether -w < x < w
+        __m256 inside = _mm256_cmp_ps(neg_ws, corners[0], _CMP_LT_OQ);
+        inside = _mm256_and_ps(inside, _mm256_cmp_ps(corners[0], corners[3], _CMP_LT_OQ));
+        // inside && -w < y < w
+        inside = _mm256_and_ps(inside, _mm256_and_ps(_mm256_cmp_ps(neg_ws, corners[1], _CMP_LT_OQ), _mm256_cmp_ps(corners[1], corners[3], _CMP_LT_OQ)));
+        // inside && 0 < z < w
+        inside = _mm256_and_ps(inside, _mm256_and_ps(_mm256_cmp_ps(neg_ws, corners[2], _CMP_LT_OQ), _mm256_cmp_ps(corners[2], corners[3], _CMP_LT_OQ)));
+
+        u32 res[8];
+        _mm256_store_ps(reinterpret_cast<float*>(res), inside);
+        for (size_t i = 1; i < ARRAY_SIZE(res); i++) {
+            res[0] |= res[i];
+        }
+        return res[0] != 0;
     }
 
     void cull_obbs_sse(const Camera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
