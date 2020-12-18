@@ -216,7 +216,7 @@ namespace zec
         };
         vec4() : data{ 0.0f, 0.0f, 0.0f, 0.0f } { };
         vec4(const float x, const float y, const float z, const float w) : x(x), y(y), z(z), w(w) { };
-        vec4(vec3 xyz, const float w = 1.0f) : xyz(xyz), s(w) { };
+        vec4(const vec3 xyz, const float w = 1.0f) : xyz(xyz), s(w) { };
 
         inline float& operator[](const size_t idx)
         {

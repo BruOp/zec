@@ -683,8 +683,10 @@ protected:
 
         // Generate visibility list
         visibility_list.empty();
-        transform_aabb_to_clip_space(camera, scene.global_transforms, scene.aabbs, clip_space_obbs);
-        cull_obbs(clip_space_obbs, visibility_list);
+        PIXBeginEvent(0, "Cull AABBs");
+        //cull_obbs(camera, scene.global_transforms, scene.aabbs, visibility_list);
+        cull_obbs_sse(camera, scene.global_transforms, scene.aabbs, visibility_list);
+        PIXEndEvent();
     }
 
     void copy() override final
