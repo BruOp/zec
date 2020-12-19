@@ -7,6 +7,9 @@
 #include "bounding_meshes.h"
 #include "view.h"
 
+#include "ftl/task_counter.h"
+#include "ftl/task_scheduler.h"
+
 using namespace zec;
 
 constexpr u32 DESCRIPTOR_TABLE_SIZE = 4096;
@@ -328,6 +331,8 @@ public:
 
     RenderSystem::RenderList render_list;
 
+    ftl::TaskScheduler task_scheduler;
+
 protected:
     void init() override final
     {
@@ -360,6 +365,8 @@ protected:
         };
 
         constexpr u16 fullscreen_indices[] = { 0, 1, 2 };
+
+        task_scheduler.Init();
 
         MeshDesc fullscreen_desc{};
         fullscreen_desc.index_buffer_desc.usage = RESOURCE_USAGE_INDEX;
@@ -628,7 +635,7 @@ protected:
                 .execute = &ForwardPass::record,
                 .destroy = &ForwardPass::destroy
             },
-            /*{
+            {
                 .name = "Debug Pass",
                 .queue_type = CommandQueueType::GRAPHICS,
                 .inputs = {
@@ -650,7 +657,7 @@ protected:
                 .setup = &DebugPass::setup,
                 .execute = &DebugPass::record,
                 .destroy = &DebugPass::destroy
-            },*/
+            },
         };
         RenderSystem::RenderListDesc render_list_desc = {
             .render_pass_descs = render_pass_descs,
@@ -686,6 +693,7 @@ protected:
         PIXBeginEvent(0, "Cull AABBs");
         //cull_obbs(camera, scene.global_transforms, scene.aabbs, visibility_list);
         cull_obbs_sse(camera, scene.global_transforms, scene.aabbs, visibility_list);
+        //cull_obbs_mt(task_scheduler, camera, scene.global_transforms, scene.aabbs, visibility_list);
         PIXEndEvent();
     }
 
@@ -699,7 +707,7 @@ protected:
         gfx::buffers::update(debug_view_cb_handle, &debug_view_data, sizeof(debug_view_data));
 
         gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
-        //DebugPass::copy(&debug_context);
+        DebugPass::copy(&debug_context);
     }
 
     void render() override final

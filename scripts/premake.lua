@@ -122,6 +122,7 @@ project("zec_lib")
 
     links {
       "gainputstatic",
+      "boost_context",
       "ftl",
     }
 
@@ -130,6 +131,7 @@ project("zec_lib")
 
     links {
       "gainputstatic-d",
+      "boost_context",
       "ftl",
     }
 

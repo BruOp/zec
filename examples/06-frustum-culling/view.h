@@ -4,37 +4,31 @@
 #include "core/zec_math.h"
 #include "camera.h"
 #include <xmmintrin.h>
+#include <ftl/task_scheduler.h>
+#include <ftl/task_counter.h>
 
 #define SPLAT(v, c) _mm_permute_ps(v, _MM_SHUFFLE(c, c, c, c))
 #define SPLAT256(v, c) _mm256_permute_ps(v, _MM_SHUFFLE(c, c, c,c))
 
 namespace zec
 {
-    //struct AABBSetSSE
-    //{
-    //    float x[8];
-    //    float y[8];
-    //    float z[8];
-    //};
 
-    struct Frustum
+    constexpr size_t NUM_ITEMS_PER_LIST = 1024;
+
+    struct ViewFrustumCullTaskData
     {
-        Plane planes[6];
+        mat4 const* VP = nullptr;
+        AABB const* aabbs = nullptr;
+        mat4 const* model_transforms = nullptr;
+        u32* visibility_list;
+        u32 offset = 0;
+        u32 num_to_process = 0;
+        u32 size = 0;
     };
 
-    enum struct CameraType : u8
-    {
-        PERSPECTIVE = 0,
-        ORTHOGRAPHIC
-    };
-
-    struct View
-    {
-        //CameraType camera_type = CameraType::PERSPECTIVE;
-        Camera* camera;
-        Array<AABB>* aabb_list;
-        Array<OBB>* clip_space_obb_list;
-    };
+    static Array<ftl::Task> tasks = {};
+    static Array<ViewFrustumCullTaskData> task_data = {};
+    static Array<u32> temp_visibility_list = {};
 
     void matrix_mul_sse(const mat4& lhs, const mat4& rhs, mat4& dest)
     {
@@ -51,7 +45,6 @@ namespace zec
             _mm_store_ps(reinterpret_cast<float*>(&dest.rows[i]), v_x);
         }
     };
-
 
     void transform_points_4(__m128 dest[4], const __m128 x, const __m128 y, const __m128 z, const mat4& transform)
     {
@@ -251,6 +244,76 @@ namespace zec
             }
         }
     }
+
+
+    void cull_obbs_task(ftl::TaskScheduler* task_scheduler, void* arg)
+    {
+        (void)task_scheduler;
+        ViewFrustumCullTaskData* task_data = reinterpret_cast<ViewFrustumCullTaskData*>(arg);
+
+        for (size_t i = 0; i < task_data->num_to_process; i++) {
+            mat4 transform;
+            matrix_mul_sse(*task_data->VP, task_data->model_transforms[i], transform);
+
+            const AABB& aabb = task_data->aabbs[i];
+            if (test_aabb_visiblity_against_frustum256(transform, aabb)) {
+                task_data->visibility_list[task_data->size++] = task_data->offset + i;
+            }
+        }
+
+    };
+
+    void cull_obbs_mt(ftl::TaskScheduler& task_scheduler, const Camera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
+    {
+        ASSERT(out_visible_list.size == 0);
+
+        mat4 VP;
+        matrix_mul_sse(camera.projection, camera.view, VP);
+
+        size_t num_tasks = (aabb_list.size + NUM_ITEMS_PER_LIST - 1) / NUM_ITEMS_PER_LIST;
+
+        if (temp_visibility_list.size < aabb_list.size) {
+            temp_visibility_list.grow(aabb_list.size - temp_visibility_list.size);
+        }
+
+        if (tasks.size < num_tasks) {
+            tasks.grow(num_tasks - tasks.size);
+            task_data.grow(num_tasks - task_data.size);
+        }
+
+        // Fork
+        for (size_t task_idx = 0; task_idx < num_tasks; task_idx++) {
+            size_t offset = task_idx * num_tasks;
+            task_data[task_idx].VP = &VP;
+            task_data[task_idx].aabbs = &aabb_list[offset];
+            task_data[task_idx].model_transforms = &transforms[offset];
+            task_data[task_idx].visibility_list = &temp_visibility_list[offset];
+            task_data[task_idx].offset = u32(offset);
+            task_data[task_idx].num_to_process = u32(min(NUM_ITEMS_PER_LIST, aabb_list.size - offset));
+            task_data[task_idx].size = 0;
+            tasks[task_idx].Function = &cull_obbs_task;
+            tasks[task_idx].ArgData = &task_data[task_idx];
+        }
+
+        ftl::TaskCounter counter(&task_scheduler);
+        task_scheduler.AddTasks(num_tasks, tasks.data, ftl::TaskPriority::High, &counter);
+
+        if (out_visible_list.capacity < aabb_list.size) {
+            out_visible_list.reserve(aabb_list.size);
+        }
+
+        task_scheduler.WaitForCounter(&counter, 0);
+
+        // Reduce
+        for (size_t task_idx = 0; task_idx < num_tasks; task_idx++) {
+            auto& task_datum = task_data[task_idx];
+
+            u32* dest = out_visible_list.data + out_visible_list.size;
+            memory::copy(dest, task_datum.visibility_list, task_datum.size * sizeof(u32));
+            out_visible_list.size += task_datum.size;
+        }
+    };
+
 };
 
 #undef SPLAT
