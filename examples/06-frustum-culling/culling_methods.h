@@ -8,7 +8,6 @@
 #include <ftl/task_counter.h>
 
 #define SPLAT(v, c) _mm_permute_ps(v, _MM_SHUFFLE(c, c, c, c))
-#define SPLAT256(v, c) _mm256_permute_ps(v, _MM_SHUFFLE(c, c, c,c))
 
 namespace zec
 {
@@ -30,6 +29,8 @@ namespace zec
     static Array<ViewFrustumCullTaskData> task_data = {};
     static Array<u32> temp_visibility_list = {};
 
+    // ---------- SSE Methods ----------
+
     void matrix_mul_sse(const mat4& lhs, const mat4& rhs, mat4& dest)
     {
         for (size_t i = 0; i < ARRAY_SIZE(lhs.rows); i++) {
@@ -48,153 +49,173 @@ namespace zec
 
     void transform_points_4(__m128 dest[4], const __m128 x, const __m128 y, const __m128 z, const mat4& transform)
     {
-
-        // This first one is because our 4 points would all have w == 1.0f, so we can just skip the multiply
-        __m128 res = SPLAT(_mm_load_ps(&transform.rows[0].x), 3);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[0].x), 0), x, res);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[0].x), 1), y, res);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[0].x), 2), z, res);
-        dest[0] = res;
-
-        res = SPLAT(_mm_load_ps(&transform.rows[1].x), 3);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[1].x), 0), x, res);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[1].x), 1), y, res);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[1].x), 2), z, res);
-        dest[1] = res;
-
-        res = SPLAT(_mm_load_ps(&transform.rows[2].x), 3);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[2].x), 0), x, res);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[2].x), 1), y, res);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[2].x), 2), z, res);
-        dest[2] = res;
-
-        res = SPLAT(_mm_load_ps(&transform.rows[3].x), 3);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[3].x), 0), x, res);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[3].x), 1), y, res);
-        res = _mm_fmadd_ps(SPLAT(_mm_load_ps(&transform.rows[3].x), 2), z, res);
-        dest[3] = res;
+        for (size_t i = 0; i < 4; ++i) {
+            // This first one is because our 4 points would all have w == 1.0f, so we can just skip the multiply
+            __m128 res = _mm_broadcast_ss(&transform.rows[i].w);
+            res = _mm_fmadd_ps(_mm_broadcast_ss(&transform.rows[i].x), x, res);
+            res = _mm_fmadd_ps(_mm_broadcast_ss(&transform.rows[i].y), y, res);
+            res = _mm_fmadd_ps(_mm_broadcast_ss(&transform.rows[i].z), z, res);
+            dest[0] = res;
+        }
     }
 
     void transform_points_8(__m256 dest[4], const __m256 x, const __m256 y, const __m256 z, const mat4& transform)
     {
-        // This first one is because our 4 points would all have w == 1.0f, so we can just skip the multiply
-        __m256 res = SPLAT256(_mm256_load_ps(&transform.rows[0].x), 3);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[0].x), 0), x, res);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[0].x), 1), y, res);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[0].x), 2), z, res);
-        dest[0] = res;
-
-        res = SPLAT256(_mm256_load_ps(&transform.rows[1].x), 3);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[1].x), 0), x, res);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[1].x), 1), y, res);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[1].x), 2), z, res);
-        dest[1] = res;
-
-        res = SPLAT256(_mm256_load_ps(&transform.rows[2].x), 3);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[2].x), 0), x, res);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[2].x), 1), y, res);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[2].x), 2), z, res);
-        dest[2] = res;
-
-        res = SPLAT256(_mm256_load_ps(&transform.rows[3].x), 3);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[3].x), 0), x, res);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[3].x), 1), y, res);
-        res = _mm256_fmadd_ps(SPLAT256(_mm256_load_ps(&transform.rows[3].x), 2), z, res);
-        dest[3] = res;
+        for (size_t i = 0; i < 4; ++i) {
+            __m256 res = _mm256_broadcast_ss(&transform.rows[i].w);
+            res = _mm256_fmadd_ps(_mm256_broadcast_ss(&transform.rows[i].x), x, res);
+            res = _mm256_fmadd_ps(_mm256_broadcast_ss(&transform.rows[i].y), y, res);
+            res = _mm256_fmadd_ps(_mm256_broadcast_ss(&transform.rows[i].z), z, res);
+            dest[i] = res;
+        }
     }
 
-    bool test_aabb_visiblity_against_frustum_sse(mat4& transform, const AABB& aabb)
+    bool test_aabb_visiblity_against_frustum_128(mat4& transform, const AABB& aabb)
     {
         vec4 min{ aabb.min, 1.0f };
         vec4 max{ aabb.max, 1.0f };
         const __m128 aabb_min = _mm_load_ps(&min.x);
         const __m128 aabb_max = _mm_load_ps(&max.x);
 
-        __m128 minmax_x = _mm_shuffle_ps(aabb_min, aabb_max, _MM_SHUFFLE(0, 0, 0, 0));
-        minmax_x = _mm_shuffle_ps(minmax_x, minmax_x, _MM_SHUFFLE(2, 0, 2, 0)); // x X x X
-        const __m128 minmax_y = _mm_shuffle_ps(aabb_min, aabb_max, _MM_SHUFFLE(1, 1, 1, 1)); // y y Y Y
-        const __m128 z_near = _mm_permute_ps(aabb_min, _MM_SHUFFLE(2, 2, 2, 2)); // z z z z
-        const __m128 z_far = _mm_permute_ps(aabb_max, _MM_SHUFFLE(2, 2, 2, 2));  // Z Z Z Z
+        __m128 x = _mm_shuffle_ps(aabb_min, aabb_max, _MM_SHUFFLE(0, 0, 0, 0));
+        x = _mm_permute_ps(x, _MM_SHUFFLE(2, 0, 2, 0)); // x X x X
+        const __m128 y = _mm_shuffle_ps(aabb_min, aabb_max, _MM_SHUFFLE(1, 1, 1, 1)); // y y Y Y
+        const __m128 z_min = SPLAT(aabb_min, 3); // z z z z
+        const __m128 z_max = SPLAT(aabb_max, 3);  // Z Z Z Z
 
         // corners[0] = { x, x, x, x} ... corners[4] = {w, w, w, w};
-        __m128 near_corners[4];
-        __m128 far_corners[4];
+        __m128 min_corners[4];
+        __m128 max_corners[4];
 
-        transform_points_4(near_corners, minmax_x, minmax_y, z_near, transform);
-        transform_points_4(far_corners, minmax_x, minmax_y, z_far, transform);
+        transform_points_4(min_corners, x, y, z_min, transform);
+        transform_points_4(max_corners, x, y, z_max, transform);
 
-        const __m128 near_neg_ws = _mm_sub_ps(_mm_setzero_ps(), near_corners[3]);
-        const __m128 far_neg_ws = _mm_sub_ps(_mm_setzero_ps(), far_corners[3]);
+        const __m128 min_neg_ws = _mm_sub_ps(_mm_setzero_ps(), min_corners[3]);
+        const __m128 max_neg_ws = _mm_sub_ps(_mm_setzero_ps(), max_corners[3]);
+
+        // Test whether -w <= x <= w
+        __m128 min_inside = _mm_and_ps(
+            _mm_cmple_ps(min_neg_ws, min_corners[0]),
+            _mm_cmple_ps(min_corners[0], min_corners[3])
+        );
+        // inside && (-w <= y <= w)
+        min_inside = _mm_and_ps(
+            min_inside,
+            _mm_and_ps(
+                _mm_cmple_ps(min_neg_ws, min_corners[1]),
+                _mm_cmple_ps(min_corners[1], min_corners[3])
+            )
+        );
+        // inside && 0 < z < w
+        min_inside = _mm_and_ps(
+            min_inside,
+            _mm_and_ps(
+                _mm_cmple_ps(_mm_setzero_ps(), min_corners[2]),
+                _mm_cmple_ps(min_corners[2], min_corners[3])
+            )
+        );
 
         // Test whether -w < x < w
-        __m128 near_inside = _mm_cmplt_ps(near_neg_ws, near_corners[0]);
-        near_inside = _mm_and_ps(near_inside, _mm_cmplt_ps(near_corners[0], near_corners[3]));
+        __m128 max_inside = _mm_and_ps(
+            _mm_cmple_ps(max_neg_ws, max_corners[0]),
+            _mm_cmple_ps(max_corners[0], max_corners[3])
+        );
         // inside && -w < y < w
-        near_inside = _mm_and_ps(near_inside, _mm_and_ps(_mm_cmplt_ps(near_neg_ws, near_corners[1]), _mm_cmplt_ps(near_corners[1], near_corners[3])));
+        max_inside = _mm_and_ps(
+            max_inside,
+            _mm_and_ps(
+                _mm_cmple_ps(max_neg_ws, max_corners[1]),
+                _mm_cmple_ps(max_corners[1], max_corners[3])
+            )
+        );
         // inside && 0 < z < w
-        near_inside = _mm_and_ps(near_inside, _mm_and_ps(_mm_cmplt_ps(_mm_setzero_ps(), near_corners[2]), _mm_cmplt_ps(near_corners[2], near_corners[3])));
+        max_inside = _mm_and_ps(
+            max_inside,
+            _mm_and_ps(
+                _mm_cmple_ps(_mm_setzero_ps(), max_corners[2]),
+                _mm_cmple_ps(max_corners[2], max_corners[3])
+            )
+        );
 
-        // Test whether -w < x < w
-        __m128 far_inside = _mm_and_ps(_mm_cmplt_ps(far_neg_ws, far_corners[0]), _mm_cmplt_ps(far_corners[0], far_corners[3]));
-        // inside && -w < y < w
-        far_inside = _mm_and_ps(far_inside, _mm_and_ps(_mm_cmplt_ps(far_neg_ws, far_corners[1]), _mm_cmplt_ps(far_corners[1], far_corners[3])));
-        // inside && 0 < z < w
-        far_inside = _mm_and_ps(far_inside, _mm_and_ps(_mm_cmplt_ps(_mm_setzero_ps(), far_corners[2]), _mm_cmplt_ps(far_corners[2], far_corners[3])));
-
-        __m128 inside = _mm_or_ps(near_inside, far_inside);
-        // This will fill { inside[0] + inside[1], inside[2] + inside[3], inside[0] + inside[1], inside[2] + inside[3] }
-        inside = _mm_hadd_ps(inside, inside);
-        // This will fill { inside[0] + inside[1] + inside[2] + inside[3], ... }
-        inside = _mm_hadd_ps(inside, inside);
+        // Perform ORs to reduce our lanes, since we want to know if _any_ point was "inside"
+        __m128 inside = _mm_or_ps(min_inside, max_inside);
+        // The following is equivalent to
+        // { inside[0] || inside[2], inside[1] || inside[3], inside[2] || inside[2], inside[3] || inside[3] }
+        inside = _mm_or_ps(inside, _mm_permute_ps(inside, _MM_SHUFFLE(2, 3, 2, 3)));
+        // Then we perform another OR to fill the lowest lane with the final reduction
+        // { (inside[0] || inside[2]) || (inside[1] || inside[3]), ... }
+        inside = _mm_or_ps(inside, _mm_permute_ps(inside, _MM_SHUFFLE(1, 1, 1, 1)));
+        // Store our reduction
         u32 res = 0u;
         _mm_store_ss(reinterpret_cast<float*>(&res), inside);
         return res != 0;
     }
 
-    bool test_aabb_visiblity_against_frustum256(mat4& transform, const AABB& aabb)
+    bool test_aabb_visiblity_against_frustum_256(mat4& transform, const AABB& aabb)
     {
         vec4 min{ aabb.min, 1.0f };
         vec4 max{ aabb.max, 1.0f };
         const __m128 aabb_min = _mm_load_ps(&min.x);
         const __m128 aabb_max = _mm_load_ps(&max.x);
 
-        __m128 minmax_x = _mm_shuffle_ps(aabb_min, aabb_max, _MM_SHUFFLE(0, 0, 0, 0));
-        minmax_x = _mm_shuffle_ps(minmax_x, minmax_x, _MM_SHUFFLE(2, 0, 2, 0)); // x X x X
-        const __m128 minmax_y = _mm_shuffle_ps(aabb_min, aabb_max, _MM_SHUFFLE(1, 1, 1, 1)); // y y Y Y
-        const __m128 minmax_z[] = {
-            SPLAT(aabb_min, 2), // z z z z
-            SPLAT(aabb_max, 2)  // Z Z Z Z
-        };
+        __m128 x_minmax = _mm_shuffle_ps(aabb_min, aabb_max, _MM_SHUFFLE(0, 0, 0, 0));
+        x_minmax = _mm_permute_ps(x_minmax, _MM_SHUFFLE(2, 0, 2, 0)); // x X x X
+        const __m128 y_minmax = _mm_shuffle_ps(aabb_min, aabb_max, _MM_SHUFFLE(1, 1, 1, 1)); // y y Y Y
+        const __m128 z_min = SPLAT(aabb_min, 2); // z z z z
+        const __m128 z_max = SPLAT(aabb_max, 2);  // Z Z Z Z
 
-        const __m256 x = _mm256_broadcast_ps(&minmax_x);
-        const __m256 y = _mm256_broadcast_ps(&minmax_y);
-        const __m256 z = _mm256_load_ps(reinterpret_cast<const float*>(minmax_z));
+        // Each __m256 represents a single component of 8 vertices
+        const __m256 x = _mm256_set_m128(x_minmax, x_minmax);
+        const __m256 y = _mm256_set_m128(y_minmax, y_minmax);
+        const __m256 z = _mm256_set_m128(z_min, z_max);
 
-        // corners[0] = { x, x, x, x, ... } ... corners[4] = {w, w, w, w ...};
-        __m256 corners[4];
+        // corner_comps[0] = { x, x, x, x, ... } ... corners[4] = {w, w, w, w ...};
+        __m256 corner_comps[4];
 
-        transform_points_8(corners, x, y, z, transform);
+        transform_points_8(corner_comps, x, y, z, transform);
 
-        const __m256 neg_ws = _mm256_sub_ps(_mm256_setzero_ps(), corners[3]);
+        const __m256 neg_ws = _mm256_sub_ps(_mm256_setzero_ps(), corner_comps[3]);
 
         // Test whether -w < x < w
-        __m256 inside = _mm256_cmp_ps(neg_ws, corners[0], _CMP_LT_OQ);
-        inside = _mm256_and_ps(inside, _mm256_cmp_ps(corners[0], corners[3], _CMP_LT_OQ));
+        __m256 inside = _mm256_and_ps(
+            _mm256_cmp_ps(neg_ws, corner_comps[0], _CMP_LE_OQ),
+            _mm256_cmp_ps(corner_comps[0], corner_comps[3], _CMP_LE_OQ)
+        );
         // inside && -w < y < w
-        inside = _mm256_and_ps(inside, _mm256_and_ps(_mm256_cmp_ps(neg_ws, corners[1], _CMP_LT_OQ), _mm256_cmp_ps(corners[1], corners[3], _CMP_LT_OQ)));
+        inside = _mm256_and_ps(
+            inside,
+            _mm256_and_ps(
+                _mm256_cmp_ps(neg_ws, corner_comps[1], _CMP_LE_OQ),
+                _mm256_cmp_ps(corner_comps[1], corner_comps[3], _CMP_LE_OQ)
+            )
+        );
         // inside && 0 < z < w
-        inside = _mm256_and_ps(inside, _mm256_and_ps(_mm256_cmp_ps(neg_ws, corners[2], _CMP_LT_OQ), _mm256_cmp_ps(corners[2], corners[3], _CMP_LT_OQ)));
+        inside = _mm256_and_ps(
+            inside,
+            _mm256_and_ps(
+                _mm256_cmp_ps(neg_ws, corner_comps[2], _CMP_LE_OQ),
+                _mm256_cmp_ps(corner_comps[2], corner_comps[3], _CMP_LE_OQ)
+            )
+        );
 
-        u32 res[8];
-        _mm256_store_ps(reinterpret_cast<float*>(res), inside);
-        for (size_t i = 1; i < ARRAY_SIZE(res); i++) {
-            res[0] |= res[i];
-        }
-        return res[0] != 0;
+        __m128 reduction = _mm_or_ps(_mm256_extractf128_ps(inside, 0), _mm256_extractf128_ps(inside, 1));
+        // The following fills the first two lanes such that
+        // reduction[0] = reduction[0] || reduction[2]
+        // reduction[1] = reduction[1] || reduction[3]
+        reduction = _mm_or_ps(reduction, _mm_permute_ps(reduction, _MM_SHUFFLE(3, 2, 3, 2)));
+        // Then we perform another OR to fill the lowest lane with the final reduction
+        // reduction[0] = (reduction[0] || reduction[2]) || (reduction[1] || reduction[3])
+        reduction = _mm_or_ps(reduction, _mm_permute_ps(reduction, _MM_SHUFFLE(1, 1, 1, 1)));
+        // Store our reduction
+        u32 res = 0u;
+        _mm_store_ss(reinterpret_cast<float*>(&res), reduction);
+        return res != 0;
     }
 
     void cull_obbs_sse(const Camera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
     {
+        ASSERT(out_visible_list.size == 0);
+
         mat4 VP;
         matrix_mul_sse(camera.projection, camera.view, VP);
         for (size_t i = 0; i < aabb_list.size; i++) {
@@ -202,11 +223,13 @@ namespace zec
             matrix_mul_sse(VP, transforms[i], transform);
 
             const AABB& aabb = aabb_list[i];
-            if (test_aabb_visiblity_against_frustum_sse(transform, aabb)) {
+            if (test_aabb_visiblity_against_frustum_256(transform, aabb)) {
                 out_visible_list.push_back(i);
             }
         }
     }
+
+    // ---------- Scalar Methods ----------
 
     bool test_aabb_visiblity_against_frustum(mat4& transform, const AABB& aabb)
     {
@@ -234,6 +257,7 @@ namespace zec
 
     void cull_obbs(const Camera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
     {
+        ASSERT(out_visible_list.size == 0);
         mat4 VP = camera.projection * camera.view;
         for (size_t i = 0; i < aabb_list.size; i++) {
             mat4 transform = VP * transforms[i];
@@ -245,6 +269,7 @@ namespace zec
         }
     }
 
+    // ---------- Multi-threaded Methods ----------
 
     void cull_obbs_task(ftl::TaskScheduler* task_scheduler, void* arg)
     {
@@ -256,7 +281,7 @@ namespace zec
             matrix_mul_sse(*task_data->VP, task_data->model_transforms[i], transform);
 
             const AABB& aabb = task_data->aabbs[i];
-            if (test_aabb_visiblity_against_frustum256(transform, aabb)) {
+            if (test_aabb_visiblity_against_frustum_256(transform, aabb)) {
                 task_data->visibility_list[task_data->size++] = task_data->offset + i;
             }
         }
@@ -313,7 +338,6 @@ namespace zec
             out_visible_list.size += task_datum.size;
         }
     };
-
 };
 
 #undef SPLAT

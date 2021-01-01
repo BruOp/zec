@@ -5,7 +5,7 @@
 #include "gltf_loading.h"
 #include "gfx/render_system.h"
 #include "bounding_meshes.h"
-#include "view.h"
+#include "culling_methods.h"
 
 #include "ftl/task_counter.h"
 #include "ftl/task_scheduler.h"
@@ -160,6 +160,7 @@ namespace DebugPass
     {
         constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
         Context* pass_context = reinterpret_cast<Context*>(context);
+        if (!pass_context->active) return;
 
         //TextureHandle depth_target = RenderSystem::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
         TextureHandle sdr_buffer = RenderSystem::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
@@ -568,6 +569,7 @@ protected:
             scene.aabbs.grow(num_objects);
             scene.draw_data_buffers.grow(num_objects);
             scene.debug_draw_data_buffers.grow(num_objects);
+            visibility_list.reserve(num_objects);
 
             BufferDesc draw_cb_desc = cb_desc;
             for (size_t k = 0; k < grid_size.z; k++) {
@@ -593,6 +595,8 @@ protected:
                         debug_transform = scene.global_transforms[idx] * debug_transform;
                         draw_cb_desc.data = &debug_transform;
                         scene.debug_draw_data_buffers[idx] = gfx::buffers::create(draw_cb_desc);
+
+                        visibility_list.push_back(idx);
                     }
                 }
             }
@@ -604,7 +608,7 @@ protected:
             .visibility_list = &visibility_list,
         };
 
-        debug_context.active = true;
+        debug_context.active = false;
         debug_context.camera = &camera;
         debug_context.view_cb_handle = view_cb_handle;
         debug_context.debug_view_cb_handle = view_cb_handle;
@@ -688,9 +692,10 @@ protected:
         view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
         view_constant_data.camera_position = camera.position;
 
+        PIXBeginEvent(0, "Cull AABBs");
+        // TODO: Allow toggling of this + debug pass using imgui
         // Generate visibility list
         visibility_list.empty();
-        PIXBeginEvent(0, "Cull AABBs");
         //cull_obbs(camera, scene.global_transforms, scene.aabbs, visibility_list);
         cull_obbs_sse(camera, scene.global_transforms, scene.aabbs, visibility_list);
         //cull_obbs_mt(task_scheduler, camera, scene.global_transforms, scene.aabbs, visibility_list);
