@@ -285,7 +285,6 @@ namespace zec
                 task_data->visibility_list[task_data->size++] = task_data->offset + i;
             }
         }
-
     };
 
     void cull_obbs_mt(ftl::TaskScheduler& task_scheduler, const Camera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)

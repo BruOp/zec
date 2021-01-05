@@ -6,6 +6,7 @@
 #include "gfx/render_system.h"
 #include "bounding_meshes.h"
 #include "culling_methods.h"
+#include "seperating_axis_culling.h"
 
 #include "ftl/task_counter.h"
 #include "ftl/task_scheduler.h"
@@ -332,12 +333,13 @@ public:
 
     RenderSystem::RenderList render_list;
 
-    ftl::TaskScheduler task_scheduler;
+    //ftl::TaskScheduler task_scheduler;
 
 protected:
     void init() override final
     {
         camera_controller.init();
+        camera_controller.movement_sensitivity *= 0.1f;
         camera_controller.set_camera(&camera);
 
         float vertical_fov = deg_to_rad(65.0f);
@@ -347,7 +349,7 @@ protected:
         camera = create_camera(float(width) / float(height), vertical_fov, camera_near, camera_far - 10.0f);
         debug_camera = create_camera(float(width) / float(height), vertical_fov, camera_near, camera_far);
 
-        debug_camera.position = camera.position + vec3{ 0.0f, 15.0f, 0.0f };
+        debug_camera.position = camera.position + vec3{ 0.0f, 10.0f, 0.0f };
         mat4 view = look_at(debug_camera.position, camera.position, { 0.0f, 0.0f, 1.0f });
         set_camera_view(debug_camera, view);
 
@@ -367,7 +369,7 @@ protected:
 
         constexpr u16 fullscreen_indices[] = { 0, 1, 2 };
 
-        task_scheduler.Init();
+        //task_scheduler.Init();
 
         MeshDesc fullscreen_desc{};
         fullscreen_desc.index_buffer_desc.usage = RESOURCE_USAGE_INDEX;
@@ -540,9 +542,11 @@ protected:
             aabb.max = gltf_scene.aabbs[0].max;
             aabb.min = gltf_scene.aabbs[0].min;
         }
-        mat4 scale_transform = identity_mat4();
-        set_scale(scale_transform, 1.0f / (aabb.max - aabb.min));
-        local_transform = scale_transform * local_transform;
+        mat4 transform = identity_mat4();
+        constexpr float boombox_size = 2.0f;
+        set_scale(transform, boombox_size / (aabb.max - aabb.min));
+        //rotate(transform, quaternion(vec3{ 0.0f, 1.0f, 0.0f }, 0.7f));
+        local_transform = transform * local_transform;
 
         BufferDesc cb_desc = {
             .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
@@ -562,7 +566,7 @@ protected:
             //const mat3 rotation_mat = identity_mat3();
 
 
-            vec3 grid_extent = 2.0f * vec3{ float(grid_size.x), float(grid_size.y), float(grid_size.z) };
+            vec3 grid_extent = 2.0f * boombox_size * vec3{ float(grid_size.x), float(grid_size.y), float(grid_size.z) };
 
             scene.meshes.grow(num_objects);
             scene.global_transforms.grow(num_objects);
@@ -577,7 +581,7 @@ protected:
                     for (size_t i = 0; i < grid_size.x; i++) {
                         const u32 idx = (i + j * grid_size.x + k * z_layer_area);
                         scene.meshes[idx] = mesh_handle;
-                        const vec3 position = 4.0f * (vec3{ float(i), float(j), float(k) } + 0.5f) - grid_extent;
+                        const vec3 position = 4.0f * boombox_size * (vec3{ float(i), float(j), float(k) } + 0.5f) - grid_extent;
                         scene.global_transforms[idx] = local_transform;
                         set_translation(scene.global_transforms[idx], position);
                         scene.aabbs[idx] = aabb;
@@ -697,8 +701,10 @@ protected:
         // Generate visibility list
         visibility_list.empty();
         //cull_obbs(camera, scene.global_transforms, scene.aabbs, visibility_list);
-        cull_obbs_sse(camera, scene.global_transforms, scene.aabbs, visibility_list);
+        ////cull_obbs_sse(camera, scene.global_transforms, scene.aabbs, visibility_list);
         //cull_obbs_mt(task_scheduler, camera, scene.global_transforms, scene.aabbs, visibility_list);
+        cull_obbs_sac(camera, scene.global_transforms, scene.aabbs, visibility_list);
+
         PIXEndEvent();
     }
 
