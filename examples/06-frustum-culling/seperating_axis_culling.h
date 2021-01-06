@@ -44,7 +44,6 @@ namespace zec
 
     struct CullingFrustum
     {
-        // Excludes forward direction, since that's just (0, 0, -1)
         vec3 left_bottom_near = {};
         vec3 right_top_far = {};
     };
