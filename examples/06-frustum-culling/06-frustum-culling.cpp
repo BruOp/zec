@@ -41,7 +41,6 @@ struct Scene
 {
     Array<MeshHandle> meshes = {};
     Array<AABB> aabbs = {};
-    Array<OBB> clip_space_obbs = {};
     Array<mat4> global_transforms = {};
     Array<BufferHandle> draw_data_buffers = {};
     Array<BufferHandle> debug_draw_data_buffers = {};
@@ -326,7 +325,8 @@ public:
 
     Scene scene = {};
     Array<u32> visibility_list = {};
-    Array<OBB> clip_space_obbs = {};
+
+    AABB_SoA aabb_soa;
 
     ForwardPass::Context forward_context = {};
     DebugPass::Context debug_context = {};
@@ -349,7 +349,7 @@ protected:
         camera = create_camera(float(width) / float(height), vertical_fov, camera_near, camera_far - 10.0f);
         debug_camera = create_camera(float(width) / float(height), vertical_fov, camera_near, camera_far);
 
-        debug_camera.position = camera.position + vec3{ 0.0f, 10.0f, 0.0f };
+        debug_camera.position = camera.position + vec3{ 0.0f, 50.0f, 0.0f };
         mat4 view = look_at(debug_camera.position, camera.position, { 0.0f, 0.0f, 1.0f });
         set_camera_view(debug_camera, view);
 
@@ -586,6 +586,14 @@ protected:
                         set_translation(scene.global_transforms[idx], position);
                         scene.aabbs[idx] = aabb;
 
+                        // Push values into SoA list as well
+                        aabb_soa.min_x.push_back(aabb.min.x);
+                        aabb_soa.min_y.push_back(aabb.min.y);
+                        aabb_soa.min_z.push_back(aabb.min.z);
+                        aabb_soa.max_x.push_back(aabb.max.x);
+                        aabb_soa.max_y.push_back(aabb.max.y);
+                        aabb_soa.max_z.push_back(aabb.max.z);
+
                         DrawConstantData draw_data = {
                             .model = scene.global_transforms[idx],
                             .normal_transform = transpose(to_mat3(scene.global_transforms[idx])),
@@ -615,7 +623,7 @@ protected:
         debug_context.active = false;
         debug_context.camera = &camera;
         debug_context.view_cb_handle = view_cb_handle;
-        debug_context.debug_view_cb_handle = view_cb_handle;
+        debug_context.debug_view_cb_handle = debug_view_cb_handle;
         debug_context.debug_camera = &debug_camera;
         debug_context.scene = &scene;
 
@@ -703,8 +711,8 @@ protected:
         //cull_obbs(camera, scene.global_transforms, scene.aabbs, visibility_list);
         ////cull_obbs_sse(camera, scene.global_transforms, scene.aabbs, visibility_list);
         //cull_obbs_mt(task_scheduler, camera, scene.global_transforms, scene.aabbs, visibility_list);
-        cull_obbs_sac(camera, scene.global_transforms, scene.aabbs, visibility_list);
-
+        //cull_obbs_sac(camera, scene.global_transforms, scene.aabbs, visibility_list);
+        cull_obbs_sac_ispc(camera, scene.global_transforms, aabb_soa, visibility_list);
         PIXEndEvent();
     }
 

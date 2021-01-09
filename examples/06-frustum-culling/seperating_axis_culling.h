@@ -3,6 +3,7 @@
 #include "core/zec_math.h"
 #include "camera.h"
 #include "culling_methods.h"
+#include "sat_frustum_culling_ispc.h"
 
 namespace zec
 {
@@ -42,20 +43,32 @@ namespace zec
         };
     };
 
+    struct AABB_SoA
+    {
+        Array<float> min_x;
+        Array<float> min_y;
+        Array<float> min_z;
+        Array<float> max_x;
+        Array<float> max_y;
+        Array<float> max_z;
+    };
+
     struct CullingFrustum
     {
-        vec3 left_bottom_near = {};
-        vec3 right_top_far = {};
+        float near_right;
+        float near_top;
+        float near_plane;
+        float far_plane;
     };
 
     bool test_using_separating_axis_theorem(const CullingFrustum& frustum, const mat4& vs_transform, const AABB& aabb)
     {
         // Near, far
-        float n = frustum.left_bottom_near.z;
-        float f = frustum.right_top_far.z;
+        float n = frustum.near_plane;
+        float f = frustum.far_plane;
         // half width, half height
-        float r = -frustum.left_bottom_near.x;
-        float t = -frustum.left_bottom_near.y;
+        float r = frustum.near_right;
+        float t = frustum.near_top;
 
         // So first thing we need to do is obtain the normal directions of our OBB by transforming 4 of our AABB vertices
         vec3 corners[] = {
@@ -245,45 +258,45 @@ namespace zec
             }
         }
 
-        // Frustum Edges X Ai
-        {
-            for (size_t i = 0; i < ARRAY_SIZE(obb.axes); i++) {
-                const vec3 M[] = {
-                    cross({-r, 0.0f, n}, obb.a0), // Left Plane
-                    cross({ r, 0.0f, n }, obb.a0), // Right plane
-                    cross({ 0.0f, t, n }, obb.a0), // Top plane
-                    cross({ 0.0, -t, n }, obb.a0) // Bottom plane
-                };
+        //// Frustum Edges X Ai
+        //{
+        //    for (size_t i = 0; i < ARRAY_SIZE(obb.axes); i++) {
+        //        const vec3 M[] = {
+        //            cross({-r, 0.0f, n}, obb.axes[i]), // Left Plane
+        //            cross({ r, 0.0f, n }, obb.axes[i]), // Right plane
+        //            cross({ 0.0f, t, n }, obb.axes[i]), // Top plane
+        //            cross({ 0.0, -t, n }, obb.axes[i]) // Bottom plane
+        //        };
 
-                for (size_t m = 0; m < ARRAY_SIZE(M); m++) {
-                    float MoR = fabsf(M[m].x);
-                    float MoU = fabsf(M[m].y);
-                    float MoD = M[m].z;
-                    float MoC = dot(M[m], obb.center);
+        //        for (size_t m = 0; m < ARRAY_SIZE(M); m++) {
+        //            float MoR = fabsf(M[m].x);
+        //            float MoU = fabsf(M[m].y);
+        //            float MoD = M[m].z;
+        //            float MoC = dot(M[m], obb.center);
 
-                    float obb_radius = obb.extents[m];
+        //            float obb_radius = obb.extents[m];
 
-                    float obb_min = MoC - obb_radius;
-                    float obb_max = MoC + obb_radius;
+        //            float obb_min = MoC - obb_radius;
+        //            float obb_max = MoC + obb_radius;
 
-                    // Frustum projection
-                    float p = r * MoR + t * MoU;
-                    float m0 = n * MoD - p;
-                    float m1 = n * MoD + p;
-                    if (m0 < 0.0f) {
-                        m0 *= f / n;
-                    }
-                    if (m1 > 0.0f) {
-                        m1 *= f / n;
-                    }
+        //            // Frustum projection
+        //            float p = r * MoR + t * MoU;
+        //            float m0 = n * MoD - p;
+        //            float m1 = n * MoD + p;
+        //            if (m0 < 0.0f) {
+        //                m0 *= f / n;
+        //            }
+        //            if (m1 > 0.0f) {
+        //                m1 *= f / n;
+        //            }
 
-                    if (obb_min > m1 || obb_max < m0) {
-                        culling_counters[CullingCounter::FRUSTUM_EDGE_CROSS_A]++;
-                        return false;
-                    }
-                }
-            }
-        }
+        //            if (obb_min > m1 || obb_max < m0) {
+        //                culling_counters[CullingCounter::FRUSTUM_EDGE_CROSS_A]++;
+        //                return false;
+        //            }
+        //        }
+        //    }
+        //}
 
         // No intersections detected
         return true;
@@ -299,8 +312,10 @@ namespace zec
 
         float tan_fov = tan(0.5f * camera.vertical_fov);
         CullingFrustum frustum = {
-            .left_bottom_near = vec3{ -camera.aspect_ratio * camera.near_plane * tan_fov, -camera.near_plane * tan_fov, -camera.near_plane },
-            .right_top_far = vec3{ camera.aspect_ratio * camera.far_plane * tan_fov, camera.far_plane * tan_fov, -camera.far_plane },
+            .near_right = camera.aspect_ratio * camera.near_plane * tan_fov,
+            .near_top = camera.near_plane * tan_fov,
+            .near_plane = -camera.near_plane,
+            .far_plane = -camera.far_plane,
         };
         for (size_t i = 0; i < aabb_list.size; i++) {
             mat4 transform;
@@ -316,4 +331,38 @@ namespace zec
             PIXReportCounter(culling_counter_names[i], float(culling_counters[i]));
         }
     };
+
+    void cull_obbs_sac_ispc(const Camera& camera, const Array<mat4>& transforms, const AABB_SoA& aabb_soa, Array<u32>& out_visible_list)
+    {
+        ASSERT(out_visible_list.size == 0);
+        if (out_visible_list.capacity < transforms.size) {
+            out_visible_list.reserve(transforms.size);
+        }
+
+        float tan_fov = tan(0.5f * camera.vertical_fov);
+        ispc::CullingFrustum frustum = {
+            .near_right = camera.aspect_ratio * camera.near_plane * tan_fov,
+            .near_top = camera.near_plane * tan_fov,
+            .near_plane = -camera.near_plane,
+            .far_plane = -camera.far_plane,
+        };
+
+        const ispc::mat4* view_transform = reinterpret_cast<const ispc::mat4*>(&camera.view);
+
+        u32 num_visible = 0;
+        ispc::cull_obbs_ispc(
+            frustum,
+            *view_transform,
+            reinterpret_cast<const ispc::mat4*>(transforms.data),
+            aabb_soa.min_x.data,
+            aabb_soa.min_y.data,
+            aabb_soa.min_z.data,
+            aabb_soa.max_x.data,
+            aabb_soa.max_y.data,
+            aabb_soa.max_z.data,
+            transforms.size,
+            out_visible_list.data,
+            &num_visible);
+        out_visible_list.size = num_visible;
+    }
 }

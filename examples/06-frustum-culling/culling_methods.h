@@ -55,7 +55,7 @@ namespace zec
             res = _mm_fmadd_ps(_mm_broadcast_ss(&transform.rows[i].x), x, res);
             res = _mm_fmadd_ps(_mm_broadcast_ss(&transform.rows[i].y), y, res);
             res = _mm_fmadd_ps(_mm_broadcast_ss(&transform.rows[i].z), z, res);
-            dest[0] = res;
+            dest[i] = res;
         }
     }
 
