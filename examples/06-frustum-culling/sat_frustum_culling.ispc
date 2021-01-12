@@ -324,7 +324,6 @@ bool is_visible(
 
 export void cull_obbs_ispc(
     uniform const CullingFrustum& frustum,
-    uniform const mat4& view_transform,
     uniform const mat4 model_transforms[],
     uniform const float min_x[],
     uniform const float min_y[],
@@ -341,14 +340,7 @@ export void cull_obbs_ispc(
     foreach(i = 0 ... num_items)
     {
         varying const mat4 model_transform = model_transforms[i];
-        varying mat4 transform = { {
-            {0.0f, 0.0f, 0.0f, 0.0f},
-            {0.0f, 0.0f, 0.0f, 0.0f},
-            {0.0f, 0.0f, 0.0f, 0.0f},
-            {0.0f, 0.0f, 0.0f, 0.0f}
-        } };
-        mul(view_transform, model_transform, &transform);
-        varying bool visible = is_visible(frustum, transform, min_x[i], min_y[i], min_z[i], max_x[i], max_y[i], max_z[i]);
+        varying bool visible = is_visible(frustum, model_transform, min_x[i], min_y[i], min_z[i], max_x[i], max_y[i], max_z[i]);
         if (visible) {
             num_visible += packed_store_active(&out_visibility_list[num_visible], i);
         }

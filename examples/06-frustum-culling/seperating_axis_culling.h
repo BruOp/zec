@@ -61,6 +61,8 @@ namespace zec
         float far_plane;
     };
 
+    Array<mat4> model_to_view_transforms;
+
     bool test_using_separating_axis_theorem(const CullingFrustum& frustum, const mat4& vs_transform, const AABB& aabb)
     {
         // Near, far
@@ -338,6 +340,9 @@ namespace zec
         if (out_visible_list.capacity < transforms.size) {
             out_visible_list.reserve(transforms.size);
         }
+        if (model_to_view_transforms.size < transforms.size) {
+            model_to_view_transforms.grow(transforms.size - model_to_view_transforms.size);
+        }
 
         float tan_fov = tan(0.5f * camera.vertical_fov);
         ispc::CullingFrustum frustum = {
@@ -347,13 +352,14 @@ namespace zec
             .far_plane = -camera.far_plane,
         };
 
-        const ispc::mat4* view_transform = reinterpret_cast<const ispc::mat4*>(&camera.view);
+        for (size_t i = 0; i < transforms.size; i++) {
+            matrix_mul_sse(camera.view, transforms[i], model_to_view_transforms[i]);
+        }
 
         u32 num_visible = 0;
         ispc::cull_obbs_ispc(
             frustum,
-            *view_transform,
-            reinterpret_cast<const ispc::mat4*>(transforms.data),
+            reinterpret_cast<const ispc::mat4*>(model_to_view_transforms.data),
             aabb_soa.min_x.data,
             aabb_soa.min_y.data,
             aabb_soa.min_z.data,
