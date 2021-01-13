@@ -6,6 +6,7 @@ function exampleProject(...)
 
     files {
       path.join(EXAMPLES_DIR, name, "**.cpp"),
+      path.join(EXAMPLES_DIR, name, "**.ispc"),
       path.join(EXAMPLES_DIR, name, "**.h")
     }
 
@@ -44,5 +45,30 @@ function exampleProject(...)
       }
 
     configuration{}
+
+
+    filter "files:**.ispc"
+      buildmessage "Compiling ISPC files %{file.relpath}"
+
+      buildoutputs {
+        "%{cfg.objdir}/%{file.basename}.obj",
+        "%{cfg.objdir}/%{file.basename}_sse4.obj",
+        "%{cfg.objdir}/%{file.basename}_avx2.obj",
+        "%{file.reldirectory}/%{file.basename}_ispc.h"
+      }
+
+      filter { "Debug", "files:**.ispc" }
+        buildcommands {
+          'ispc -g -O0 "%{file.relpath}" -o "%{cfg.objdir}/%{file.basename}.obj" -h "./%{file.reldirectory}/%{file.basename}_ispc.h" --target=sse4,avx2 --opt=fast-math'
+        }
+
+      filter { "Release", "files:**.ispc"}
+        buildcommands {
+          'ispc -O2 "%{file.relpath}" -o "%{cfg.objdir}/%{file.basename}.obj" -h "./%{file.reldirectory}/%{file.basename}_ispc.h" --target=sse4,avx2 --opt=fast-math'
+        }
+
+      configuration {}
+
+
   end
 end
