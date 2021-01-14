@@ -205,7 +205,10 @@ namespace zec
                 float MoD = M.z;
                 float MoC = M.y * obb.center.y + M.z * obb.center.z;
 
-                float obb_radius = obb.extents[m];
+                float obb_radius = 0.0f;
+                for (size_t i = 0; i < 3; i++) {
+                    obb_radius += fabsf(dot(M, obb.axes[i])) * obb.extents[i];
+                }
 
                 float obb_min = MoC - obb_radius;
                 float obb_max = MoC + obb_radius;
@@ -235,9 +238,12 @@ namespace zec
                 float MoR = fabsf(M.x);
                 float MoU = 0.0f;
                 float MoD = M.z;
-                float MoC = M.y * obb.center.y + M.z * obb.center.z;
+                float MoC = M.x * obb.center.x + M.z * obb.center.z;
 
-                float obb_radius = obb.extents[m];
+                float obb_radius = 0.0f;
+                for (size_t i = 0; i < 3; i++) {
+                    obb_radius += fabsf(dot(M, obb.axes[i])) * obb.extents[i];
+                }
 
                 float obb_min = MoC - obb_radius;
                 float obb_max = MoC + obb_radius;
@@ -260,45 +266,52 @@ namespace zec
             }
         }
 
-        //// Frustum Edges X Ai
-        //{
-        //    for (size_t i = 0; i < ARRAY_SIZE(obb.axes); i++) {
-        //        const vec3 M[] = {
-        //            cross({-r, 0.0f, n}, obb.axes[i]), // Left Plane
-        //            cross({ r, 0.0f, n }, obb.axes[i]), // Right plane
-        //            cross({ 0.0f, t, n }, obb.axes[i]), // Top plane
-        //            cross({ 0.0, -t, n }, obb.axes[i]) // Bottom plane
-        //        };
+        // Frustum Edges X Ai
+        {
+            for (size_t obb_edge_idx = 0; obb_edge_idx < ARRAY_SIZE(obb.axes); obb_edge_idx++) {
+                const vec3 M[] = {
+                    cross({-r, 0.0f, n}, obb.axes[obb_edge_idx]), // Left Plane
+                    cross({ r, 0.0f, n }, obb.axes[obb_edge_idx]), // Right plane
+                    cross({ 0.0f, t, n }, obb.axes[obb_edge_idx]), // Top plane
+                    cross({ 0.0, -t, n }, obb.axes[obb_edge_idx]) // Bottom plane
+                };
 
-        //        for (size_t m = 0; m < ARRAY_SIZE(M); m++) {
-        //            float MoR = fabsf(M[m].x);
-        //            float MoU = fabsf(M[m].y);
-        //            float MoD = M[m].z;
-        //            float MoC = dot(M[m], obb.center);
+                for (size_t m = 0; m < ARRAY_SIZE(M); m++) {
+                    float MoR = fabsf(M[m].x);
+                    float MoU = fabsf(M[m].y);
+                    float MoD = M[m].z;
 
-        //            float obb_radius = obb.extents[m];
+                    constexpr float epsilon = 1e-4;
+                    if (MoR < epsilon && MoU < epsilon && fabsf(MoD) < epsilon) continue;
 
-        //            float obb_min = MoC - obb_radius;
-        //            float obb_max = MoC + obb_radius;
+                    float MoC = dot(M[m], obb.center);
 
-        //            // Frustum projection
-        //            float p = r * MoR + t * MoU;
-        //            float m0 = n * MoD - p;
-        //            float m1 = n * MoD + p;
-        //            if (m0 < 0.0f) {
-        //                m0 *= f / n;
-        //            }
-        //            if (m1 > 0.0f) {
-        //                m1 *= f / n;
-        //            }
+                    float obb_radius = 0.0f;
+                    for (size_t i = 0; i < 3; i++) {
+                        obb_radius += fabsf(dot(M[m], obb.axes[i])) * obb.extents[i];
+                    }
 
-        //            if (obb_min > m1 || obb_max < m0) {
-        //                culling_counters[CullingCounter::FRUSTUM_EDGE_CROSS_A]++;
-        //                return false;
-        //            }
-        //        }
-        //    }
-        //}
+                    float obb_min = MoC - obb_radius;
+                    float obb_max = MoC + obb_radius;
+
+                    // Frustum projection
+                    float p = r * MoR + t * MoU;
+                    float m0 = n * MoD - p;
+                    float m1 = n * MoD + p;
+                    if (m0 < 0.0f) {
+                        m0 *= f / n;
+                    }
+                    if (m1 > 0.0f) {
+                        m1 *= f / n;
+                    }
+
+                    if (obb_min > m1 || obb_max < m0) {
+                        culling_counters[CullingCounter::FRUSTUM_EDGE_CROSS_A]++;
+                        return false;
+                    }
+                }
+            }
+        }
 
         // No intersections detected
         return true;

@@ -2,6 +2,8 @@
 typedef float<3> vec3;
 typedef float<4> vec4;
 
+static const float EPSILON = 1e-6;
+
 struct mat4
 {
     float<4> rows[4];
@@ -39,17 +41,6 @@ vec3 mul(const varying mat4& transform, const vec3 v)
         res[i] = transform.rows[i][0] * v.x + transform.rows[i][1] * v.y + transform.rows[i][2] * v.z + transform.rows[i][3];
     }
     return res;
-}
-
-void mul(uniform const mat4& A, const mat4& B, varying mat4* C)
-{
-    for (uniform uint32 i = 0; i < 4; i++) {
-        for (uniform uint32 j = 0; j < 4; j++) {
-            for (uniform uint32 k = 0; k < 4; k++) {
-                C->rows[i][j] += A.rows[i][k] * B.rows[k][j];
-            }
-        }
-    }
 }
 
 float dot(const vec3 a, const vec3 b)
@@ -223,9 +214,16 @@ bool is_visible(
             float MoR = 0.0f;
             float MoU = abs(M.y);
             float MoD = M.z;
+
+            if (MoU < EPSILON && abs(MoD) < EPSILON) continue;
+
             float MoC = M.y * obb.center.y + M.z * obb.center.z;
 
-            float obb_radius = obb.extents[m];
+            float obb_radius = 0.0f;
+            // We know it's perpendicular to x
+            obb_radius += abs(dot(M, obb.axes[1])) * obb.extents[1];
+            obb_radius += abs(dot(M, obb.axes[2])) * obb.extents[2];
+
 
             float obb_min = MoC - obb_radius;
             float obb_max = MoC + obb_radius;
@@ -254,9 +252,14 @@ bool is_visible(
             float MoR = abs(M.x);
             float MoU = 0.0f;
             float MoD = M.z;
-            float MoC = M.y * obb.center.y + M.z * obb.center.z;
+            if (MoR < EPSILON && abs(MoD) < EPSILON) continue;
 
-            float obb_radius = obb.extents[m];
+            float MoC = M.x * obb.center.x + M.z * obb.center.z;
+
+            float obb_radius = 0.0f;
+            // We know it's perpendicular to y
+            obb_radius += abs(dot(M, obb.axes[0])) * obb.extents[0];
+            obb_radius += abs(dot(M, obb.axes[2])) * obb.extents[2];
 
             float obb_min = MoC - obb_radius;
             float obb_max = MoC + obb_radius;
@@ -290,12 +293,18 @@ bool is_visible(
 
             for (uniform size_t m = 0; m < 4; m++) {
                 vec3 M = cross(planes[m], obb.axes[i]);
+
                 float MoR = abs(M.x);
                 float MoU = abs(M.y);
                 float MoD = M.z;
+                if (MoR < EPSILON && MoU < EPSILON && abs(MoD) < EPSILON) continue;
+
                 float MoC = dot(M, obb.center);
 
-                float obb_radius = obb.extents[m];
+                float obb_radius = 0.0f;
+                for (uniform size_t j = 0; j < 3; j++) {
+                    obb_radius += abs(dot(M, obb.axes[j])) * obb.extents[j];
+                }
 
                 float obb_min = MoC - obb_radius;
                 float obb_max = MoC + obb_radius;
