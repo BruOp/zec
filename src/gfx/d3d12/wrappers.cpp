@@ -13,6 +13,7 @@ namespace zec::gfx::dx12
 
     void wait(Fence& fence, u64 fence_value)
     {
+        OPTICK_EVENT("Fence Wait");
         ASSERT(fence.d3d_fence != nullptr);
         if (fence.d3d_fence->GetCompletedValue() < fence_value) {
             fence.d3d_fence->SetEventOnCompletion(fence_value, fence.fence_event);

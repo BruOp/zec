@@ -242,7 +242,6 @@ namespace zec::gfx
             infoQueue->Release();
 
         #endif // USE_DEBUG_DEVICE
-
         }
 
         // Initialize Memory Allocator
@@ -293,6 +292,8 @@ namespace zec::gfx
 
         // Initialize descriptor heaps
         descriptor_utils::init_descriptor_heaps();
+
+        OPTICK_GPU_INIT_D3D12(g_device, &g_gfx_queue, 1);
 
         // Swapchain initialization
         {
@@ -490,6 +491,8 @@ namespace zec::gfx
         // Present the frame.
         if (g_swap_chain.swap_chain != nullptr) {
             u32 sync_intervals = g_swap_chain.vsync ? 1 : 0;
+
+            OPTICK_GPU_FLIP(g_swap_chain.swap_chain);
             DXCall(g_swap_chain.swap_chain->Present(sync_intervals, g_swap_chain.vsync ? 0 : DXGI_PRESENT_ALLOW_TEARING));
         }
 

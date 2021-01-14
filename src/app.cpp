@@ -1,8 +1,7 @@
 #include "pch.h"
 #include "app.h"
 #include "gfx/gfx.h"
-// TODO: Remove this
-#include "gfx/d3d12/globals.h"
+#include "gfx/profiling_utils.h"
 
 namespace zec
 {
@@ -31,7 +30,7 @@ namespace zec
         after_reset_internal();
 
         while (window.is_alive()) {
-
+            OPTICK_FRAME("Main Thread");
             if (!window.is_minimized()) {
                 update_internal();
                 render_internal();
@@ -54,7 +53,7 @@ namespace zec
 
     void App::init_internal()
     {
-        PIXBeginEvent(0, L"App Initialization");
+        PROFILE_EVENT("App Initialization");
 
         init_time_data(time_data);
         window.show(true);
@@ -70,8 +69,6 @@ namespace zec
         ui::initialize(window);
         input::initialize(width, height);
         init();
-
-        PIXEndEvent();
     }
 
     void App::shutdown_internal()
@@ -84,28 +81,28 @@ namespace zec
 
     void App::update_internal()
     {
-        PIXBeginEvent(0, L"App Update");
+        PROFILE_EVENT("App Update");
 
         input::update(time_data);
         update_time_data(time_data);
 
         update(time_data);
-
-        PIXEndEvent();
     }
 
     void App::render_internal()
     {
-
         gfx::reset_for_frame();
-        PIXBeginEvent(0, L"App Copy");
-        copy();
-        PIXEndEvent();
+        {
+            PROFILE_EVENT("App Copy");
+            copy();
+        }
 
-        PIXBeginEvent(0, L"App Render");
-        render();
+        {
+            PROFILE_EVENT("App Render");
+            render();
+        }
+
         gfx::present_frame();
-        PIXEndEvent();
     }
 
     void App::before_reset_internal()

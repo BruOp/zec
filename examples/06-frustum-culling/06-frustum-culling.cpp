@@ -8,8 +8,7 @@
 #include "culling_methods.h"
 #include "seperating_axis_culling.h"
 
-#include "ftl/task_counter.h"
-#include "ftl/task_scheduler.h"
+#include "gfx/profiling_utils.h"
 
 using namespace zec;
 
@@ -703,17 +702,17 @@ protected:
         view_constant_data.VP = camera.projection * camera.view;
         view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
         view_constant_data.camera_position = camera.position;
-
-        PIXBeginEvent(0, "Cull AABBs");
-        // TODO: Allow toggling of this + debug pass using imgui
-        // Generate visibility list
-        visibility_list.empty();
-        //cull_obbs(camera, scene.global_transforms, scene.aabbs, visibility_list);
-        ////cull_obbs_sse(camera, scene.global_transforms, scene.aabbs, visibility_list);
-        //cull_obbs_mt(task_scheduler, camera, scene.global_transforms, scene.aabbs, visibility_list);
-        //cull_obbs_sac(camera, scene.global_transforms, scene.aabbs, visibility_list);
-        cull_obbs_sac_ispc(camera, scene.global_transforms, aabb_soa, visibility_list);
-        PIXEndEvent();
+        {
+            PROFILE_EVENT("Cull AABBs");
+            // TODO: Allow toggling of this + debug pass using imgui
+            // Generate visibility list
+            visibility_list.empty();
+            //cull_obbs(camera, scene.global_transforms, scene.aabbs, visibility_list);
+            //cull_obbs_sse(camera, scene.global_transforms, scene.aabbs, visibility_list);
+            //cull_obbs_mt(task_scheduler, camera, scene.global_transforms, scene.aabbs, visibility_list);
+            cull_obbs_sac(camera, scene.global_transforms, scene.aabbs, visibility_list);
+            //cull_obbs_sac_ispc(camera, scene.global_transforms, aabb_soa, visibility_list);
+        }
     }
 
     void copy() override final

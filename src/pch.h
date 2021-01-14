@@ -74,6 +74,8 @@ typedef wchar_t wchar;
 #define USE_PIX
 #include "pix3.h"
 
+#include "optick/optick.h"
+
 // C RunTime Header Files
 #include <stdlib.h>
 #include <malloc.h>

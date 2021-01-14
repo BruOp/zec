@@ -75,6 +75,20 @@ project("imgui")
     path.join(EXTERNAL_DIR, "imgui/"),
   }
 
+
+project("optick")
+  uuid(os.uuid("optick"))
+  kind "StaticLib"
+
+  files {
+    path.join(ZEC_DIR, "external/src/optick/*.cpp"),
+    path.join(EXTERNAL_DIR, "optick/**.h"),
+  }
+
+  includedirs {
+    path.join(EXTERNAL_DIR, "optick/"),
+  }
+
 ZEC_SRC_DIR = path.join(ZEC_DIR, "src")
 project("zec_lib")
   uuid(os.uuid("zec_lib"))
@@ -111,6 +125,7 @@ project("zec_lib")
     "Xinput9_1_0",
     "ws2_32",
     "imgui",
+    "optick"
   }
 
   configuration {"Release"}

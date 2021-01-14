@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "murmur/MurmurHash3.h"
 #include "render_system.h"
+#include "profiling_utils.h"
 
 namespace zec::RenderSystem
 {
@@ -14,14 +15,7 @@ namespace zec::RenderSystem
         u32 last_written_to_by_pass_idx;
     };
 
-    const static i32 RENDER_SYSTEM_PIX_COLOR = ::PIX_COLOR(255, 0, 255);
     constexpr size_t GRAPH_DEPTH_LIMIT = 16; //totally arbitrary
-
-    /*void pix_marker(const char* msg);
-    void pix_marker(const wchar* msg);
-    void gpu_pix_marker(const CommandContextHandle* msg, const char* );
-    void gpu_pix_marker(const wchar* msg);*/
-
 
     void compile_render_list(RenderList& in_render_list, const RenderListDesc& render_list_desc)
     {
@@ -225,15 +219,9 @@ namespace zec::RenderSystem
 
     void setup(RenderList& render_list)
     {
-        PIXBeginEvent(RENDER_SYSTEM_PIX_COLOR, L"Render System Setup");
         for (auto& render_pass : render_list.render_passes) {
-            PIXBeginEvent(RENDER_SYSTEM_PIX_COLOR, "Setting up %s", render_pass.name);
-
             render_pass.setup(render_pass.context);
-
-            PIXEndEvent();
         }
-        PIXEndEvent();
     }
 
     void execute(RenderList& render_list)
@@ -248,7 +236,6 @@ namespace zec::RenderSystem
         };
 
         // --------------- RECORD --------------- 
-        //PIXBeginEvent(RENDER_SYSTEM_PIX_COLOR, L"Render System Recording");
 
         constexpr size_t MAX_CMD_LIST_SUMISSIONS = 8; // Totally arbitrary
         // Each render_pass gets a command context
@@ -260,8 +247,7 @@ namespace zec::RenderSystem
             CommandContextHandle& cmd_ctx = cmd_contexts[pass_idx];
             cmd_ctx = gfx::cmd::provision(render_pass.queue_type);
 
-            gfx::cmd::begin_pix_event(cmd_ctx, RENDER_SYSTEM_PIX_COLOR, make_string("Recording Pass %s", render_pass.name).c_str());
-
+            PROFILE_GPU_EVENT(render_pass.name, cmd_ctx);
             // Transition Resources
             {
                 const size_t offset = render_pass.resource_transitions_view.offset;
@@ -314,59 +300,58 @@ namespace zec::RenderSystem
                 };
                 gfx::cmd::transition_resources(cmd_ctx, &transition_desc, 1);
             }
-            gfx::cmd::end_pix_event(cmd_ctx);
         }
-        //PIXEndEvent();
 
         // --------------- SUBMIT --------------- 
-        PIXBeginEvent(RENDER_SYSTEM_PIX_COLOR, L"Render System Submission");
-        // TODO: Move this struct
-        struct CommandStream
         {
-            size_t pending_count = 0;
-            CommandContextHandle contexts_to_submit[MAX_CMD_LIST_SUMISSIONS] = {};
-        };
+            PROFILE_EVENT("Render System Submission");
+            // TODO: Move this struct
+            struct CommandStream
+            {
+                size_t pending_count = 0;
+                CommandContextHandle contexts_to_submit[MAX_CMD_LIST_SUMISSIONS] = {};
+            };
 
-        CommandStream gfx_stream{};
-        CommandStream async_compute_stream{};
+            CommandStream gfx_stream{};
+            CommandStream async_compute_stream{};
 
-        // Loop through all but the last command context
-        for (size_t pass_idx = 0; pass_idx < render_list.render_passes.size; pass_idx++) {
-            const auto& render_pass = render_list.render_passes[pass_idx];
+            // Loop through all but the last command context
+            for (size_t pass_idx = 0; pass_idx < render_list.render_passes.size; pass_idx++) {
+                const auto& render_pass = render_list.render_passes[pass_idx];
 
-            if (render_pass.receipt_idx_to_wait_on) {
-                ASSERT(render_pass.receipt_idx_to_wait_on < pass_idx);
-                const CmdReceipt& cmd_receipt = render_list.receipts[render_pass.receipt_idx_to_wait_on];
-                ASSERT(render_pass.receipt_idx_to_wait_on != CmdReceipt::INVALID_FENCE_VALUE);
-                gfx::cmd::gpu_wait(render_pass.queue_type, cmd_receipt);
+                if (render_pass.receipt_idx_to_wait_on) {
+                    ASSERT(render_pass.receipt_idx_to_wait_on < pass_idx);
+                    const CmdReceipt& cmd_receipt = render_list.receipts[render_pass.receipt_idx_to_wait_on];
+                    ASSERT(render_pass.receipt_idx_to_wait_on != CmdReceipt::INVALID_FENCE_VALUE);
+                    gfx::cmd::gpu_wait(render_pass.queue_type, cmd_receipt);
+                }
+
+                CommandStream& stream = render_pass.queue_type == CommandQueueType::ASYNC_COMPUTE ? async_compute_stream : gfx_stream;
+                stream.contexts_to_submit[stream.pending_count++] = cmd_contexts[pass_idx];
+
+                // If we've reached the max or need to flush at this pass (for synchronization 
+                // purposes), we submit our command contexts and store the receipt
+                if (stream.pending_count == MAX_CMD_LIST_SUMISSIONS) {
+                    debug_print(L"We're hitting the max number of command context submissions, might want to investigate this!");
+                    gfx::cmd::return_and_execute(stream.contexts_to_submit, stream.pending_count);
+                    stream.pending_count = 0;
+                }
+                else if (render_pass.requires_flush) {
+                    render_list.receipts[pass_idx] = gfx::cmd::return_and_execute(stream.contexts_to_submit, stream.pending_count);
+                    stream.pending_count = 0;
+                }
+
+                // Otherwise we continue so that we can still batch our command contexts.
             }
 
-            CommandStream& stream = render_pass.queue_type == CommandQueueType::ASYNC_COMPUTE ? async_compute_stream : gfx_stream;
-            stream.contexts_to_submit[stream.pending_count++] = cmd_contexts[pass_idx];
-
-            // If we've reached the max or need to flush at this pass (for synchronization 
-            // purposes), we submit our command contexts and store the receipt
-            if (stream.pending_count == MAX_CMD_LIST_SUMISSIONS) {
-                debug_print(L"We're hitting the max number of command context submissions, might want to investigate this!");
-                gfx::cmd::return_and_execute(stream.contexts_to_submit, stream.pending_count);
-                stream.pending_count = 0;
-            }
-            else if (render_pass.requires_flush) {
-                render_list.receipts[pass_idx] = gfx::cmd::return_and_execute(stream.contexts_to_submit, stream.pending_count);
-                stream.pending_count = 0;
+            if (async_compute_stream.pending_count > 0) {
+                gfx::cmd::return_and_execute(async_compute_stream.contexts_to_submit, async_compute_stream.pending_count);
             }
 
-            // Otherwise we continue so that we can still batch our command contexts.
+            // We cannot have any pending submissions at this point
+            ASSERT(gfx_stream.pending_count == 0);
+
         }
-
-        if (async_compute_stream.pending_count > 0) {
-            gfx::cmd::return_and_execute(async_compute_stream.contexts_to_submit, async_compute_stream.pending_count);
-        }
-
-        // We cannot have any pending submissions at this point
-        ASSERT(gfx_stream.pending_count == 0);
-
-        PIXEndEvent();
 
     }
 
