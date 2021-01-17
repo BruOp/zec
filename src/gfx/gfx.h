@@ -8,6 +8,8 @@ namespace zec::gfx
     void init_renderer(const RendererDesc& renderer_desc);
     void destroy_renderer();
 
+    RenderConfigState get_config_state();
+
     u64 get_current_frame_idx();
     u64 get_current_cpu_frame();
 
@@ -23,6 +25,8 @@ namespace zec::gfx
     CmdReceipt present_frame();
 
     TextureHandle get_current_back_buffer_handle();
+
+    void on_window_resize(u32 width, u32 height);
 
     namespace pipelines
     {

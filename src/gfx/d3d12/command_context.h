@@ -21,8 +21,8 @@ namespace zec::gfx::dx12
 
         Array<u8> free_cmd_list_indices = {};
         Array<u16> free_allocator_indices = {};
-        RingBuffer<u16> in_flight_allocator_indices = {};
-        RingBuffer<u64> in_flight_fence_values = {};
+        FixedRingBuffer<u16, 128> in_flight_allocator_indices = {};
+        FixedRingBuffer<u64, 128> in_flight_fence_values = {};
     };
 
     namespace cmd_utils

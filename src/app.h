@@ -32,7 +32,7 @@ namespace zec
         virtual void after_reset() = 0;
 
         void exit();
-        void on_window_resize(void* context, HWND hWnd, UINT msg, WPARAM w_param, LPARAM l_param);
+        static void on_window_resize(void* context, HWND hWnd, UINT msg, WPARAM w_param, LPARAM l_param);
 
         TimeData time_data = {};
         std::wstring app_name;

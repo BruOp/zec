@@ -105,10 +105,15 @@ namespace zec::gfx::dx12::descriptor_utils
 
     void process_destruction_queue(DescriptorHeap& heap, u64 current_frame_idx)
     {
-        for (const auto element : heap.destruction_queue) {
-            if (element.frame_index == current_frame_idx) {
+        while (heap.destruction_queue.size() != 0) {
+            DescriptorDestructionElement element = heap.destruction_queue.front();
+            if (element.frame_index < current_frame_idx) {
+                heap.destruction_queue.pop_front();
                 heap.num_free += get_count(element.handle);
                 heap.dead_list.push_back(element.handle);
+            }
+            else {
+                break;
             }
         }
     }

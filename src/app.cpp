@@ -49,7 +49,19 @@ namespace zec
     }
 
     void App::on_window_resize(void* context, HWND hWnd, UINT msg, WPARAM w_param, LPARAM l_param)
-    { }
+    {
+        if (msg != WM_SIZE)
+            return;
+
+        App* app = reinterpret_cast<App*>(context);
+
+        if (w_param != SIZE_MINIMIZED) {
+            int width, height;
+            app->window.get_client_area(width, height);
+
+            gfx::on_window_resize(width, height);
+        }
+    }
 
     void App::init_internal()
     {
@@ -68,6 +80,9 @@ namespace zec
 
         ui::initialize(window);
         input::initialize(width, height);
+
+        window.register_message_callback(on_window_resize, this);
+
         init();
     }
 
@@ -110,5 +125,4 @@ namespace zec
 
     void App::after_reset_internal()
     { }
-
 }

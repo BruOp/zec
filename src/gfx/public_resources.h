@@ -20,6 +20,7 @@ namespace zec
     { zec::k_invalid_handle }
 
     // ---------- Handles ----------
+    RESOURCE_HANDLE(RenderingContextHandle);
     RESOURCE_HANDLE(BufferHandle);
     RESOURCE_HANDLE(TextureHandle);
     RESOURCE_HANDLE(MeshHandle);
@@ -263,6 +264,14 @@ namespace zec
         NUM_COMMAND_CONTEXT_POOLS
     };
 
+    enum struct MSAASetting : u8
+    {
+        OFF = 0,
+        X2,
+        X4,
+        X8,
+    };
+
     // ---------- Creation Descriptions ---------- 
     struct RendererDesc
     {
@@ -271,6 +280,7 @@ namespace zec
         HWND window = {};
         bool fullscreen = false;
         bool vsync = true;
+        MSAASetting msaa = MSAASetting::OFF;
     };
 
     struct BufferDesc
@@ -520,5 +530,15 @@ namespace zec
         static constexpr u64 INVALID_FENCE_VALUE = UINT64_MAX;
         CommandQueueType queue_type = CommandQueueType::GRAPHICS;
         u64 fence_value = INVALID_FENCE_VALUE;
+    };
+
+    struct RenderConfigState
+    {
+        u32 width;
+        u32 height;
+        bool fullscreen = false;
+        bool vsync = true;
+        BufferFormat backbuffer_format = BufferFormat::R8G8B8A8_UNORM_SRGB;
+        MSAASetting msaa = MSAASetting::OFF;
     };
 }

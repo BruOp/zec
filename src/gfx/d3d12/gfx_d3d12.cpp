@@ -108,10 +108,13 @@ namespace zec::gfx
 
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
                 TextureHandle texture_handle = g_swap_chain.back_buffers[i];
-                get_resource(g_textures, texture_handle)->Release();
-                // TODO: Is this still necessary? Why not simply keep the current rtv and just re-create it? 
-                // free_persistent_alloc(g_rtv_descriptor_heap, get_rtv(g_textures, texture_handle));
-                // set_rtv(g_textures, texture_handle, INVALID_CPU_HANDLE);
+                ID3D12Resource* resource = get_resource(g_textures, texture_handle);
+                if (resource != nullptr) dx_destroy(&resource);
+                g_textures.resources[texture_handle.idx] = resource;
+
+                const auto rtv_handle = texture_utils::get_rtv(g_textures, texture_handle);
+                descriptor_utils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv_handle);
+                texture_utils::set_rtv(g_textures, texture_handle, INVALID_HANDLE);
             }
 
             set_formats(g_swap_chain, g_swap_chain.format);
@@ -124,7 +127,7 @@ namespace zec::gfx
                 g_swap_chain.refresh_rate.Denominator = 1;
             }
 
-            DXCall(g_swap_chain.swap_chain->SetFullscreenState(g_swap_chain.fullscreen, g_swap_chain.output));
+            DXCall(g_swap_chain.swap_chain->SetFullscreenState(g_swap_chain.fullscreen, nullptr));
 
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
                 DXCall(g_swap_chain.swap_chain->ResizeBuffers(
@@ -161,6 +164,14 @@ namespace zec::gfx
 
     void init_renderer(const RendererDesc& renderer_desc)
     {
+        g_config_state = {
+            .width = renderer_desc.width,
+            .height = renderer_desc.height,
+            .fullscreen = renderer_desc.fullscreen,
+            .vsync = renderer_desc.vsync,
+            .msaa = renderer_desc.msaa,
+        };
+
         // Factory, Adaptor and Device initialization
         {
             ASSERT(g_adapter == nullptr);
@@ -392,6 +403,11 @@ namespace zec::gfx
         dx_destroy(&g_factory);
     }
 
+    RenderConfigState get_config_state()
+    {
+        return g_config_state;
+    }
+
     u64 get_current_frame_idx()
     {
         return g_current_frame_idx;
@@ -506,6 +522,20 @@ namespace zec::gfx
     TextureHandle get_current_back_buffer_handle()
     {
         return dx12::get_current_back_buffer_handle(g_swap_chain, g_current_frame_idx);
+    }
+
+    void on_window_resize(u32 width, u32 height)
+    {
+        if (width != g_config_state.width && height != g_config_state.height) {
+            g_config_state.width = width;
+            g_config_state.height = height;
+
+            // Recreate back buffers
+            g_swap_chain.width = width;
+            g_swap_chain.height = height;
+
+            reset();
+        }
     }
 }
 #endif // USE_D3D_RENDERER

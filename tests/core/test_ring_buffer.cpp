@@ -9,32 +9,17 @@ TEST_CASE("Ring Buffer can be initialized with a size")
     REQUIRE(ring.remaining_capacity() == size);
 }
 
-TEST_CASE("Ring Buffer can be initialized without a size")
-{
-    zec::RingBuffer<uint32_t> ring{};
-    REQUIRE(ring.size() == 0);
-    REQUIRE(ring.remaining_capacity() == 0);
-}
-
-TEST_CASE("Ring buffer will grow if it runs out of space")
-{
-    zec::RingBuffer<uint32_t> ring{ 0 };
-    REQUIRE(ring.remaining_capacity() == 0);
-    ring.push_back(10u);
-    REQUIRE(ring.remaining_capacity() > 1);
-}
-
 TEST_CASE("Ring buffer can push elements into the back")
 {
-    zec::RingBuffer<uint32_t> ring{};
+    zec::RingBuffer<uint32_t> ring{ 128 };
     ring.push_back(1u);
-    REQUIRE(ring.elements[0] == 1u);
+    REQUIRE(ring.data[0] == 1u);
 }
 
 TEST_CASE("Ring buffer can pop from front")
 {
     const uint32_t el = 10u;
-    zec::RingBuffer<uint32_t> ring{};
+    zec::RingBuffer<uint32_t> ring{ 128 };
 
     ring.push_back(el);
     ring.push_back(20u);
@@ -44,8 +29,7 @@ TEST_CASE("Ring buffer can pop from front")
 
 TEST_CASE("Ring buffer front can be accessed")
 {
-    size_t size = 1024;
-    zec::RingBuffer<uint32_t> ring{ size };
+    zec::RingBuffer<uint32_t> ring{ 128 };
     ring.push_back(1u);
     ring.push_back(2u);
 
@@ -54,12 +38,20 @@ TEST_CASE("Ring buffer front can be accessed")
 
 TEST_CASE("Ring buffer back can be accessed")
 {
-    size_t size = 1024;
-    zec::RingBuffer<uint32_t> ring{ size };
+    zec::RingBuffer<uint32_t> ring{ 128 };
     ring.push_back(1u);
     ring.push_back(2u);
 
     REQUIRE(ring.back() == 2u);
+}
 
+TEST_CASE("An ring buffer will double in size when full")
+{
+    zec::RingBuffer<uint32_t> ring{ 8 };
+    size_t old_capacity = ring.capacity;
+    for (size_t i = 0; i < ring.capacity; i++) {
+        ring.push_back(i + 1);
+    }
+    REQUIRE(ring.capacity == old_capacity * 2);
 }
 

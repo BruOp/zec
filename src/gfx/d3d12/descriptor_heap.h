@@ -1,6 +1,7 @@
 #pragma once
 #include "pch.h"
 #include "core/array.h"
+#include "core/ring_buffer.h"
 #include "gfx/public_resources.h"
 #include "gfx/constants.h"
 
@@ -41,7 +42,7 @@ namespace zec::gfx::dx12
         D3D12_GPU_DESCRIPTOR_HANDLE gpu_start = {};
         bool is_shader_visible = false;
 
-        Array<DescriptorDestructionElement> destruction_queue;
+        RingBuffer<DescriptorDestructionElement> destruction_queue;
         Array<DescriptorRangeHandle> dead_list;
     };
 

@@ -14,6 +14,8 @@
 
 namespace zec::gfx::dx12
 {
+    extern RenderConfigState g_config_state;
+
     extern IDXGIFactory4* g_factory;
     extern IDXGIAdapter1* g_adapter;
     extern ID3D12Device* g_device;

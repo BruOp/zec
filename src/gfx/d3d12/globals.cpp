@@ -3,6 +3,8 @@
 
 namespace zec::gfx::dx12
 {
+    RenderConfigState g_config_state = {};
+
     IDXGIFactory4* g_factory = nullptr;
     IDXGIAdapter1* g_adapter = nullptr;
     ID3D12Device* g_device = nullptr;

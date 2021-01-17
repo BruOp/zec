@@ -17,13 +17,13 @@ namespace zec
         inline void* alloc(size_t size)
         {
             ASSERT(size > 0);
-            return alloc(size);
+            return ::malloc(size);
         };
 
         inline void free(void* ptr)
         {
             ASSERT(ptr != nullptr);
-            free(ptr);
+            ::free(ptr);
         };
 
         inline void* virtual_alloc(void* ptr, size_t byte_size, AllocationType alloc_type)
