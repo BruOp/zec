@@ -26,7 +26,7 @@ namespace zec::gfx::dx12
     struct DescriptorDestructionElement
     {
         DescriptorRangeHandle handle;
-        u32 frame_index;
+        u64 frame_index;
     };
 
     // NOTE: Descriptors are immutable, they can only be allocated and destroyed.
@@ -42,7 +42,6 @@ namespace zec::gfx::dx12
         D3D12_GPU_DESCRIPTOR_HANDLE gpu_start = {};
         bool is_shader_visible = false;
 
-        RingBuffer<DescriptorDestructionElement> destruction_queue;
         Array<DescriptorRangeHandle> dead_list;
     };
 
@@ -78,16 +77,20 @@ namespace zec::gfx::dx12
         DescriptorRangeHandle allocate_descriptors(DescriptorHeap& heap, const size_t count, D3D12_CPU_DESCRIPTOR_HANDLE in_handles[]);
         DescriptorRangeHandle allocate_descriptors(const D3D12_DESCRIPTOR_HEAP_TYPE type, const size_t count, D3D12_CPU_DESCRIPTOR_HANDLE in_handles[]); // Use globals
 
-        void free_descriptors(DescriptorHeap& heap, const DescriptorRangeHandle descriptor_handle, u64 current_frame_idx);
+        inline void free_descriptors(DescriptorHeap& heap, const DescriptorRangeHandle descriptor_range)
+        {
+            if (is_valid(descriptor_range)) {
+                heap.dead_list.push_back(descriptor_range);
+                heap.num_free += get_count(descriptor_range);
+            }
+        };
         void free_descriptors(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorRangeHandle descriptor_range); // Use globals
-
-        void process_destruction_queue(DescriptorHeap& heap, u64 current_frame_idx);
 
         void init_descriptor_heaps();
         void destroy_descriptor_heaps();
 
         // Helpers
-        D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorRangeHandle descriptor_handle, size_t local_offset = 0);
+        D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorRangeHandle descriptor_range, size_t local_offset = 0);
         D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorRangeHandle descriptor_range, size_t local_offset = 0);
     }
 }

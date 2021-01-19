@@ -149,7 +149,7 @@ namespace zec
                 memcpy(new_data, &data[read_idx], count * sizeof(T));
                 memcpy(new_data + count, data, (w + 1) * sizeof(T));
             }
-            else {
+            else if (w > r) {
                 memcpy(new_data, &data[read_idx], (w - r) * sizeof(T));
             }
             read_idx = 0;
@@ -158,7 +158,7 @@ namespace zec
                 memory::free(data);
             }
             data = new_data;
-            capacity = memory_required / sizeof(T);
+            capacity = (pages_required * sys_info.page_size) / sizeof(T);
         }
     };
 }

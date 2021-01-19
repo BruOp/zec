@@ -53,7 +53,12 @@ namespace zec::gfx::dx12::descriptor_utils
             DescriptorRangeHandle free_range = heap.dead_list[i];
             if (get_count(free_range) == count) {
                 // Swap with the end, so that we don't have holes
-                heap.dead_list[i] = heap.dead_list.pop_back();
+                if (heap.dead_list.size == 1) {
+                    heap.dead_list.pop_back();
+                }
+                else {
+                    heap.dead_list[i] = heap.dead_list.pop_back();
+                }
                 handle = free_range;
                 heap.num_free -= get_count(handle);
                 break;
@@ -88,36 +93,11 @@ namespace zec::gfx::dx12::descriptor_utils
         return allocate_descriptors(g_descriptor_heaps[type], count, in_handles);
     }
 
-
-    void free_descriptors(DescriptorHeap& heap, const DescriptorRangeHandle descriptor, u64 current_frame_idx)
-    {
-        if (is_valid(descriptor)) {
-            heap.destruction_queue.push_back({ .handle = descriptor, .frame_index = u32(current_frame_idx) });
-        }
-    }
-
     void free_descriptors(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorRangeHandle descriptor_handle)
     {
         ASSERT(type != D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
-        free_descriptors(g_descriptor_heaps[type], descriptor_handle, g_current_frame_idx);
+        free_descriptors(g_descriptor_heaps[type], descriptor_handle);
     }
-
-
-    void process_destruction_queue(DescriptorHeap& heap, u64 current_frame_idx)
-    {
-        while (heap.destruction_queue.size() != 0) {
-            DescriptorDestructionElement element = heap.destruction_queue.front();
-            if (element.frame_index < current_frame_idx) {
-                heap.destruction_queue.pop_front();
-                heap.num_free += get_count(element.handle);
-                heap.dead_list.push_back(element.handle);
-            }
-            else {
-                break;
-            }
-        }
-    }
-
 
     void init_descriptor_heaps()
     {
@@ -149,7 +129,6 @@ namespace zec::gfx::dx12::descriptor_utils
     void destroy_descriptor_heaps()
     {
         for (auto& heap : g_descriptor_heaps) {
-            process_destruction_queue(heap, g_current_frame_idx);
             destroy(heap);
         }
     }

@@ -92,8 +92,6 @@ namespace zec::gfx
                 texture_info.array_size = 1;
                 texture_info.format = from_d3d_format(swap_chain.format);
                 texture_info.num_mips = 1;
-
-
             }
             swap_chain.back_buffer_idx = swap_chain.swap_chain->GetCurrentBackBufferIndex();
         }
@@ -107,39 +105,37 @@ namespace zec::gfx
             }
 
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
+                // Release resources
                 TextureHandle texture_handle = g_swap_chain.back_buffers[i];
                 ID3D12Resource* resource = get_resource(g_textures, texture_handle);
                 if (resource != nullptr) dx_destroy(&resource);
-                g_textures.resources[texture_handle.idx] = resource;
-
+                g_textures.resources[texture_handle.idx] = nullptr;
+                // Free descriptors
                 const auto rtv_handle = texture_utils::get_rtv(g_textures, texture_handle);
                 descriptor_utils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv_handle);
                 texture_utils::set_rtv(g_textures, texture_handle, INVALID_HANDLE);
             }
 
-            set_formats(g_swap_chain, g_swap_chain.format);
+            /*set_formats(g_swap_chain, g_swap_chain.format);
 
             if (g_swap_chain.fullscreen) {
                 prepare_full_screen_settings();
             }
-            else {
-                g_swap_chain.refresh_rate.Numerator = 60;
-                g_swap_chain.refresh_rate.Denominator = 1;
-            }
 
-            DXCall(g_swap_chain.swap_chain->SetFullscreenState(g_swap_chain.fullscreen, nullptr));
+            DXCall(g_swap_chain.swap_chain->SetFullscreenState(g_swap_chain.fullscreen, nullptr));*/
 
             for (u64 i = 0; i < NUM_BACK_BUFFERS; i++) {
                 DXCall(g_swap_chain.swap_chain->ResizeBuffers(
                     NUM_BACK_BUFFERS,
                     g_swap_chain.width,
-                    g_swap_chain.height, g_swap_chain.non_sRGB_format,
+                    g_swap_chain.height,
+                    g_swap_chain.non_sRGB_format,
                     DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH |
                     DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING |
                     DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT));
             }
 
-            if (g_swap_chain.fullscreen) {
+            /*if (g_swap_chain.fullscreen) {
                 DXGI_MODE_DESC mode;
                 mode.Format = g_swap_chain.non_sRGB_format;
                 mode.Width = g_swap_chain.width;
@@ -149,16 +145,16 @@ namespace zec::gfx
                 mode.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
                 mode.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
                 DXCall(g_swap_chain.swap_chain->ResizeTarget(&mode));
-            }
+            }*/
 
             recreate_swap_chain_rtv_descriptors(g_swap_chain);
         }
 
         void reset()
         {
-            wait_for_gpu();
+            flush_gpu();
             reset_swap_chain();
-            process_destruction_queue(g_destruction_queue);
+            flush_destruction_queue(g_destruction_queue);
         }
     }
 
@@ -368,11 +364,10 @@ namespace zec::gfx
     {
 
         write_log("Destroying renderer");
-        wait_for_gpu();
 
         // Swap Chain Destruction
         DescriptorHeap& rtv_heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_RTV];
-        destroy(g_destruction_queue, g_textures, rtv_heap, g_swap_chain);
+        destroy(g_swap_chain);
 
         g_root_signatures.destroy();
         g_pipelines.destroy();
@@ -380,12 +375,12 @@ namespace zec::gfx
         g_upload_manager.destroy();
         destroy(
             g_destruction_queue,
+            g_current_frame_idx,
             g_descriptor_heaps,
-            g_textures,
-            g_current_frame_idx
+            g_textures
         );
-        destroy(g_destruction_queue, g_buffers);
-        destroy(g_destruction_queue, g_fences);
+        destroy(g_destruction_queue, g_current_frame_idx, g_buffers);
+        destroy(g_destruction_queue, g_current_frame_idx, g_fences);
 
         descriptor_utils::destroy_descriptor_heaps();
 
@@ -395,8 +390,15 @@ namespace zec::gfx
         dx_destroy(&g_compute_queue);
         dx_destroy(&g_copy_queue);
 
-        destroy(g_destruction_queue);
+        flush_destruction_queue(g_destruction_queue);
         dx_destroy(&g_allocator);
+
+        //ID3D12DebugDevice* debug_device = nullptr;
+        //DXCall(g_device->QueryInterface(&debug_device));
+        //if (debug_device) {
+        //    DXCall(debug_device->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL | D3D12_RLDO_IGNORE_INTERNAL));
+        //    debug_device->Release();
+        //}
 
         dx_destroy(&g_device);
         dx_destroy(&g_adapter);
@@ -418,11 +420,16 @@ namespace zec::gfx
         return g_current_cpu_frame;
     }
 
-    void wait_for_gpu()
+    void flush_gpu()
     {
         for (size_t i = 0; i < ARRAY_SIZE(g_command_pools); i++) {
             wait(g_command_pools[i].fence, g_command_pools[i].last_used_fence_value);
             cmd_utils::reset(g_command_pools[i]);
+        }
+        u64 last_submitted_frame = g_current_cpu_frame - 1;
+        if (last_submitted_frame > g_current_gpu_frame) {
+            wait(g_frame_fence, last_submitted_frame);
+            g_current_gpu_frame = last_submitted_frame;
         }
     }
 
@@ -494,12 +501,7 @@ namespace zec::gfx
         }
 
         // Process resources queued for destruction
-        // TODO: I don't think this works properly at all atm
-        //process_destruction_queue(g_destruction_queue);
-
-        for (auto& descriptor_heap : g_descriptor_heaps) {
-            descriptor_utils::process_destruction_queue(descriptor_heap, g_current_frame_idx);
-        }
+        process_destruction_queue(g_destruction_queue, g_current_frame_idx);
     }
 
     CmdReceipt present_frame()

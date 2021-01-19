@@ -30,7 +30,7 @@ namespace zec
         after_reset_internal();
 
         while (window.is_alive()) {
-            OPTICK_FRAME("Main Thread");
+            PROFILE_FRAME("Main Thread");
             if (!window.is_minimized()) {
                 update_internal();
                 render_internal();
@@ -60,6 +60,8 @@ namespace zec
             app->window.get_client_area(width, height);
 
             gfx::on_window_resize(width, height);
+            app->width = width;
+            app->height = height;
         }
     }
 
@@ -88,7 +90,7 @@ namespace zec
 
     void App::shutdown_internal()
     {
-        gfx::wait_for_gpu();
+        gfx::flush_gpu();
         ui::destroy();
         shutdown();
         gfx::destroy_renderer();

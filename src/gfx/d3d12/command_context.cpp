@@ -131,8 +131,8 @@ namespace zec::gfx::dx12::cmd_utils
                 to_d3d_list_type(pool.type), IID_PPV_ARGS(&cmd_allocator)
             ));
             allocator_idx = u16(pool.cmd_allocators.push_back(cmd_allocator));
+            cmd_allocator->SetName(make_string(L"Cmd Allocator %u", allocator_idx).c_str());
         }
-        DXCall(cmd_allocator->Reset());
 
         u8 list_idx = 0;
         ID3D12GraphicsCommandList* cmd_list = nullptr;
@@ -147,6 +147,7 @@ namespace zec::gfx::dx12::cmd_utils
                 0, to_d3d_list_type(pool.type), cmd_allocator, nullptr, IID_PPV_ARGS(&cmd_list)
             ));
             list_idx = pool.cmd_lists.push_back(cmd_list);
+            cmd_list->SetName(make_string(L"Cmd List %u", list_idx).c_str());
         }
 
         if (pool.type != CommandQueueType::COPY) {
@@ -200,6 +201,7 @@ namespace zec::gfx::dx12::cmd_utils
             if (pool.in_flight_fence_values.front() <= completed_fence_value) {
                 pool.in_flight_fence_values.pop_front();
                 u64 allocator_idx = pool.in_flight_allocator_indices.pop_front();
+                DXCall(pool.cmd_allocators[allocator_idx]->Reset());
                 pool.free_allocator_indices.push_back(u16(allocator_idx));
             }
             else {

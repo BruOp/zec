@@ -35,6 +35,7 @@ namespace zec::RenderSystem
 
         in_render_list.render_passes.grow(num_render_passes);
         in_render_list.receipts.grow(num_render_passes);
+        in_render_list.cmd_contexts.grow(num_render_passes);
 
         // Process passes
         for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
@@ -239,12 +240,12 @@ namespace zec::RenderSystem
 
         constexpr size_t MAX_CMD_LIST_SUMISSIONS = 8; // Totally arbitrary
         // Each render_pass gets a command context
-        Array<CommandContextHandle> cmd_contexts{ render_list.render_passes.size };
+
         // Can be parallelized!
         for (size_t pass_idx = 0; pass_idx < render_list.render_passes.size; ++pass_idx) {
             const auto& render_pass = render_list.render_passes[pass_idx];
 
-            CommandContextHandle& cmd_ctx = cmd_contexts[pass_idx];
+            CommandContextHandle& cmd_ctx = render_list.cmd_contexts[pass_idx];
             cmd_ctx = gfx::cmd::provision(render_pass.queue_type);
 
             PROFILE_GPU_EVENT(render_pass.name, cmd_ctx);
@@ -327,7 +328,7 @@ namespace zec::RenderSystem
                 }
 
                 CommandStream& stream = render_pass.queue_type == CommandQueueType::ASYNC_COMPUTE ? async_compute_stream : gfx_stream;
-                stream.contexts_to_submit[stream.pending_count++] = cmd_contexts[pass_idx];
+                stream.contexts_to_submit[stream.pending_count++] = render_list.cmd_contexts[pass_idx];
 
                 // If we've reached the max or need to flush at this pass (for synchronization 
                 // purposes), we submit our command contexts and store the receipt

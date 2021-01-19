@@ -176,7 +176,6 @@ namespace zec
         }
 
         switch (uMsg) {
-            // Window is being destroyed
         case WM_DESTROY:
             ::PostQuitMessage(0);
             return 0;

@@ -9,30 +9,33 @@ namespace zec::gfx::dx12
     // I'd rather keep it this way on the very slim chance that I do end up moving to more explicitly modifying
     // my resource lists on creation.
 
-    void process_destruction_queue(ResourceDestructionQueue& queue)
+    void process_destruction_queue(ResourceDestructionQueue& queue, const u64 current_frame_idx)
     {
-        for (size_t i = 0; i < queue.resource_ptrs.size; i++) {
-            queue.resource_ptrs[i]->Release();
-            if (queue.allocations[i] != nullptr) queue.allocations[i]->Release();
+        ASSERT(current_frame_idx < RENDER_LATENCY);
+        auto& internal_queue = queue.internal_queues[current_frame_idx];
+        for (size_t i = 0; i < internal_queue.size; i++) {
+            auto [resource, allocation] = internal_queue[i];
+            ASSERT(resource != nullptr);
+            resource->Release();
+            if (allocation != nullptr) allocation->Release();
         }
-        queue.resource_ptrs.empty();
-        queue.allocations.empty();
+        internal_queue.empty();
     }
 
     template<typename ResourceList>
-    void destroy(ResourceDestructionQueue& queue, ResourceList& list)
+    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, ResourceList& list)
     {
         for (size_t i = 0; i < list.size(); i++) {
-            queue_destruction(queue, list.resources[i], list.allocations[i]);
+            queue_destruction(queue, current_frame_idx, list.resources[i], list.allocations[i]);
         }
         list.resources.empty();
     }
 
-    void destroy(ResourceDestructionQueue& queue, Array<Fence>& fences)
+    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, Array<Fence>& fences)
     {
         for (size_t i = 0; i < fences.size; i++) {
             Fence& fence = fences[i];
-            queue_destruction(queue, fence.d3d_fence);
+            queue_destruction(queue, current_frame_idx, fence.d3d_fence);
         }
         fences.empty();
     }
@@ -51,27 +54,27 @@ namespace zec::gfx::dx12
 
     void destroy(
         ResourceDestructionQueue& destruction_queue,
+        const u64 current_frame_idx,
         DescriptorHeap* heaps,
-        TextureList& texture_list,
-        u64 current_frame_idx
+        TextureList& texture_list
     )
     {
         DescriptorHeap& srv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
         DescriptorHeap& rtv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_RTV];
         for (size_t i = 0; i < texture_list.resources.size; i++) {
             if (texture_list.resources[i]) {
-                queue_destruction(destruction_queue, texture_list.resources[i], texture_list.allocations[i]);
+                queue_destruction(destruction_queue, current_frame_idx, texture_list.resources[i], texture_list.allocations[i]);
             }
 
-            descriptor_utils::free_descriptors(srv_heap, texture_list.srvs[i], current_frame_idx);
-            descriptor_utils::free_descriptors(srv_heap, texture_list.uavs[i], current_frame_idx);
-            descriptor_utils::free_descriptors(rtv_heap, texture_list.rtvs[i], current_frame_idx);
+            descriptor_utils::free_descriptors(srv_heap, texture_list.srvs[i]);
+            descriptor_utils::free_descriptors(srv_heap, texture_list.uavs[i]);
+            descriptor_utils::free_descriptors(rtv_heap, texture_list.rtvs[i]);
         }
 
         DescriptorHeap& dsv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_DSV];
         for (size_t i = 0; i < texture_list.dsv_infos.size; i++) {
             const auto& dsv_info = texture_list.dsv_infos[i];
-            descriptor_utils::free_descriptors(dsv_heap, dsv_info.dsv, current_frame_idx);
+            descriptor_utils::free_descriptors(dsv_heap, dsv_info.dsv);
         }
 
         texture_list.resources.empty();

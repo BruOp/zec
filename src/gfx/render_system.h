@@ -129,9 +129,10 @@ namespace zec::RenderSystem
         std::unordered_map<std::string, ResourceState> resource_map = {};
 
         // Do I need two seperate lists? Probably not?
-        Array<RenderPass> render_passes;
-        Array<PassResourceTransitionDesc> resource_transition_descs;
-        Array<CmdReceipt> receipts;
+        Array<RenderPass> render_passes = {};
+        Array<PassResourceTransitionDesc> resource_transition_descs = {};
+        Array<CmdReceipt> receipts = {};
+        Array<CommandContextHandle> cmd_contexts{ };
     };
 
     void compile_render_list(RenderList& in_render_list, const RenderListDesc& render_list_desc);

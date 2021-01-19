@@ -10,62 +10,62 @@
 
 namespace zec::gfx::dx12
 {
-    struct ResourceDestructionQueue
+    class ResourceDestructionQueue
     {
+        struct ResourceToDelete
+        {
+            IUnknown* ptr = nullptr;
+            D3D12MA::Allocation* allocation = nullptr;
+        };
+
     public:
         ResourceDestructionQueue() = default;
         ~ResourceDestructionQueue()
         {
-            ASSERT(resource_ptrs.size == 0);
-            ASSERT(allocations.size == 0);
+            for (size_t i = 0; i < ARRAY_SIZE(internal_queues); i++) {
+                ASSERT(internal_queues[i].size == 0);
+            }
         }
 
         UNCOPIABLE(ResourceDestructionQueue);
         UNMOVABLE(ResourceDestructionQueue);
 
-        Array<IUnknown*> resource_ptrs = {};
-        Array<D3D12MA::Allocation*> allocations;
+        Array<ResourceToDelete> internal_queues[RENDER_LATENCY] = {};
     };
 
-    inline void queue_destruction(ResourceDestructionQueue& queue, IUnknown* d3d_ptr, D3D12MA::Allocation* allocation = nullptr)
+    inline void queue_destruction(ResourceDestructionQueue& queue, const u64 current_frame_idx, IUnknown* d3d_ptr, D3D12MA::Allocation* allocation = nullptr)
     {
-        queue.resource_ptrs.push_back(d3d_ptr);
-        queue.allocations.push_back(allocation);
+        queue.internal_queues[current_frame_idx].create_back(d3d_ptr, allocation);
     }
 
-    void process_destruction_queue(ResourceDestructionQueue& queue);
+    void process_destruction_queue(ResourceDestructionQueue& queue, const u64 current_frame_idx);
 
-    inline void destroy(ResourceDestructionQueue& queue)
+    inline void flush_destruction_queue(ResourceDestructionQueue& queue)
     {
-        process_destruction_queue(queue);
+        for (size_t i = 0; i < ARRAY_SIZE(queue.internal_queues); i++) {
+            process_destruction_queue(queue, i);
+        }
     }
 
     template<typename Resource, typename ResourceHandle>
-    void destroy(ResourceDestructionQueue& queue, ResourceList<typename Resource, ResourceHandle>& list);
+    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, ResourceList<typename Resource, ResourceHandle>& list);
 
-    void destroy(ResourceDestructionQueue& queue, Array<Fence>& fences);
-
-    void destroy(
-        ResourceDestructionQueue& queue,
-        TextureList& texture_list,
-        DescriptorHeap& rtv_descriptor_heap,
-        SwapChain& swap_chain
-    );
+    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, Array<Fence>& fences);
 
     // Destroys only the texture list, the heaps are used to free allocated SRVs, UAVs, etc.
     void destroy(
         ResourceDestructionQueue& destruction_queue,
+        const u64 current_frame_idx,
         DescriptorHeap* heaps,
-        TextureList& texture_list,
-        u64 current_frame_idx
+        TextureList& texture_list
     );
 
     template<typename Resource, typename ResourceHandle>
-    void destroy(ResourceDestructionQueue& queue, ResourceList<typename Resource, ResourceHandle>& list)
+    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, ResourceList<typename Resource, ResourceHandle>& list)
     {
         for (size_t i = 0; i < list.size(); i++) {
             Resource& resource = list.resources[i];
-            queue_destruction(queue, resource.resource, resource.allocation);
+            queue_destruction(queue, current_frame_idx, resource.resource, resource.allocation);
         }
         list.resources.empty();
     }

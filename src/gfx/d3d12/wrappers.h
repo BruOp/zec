@@ -55,6 +55,16 @@ namespace zec::gfx::dx12
         u32 num_vsync_intervals = 1;
     };
 
+    inline void destroy(SwapChain& swap_chain)
+    {
+        if (swap_chain.swap_chain != nullptr) {
+            swap_chain.swap_chain->Release();
+        }
+        if (swap_chain.output != nullptr) {
+            swap_chain.output->Release();
+        }
+    };
+
     inline const TextureHandle get_current_back_buffer_handle(const SwapChain& swap_chain, const u64 current_frame_idx)
     {
         return swap_chain.back_buffers[current_frame_idx];

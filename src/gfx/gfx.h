@@ -13,7 +13,7 @@ namespace zec::gfx
     u64 get_current_frame_idx();
     u64 get_current_cpu_frame();
 
-    void wait_for_gpu();
+    void flush_gpu();
 
     void begin_upload();
     CmdReceipt end_upload();
