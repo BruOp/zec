@@ -4,9 +4,9 @@
 
 namespace zec
 {
-    Camera create_camera(const float aspect_ratio, const float vertical_fov, const float near_plane, const float far_plane)
+    PerspectiveCamera create_camera(const float aspect_ratio, const float vertical_fov, const float near_plane, const float far_plane)
     {
-        Camera camera{
+        PerspectiveCamera camera{
             .aspect_ratio = aspect_ratio,
             .vertical_fov = vertical_fov,
             .near_plane = near_plane,
@@ -43,7 +43,7 @@ namespace zec
         CAMERA_TRANSLATE_RIGHT,
     };
 
-    void set_camera_view(Camera& camera, const mat4& view)
+    void set_camera_view(PerspectiveCamera& camera, const mat4& view)
     {
         camera.view = view;
         mat3 invView = to_mat3(camera.view);

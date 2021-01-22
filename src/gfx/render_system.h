@@ -69,6 +69,7 @@ namespace zec::RenderSystem
     struct RenderList;
 
     typedef void(*SetupFn)(void* context);
+    typedef void(*CopyFn)(void* context);
     typedef void(*ExecuteFn)(RenderList& render_list, CommandContextHandle cmd_context, void* context);
     typedef void(*DestroyFn)(void* context);
 
@@ -81,6 +82,7 @@ namespace zec::RenderSystem
 
         void* context = nullptr;
         SetupFn setup = nullptr;
+        CopyFn copy = nullptr;
         ExecuteFn execute = nullptr;
         DestroyFn destroy = nullptr;
     };
@@ -102,6 +104,7 @@ namespace zec::RenderSystem
 
         void* context = nullptr;
         SetupFn setup = nullptr;
+        CopyFn copy = nullptr;
         ExecuteFn execute = nullptr;
         DestroyFn destroy = nullptr;
     };
@@ -137,6 +140,7 @@ namespace zec::RenderSystem
 
     void compile_render_list(RenderList& in_render_list, const RenderListDesc& render_list_desc);
     void setup(RenderList& render_list);
+    void copy(RenderList& render_list);
     void execute(RenderList& render_list);
     void destroy(RenderList& render_list);
 

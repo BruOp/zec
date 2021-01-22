@@ -317,7 +317,7 @@ namespace zec
         return true;
     };
 
-    void cull_obbs_sac(const Camera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
+    void cull_obbs_sac(const PerspectiveCamera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
     {
         ASSERT(out_visible_list.size == 0);
 
@@ -347,7 +347,7 @@ namespace zec
         }
     };
 
-    void cull_obbs_sac_ispc(const Camera& camera, const Array<mat4>& transforms, const AABB_SoA& aabb_soa, Array<u32>& out_visible_list)
+    void cull_obbs_sac_ispc(const PerspectiveCamera& camera, const Array<mat4>& transforms, const AABB_SoA& aabb_soa, Array<u32>& out_visible_list)
     {
         ASSERT(out_visible_list.size == 0);
         if (out_visible_list.capacity < transforms.size) {

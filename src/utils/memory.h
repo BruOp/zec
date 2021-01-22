@@ -20,7 +20,7 @@ namespace zec
             return ::malloc(size);
         };
 
-        inline void free(void* ptr)
+        inline void free_mem(void* ptr)
         {
             ASSERT(ptr != nullptr);
             ::free(ptr);

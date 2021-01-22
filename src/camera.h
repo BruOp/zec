@@ -5,7 +5,7 @@
 
 namespace zec
 {
-    struct Camera
+    struct PerspectiveCamera
     {
         float aspect_ratio = 1.0f;
         float vertical_fov = 0.0f;
@@ -17,9 +17,9 @@ namespace zec
         vec3 position = {};
     };
 
-    Camera create_camera(const float aspect_ratio, const float vertical_fov, const float near_plane, const float far_plane);
+    PerspectiveCamera create_camera(const float aspect_ratio, const float vertical_fov, const float near_plane, const float far_plane);
 
-    void set_camera_view(Camera& camera, const mat4& view);
+    void set_camera_view(PerspectiveCamera& camera, const mat4& view);
 
     class ICameraController
     {
@@ -34,7 +34,7 @@ namespace zec
         { };
 
         void init();
-        inline void set_camera(Camera* new_camera) { camera = new_camera; };
+        inline void set_camera(PerspectiveCamera* new_camera) { camera = new_camera; };
 
         void update(const float deltaTime) override final;
 
@@ -47,7 +47,7 @@ namespace zec
         float radius = 1.0f;
         vec3 origin = {};
     private:
-        Camera* camera = nullptr;
+        PerspectiveCamera* camera = nullptr;
         input::InputMapping input_map;
     };
 
@@ -58,7 +58,7 @@ namespace zec
         { };
 
         void init();
-        inline void set_camera(Camera* new_camera) { camera = new_camera; };
+        inline void set_camera(PerspectiveCamera* new_camera) { camera = new_camera; };
 
         void update(const float deltaTime) override final;
 
@@ -69,7 +69,7 @@ namespace zec
         float pitch = k_half_pi;
         float yaw = k_half_pi;
     private:
-        Camera* camera = nullptr;
+        PerspectiveCamera* camera = nullptr;
         input::InputMapping input_map;
     };
 }

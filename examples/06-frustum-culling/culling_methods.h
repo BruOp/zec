@@ -212,7 +212,7 @@ namespace zec
         return res != 0;
     }
 
-    void cull_obbs_sse(const Camera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
+    void cull_obbs_sse(const PerspectiveCamera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
     {
         ASSERT(out_visible_list.size == 0);
 
@@ -255,7 +255,7 @@ namespace zec
         return obb_in_frustum(obb);
     }
 
-    void cull_obbs(const Camera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
+    void cull_obbs(const PerspectiveCamera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
     {
         ASSERT(out_visible_list.size == 0);
         mat4 VP = camera.projection * camera.view;
@@ -287,7 +287,7 @@ namespace zec
         }
     };
 
-    void cull_obbs_mt(ftl::TaskScheduler& task_scheduler, const Camera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
+    void cull_obbs_mt(ftl::TaskScheduler& task_scheduler, const PerspectiveCamera& camera, const Array<mat4>& transforms, const Array<AABB>& aabb_list, Array<u32>& out_visible_list)
     {
         ASSERT(out_visible_list.size == 0);
 

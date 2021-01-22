@@ -11,9 +11,9 @@ constexpr u32 DESCRIPTOR_TABLE_SIZE = 4096;
 
 namespace ResourceNames
 {
-    const std::string DEPTH_TARGET = "depth";
-    const std::string HDR_BUFFER = "hdr";
-    const std::string SDR_BUFFER = "sdr";
+    constexpr char DEPTH_TARGET[] = "depth";
+    constexpr char HDR_BUFFER[] = "hdr";
+    constexpr char SDR_BUFFER[] = "sdr";
 }
 
 struct ViewConstantData
@@ -473,7 +473,7 @@ public:
     ToneMappingApp() : App{ L"Basic Tone Mapping" } { }
     float frame_times[120] = { 0.0f };
 
-    Camera camera = {};
+    PerspectiveCamera camera = {};
     OrbitCameraController camera_controller = OrbitCameraController{};
 
     ViewConstantData view_constant_data = {};

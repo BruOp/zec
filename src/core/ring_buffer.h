@@ -83,7 +83,7 @@ namespace zec
         ~RingBuffer()
         {
             if (data != nullptr) {
-                memory::free(data);
+                memory::free_mem(data);
             }
         }
 
@@ -155,7 +155,7 @@ namespace zec
             read_idx = 0;
             write_idx = write_idx - read_idx;
             if (data) {
-                memory::free(data);
+                memory::free_mem(data);
             }
             data = new_data;
             capacity = (pages_required * sys_info.page_size) / sizeof(T);

@@ -50,6 +50,8 @@ namespace zec
 
         void initialize(u32 width, u32 height);
 
+        void destroy();
+
         void handle_msg(const MSG& msg);
 
         void update(const TimeData& time_data);

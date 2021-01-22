@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "core/array.h"
 #include "murmur/MurmurHash3.h"
 #include "render_system.h"
 #include "profiling_utils.h"
@@ -17,8 +18,93 @@ namespace zec::RenderSystem
 
     constexpr size_t GRAPH_DEPTH_LIMIT = 16; //totally arbitrary
 
+    boolean validate_render_List(const RenderListDesc& render_list_desc, std::vector<std::string>& out_errors)
+    {
+        const u32 num_render_passes = render_list_desc.num_render_passes;
+        if (num_render_passes == 0) {
+            out_errors.push_back("You cannot create a render list with zero passes");
+        };
+
+        const std::string& backbuffer_resource_name = render_list_desc.resource_to_use_as_backbuffer;
+
+        bool backbuffer_is_written_to = false;
+        std::unordered_map<std::string, PassOutputDesc> output_descs = {};
+
+        for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
+
+            // Create RenderPass instance
+            const auto& render_pass_desc = render_list_desc.render_pass_descs[pass_idx];
+
+            // Validate inputs
+            for (const auto& input : render_pass_desc.inputs) {
+                if (input.type == PassResourceType::INVALID || input.usage == RESOURCE_USAGE_UNUSED) {
+                    break;
+                }
+
+                // Check if resource exists and matches description
+                std::string input_name = { input.name };
+                if (output_descs.contains(input_name)) {
+                    const auto& output_desc = output_descs[input_name];
+                    if (output_desc.type != input.type) {
+                        out_errors.push_back(make_string("The type of input %s for pass %s does not match between output and input. Output uses format %u while input uses %u.", input_name, render_pass_desc.name, input.type, output_desc.type));
+                    };
+                }
+                else {
+                    out_errors.push_back(make_string("Input %s is not output by a pass before being consumed by %s", input_name, render_pass_desc.name));
+                }
+            }
+
+            // Validate outputs and process descriptions
+            for (const auto& output : render_pass_desc.outputs) {
+                if (output.type == PassResourceType::INVALID || output.usage == RESOURCE_USAGE_UNUSED) {
+                    break;
+                }
+
+                std::string output_name = output.name;
+
+                if (!output_descs.contains(output_name)) {
+                    // Add it to our list
+                    output_descs[output_name] = output;
+                }
+
+                if (output_name == backbuffer_resource_name) {
+                    const bool is_valid = output.type == PassResourceType::TEXTURE
+                        && output.texture_desc.size_class == SizeClass::RELATIVE_TO_SWAP_CHAIN
+                        && output.texture_desc.width == 1.0f
+                        && output.texture_desc.height == 1.0f
+                        && output.texture_desc.num_mips == 1
+                        && output.texture_desc.depth == 1
+                        && output.texture_desc.is_3d == false
+                        && output.texture_desc.is_cubemap == false
+                        && output.usage == RESOURCE_USAGE_RENDER_TARGET;
+                    if (!is_valid) {
+                        out_errors.push_back(make_string("Passes that write to the backbuffer must have a sepcific set of outputs!"));
+                    }
+                    backbuffer_is_written_to = true;
+                }
+            }
+        }
+
+        if (!backbuffer_is_written_to) {
+            out_errors.push_back(make_string("None of the passes seem to output to the resource %s which is marked as the backbuffer", backbuffer_resource_name));
+        }
+
+        return out_errors.size() == 0;
+    };
+
     void compile_render_list(RenderList& in_render_list, const RenderListDesc& render_list_desc)
     {
+    #if _DEBUG
+        std::vector<std::string> errors{};
+        bool is_valid = validate_render_List(render_list_desc, errors);
+        if (!is_valid) {
+            for (size_t i = 0; i < errors.size(); i++) {
+                write_log(errors[i].c_str());
+            }
+            throw std::runtime_error("Cannot compile invalid render list! Consider calling validate separately");
+        }
+    #endif // _DEBUG
+
         const RenderPassDesc* render_pass_descs = render_list_desc.render_pass_descs;
         const u32 num_render_passes = render_list_desc.num_render_passes;
         const std::string backbuffer_resource_name = { render_list_desc.resource_to_use_as_backbuffer };
@@ -101,7 +187,6 @@ namespace zec::RenderSystem
                     previous_pass.requires_flush = true;
 
                     output_descs[output_name].last_written_to_by_pass_idx = pass_idx;
-
                 }
                 else {
                     // Add it to our list
@@ -111,16 +196,6 @@ namespace zec::RenderSystem
                 }
 
                 if (output_name == backbuffer_resource_name) {
-                    ASSERT(output.type == PassResourceType::TEXTURE);
-                    ASSERT(output.texture_desc.size_class == SizeClass::RELATIVE_TO_SWAP_CHAIN);
-                    ASSERT(output.texture_desc.width == 1.0f);
-                    ASSERT(output.texture_desc.height == 1.0f);
-                    ASSERT(output.texture_desc.num_mips == 1);
-                    ASSERT(output.texture_desc.depth == 1);
-                    ASSERT(output.texture_desc.is_3d == false);
-                    ASSERT(output.texture_desc.is_cubemap == false);
-                    ASSERT(output.usage == RESOURCE_USAGE_RENDER_TARGET);
-
                     writes_to_backbuffer_resource = true;
                     render_pass.requires_flush = true;
                 }
@@ -140,18 +215,11 @@ namespace zec::RenderSystem
         }
 
         // Check that we do indeed write to the resource aliasing the backbuffer
-        // We should probably also assert that the sizing and stuff is what we expect
         ASSERT(output_descs.count(backbuffer_resource_name) != 0);
-        // We don't need to create this resource, so remove it.
+        // We don't need to create this resource, so remove it from our list.
         output_descs.erase(backbuffer_resource_name);
 
-        // We now have:
-        // - A list of resource descs we have to create
-        // - A list containing the depths for each RenderPass
-        // - A list of the number of passes at each depth in our tree
-
-        // Process list of resources, creating each one RENDER_LATENCY times
-        // (For each frame in flight)
+        // Process list of resources, creating one for each frame
         for (auto& pair : output_descs) {
             const std::string& name = pair.first;
             auto& resource_desc = pair.second.desc;
@@ -222,6 +290,15 @@ namespace zec::RenderSystem
     {
         for (auto& render_pass : render_list.render_passes) {
             render_pass.setup(render_pass.context);
+        }
+    }
+
+    void copy(RenderList& render_list)
+    {
+        for (auto& render_pass : render_list.render_passes) {
+            if (render_pass.copy) {
+                render_pass.copy(render_pass.context);
+            }
         }
     }
 

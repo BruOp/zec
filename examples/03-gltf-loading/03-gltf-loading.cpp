@@ -38,7 +38,7 @@ public:
     float frame_times[120] = { 0.0f };
     float clear_color[4] = { 0.2f, 0.2f, 0.2f, 1.0f };
 
-    Camera camera = {};
+    PerspectiveCamera camera = {};
     OrbitCameraController camera_controller = OrbitCameraController{};
 
     ViewConstantData view_constant_data = {};

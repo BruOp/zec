@@ -182,7 +182,7 @@ public:
         ImGuiFileBrowserFlags_EnterNewFilename | ImGuiFileBrowserFlags_CloseOnEsc
     };
 
-    Camera camera = {};
+    PerspectiveCamera camera = {};
     OrbitCameraController camera_controller = OrbitCameraController{};
 
     PrefilterEnvMapTask prefiltering_task;

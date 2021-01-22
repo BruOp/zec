@@ -92,6 +92,7 @@ namespace zec
     {
         gfx::flush_gpu();
         ui::destroy();
+        input::destroy();
         shutdown();
         gfx::destroy_renderer();
     }

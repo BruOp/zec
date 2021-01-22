@@ -13,10 +13,10 @@
 
 #include "exceptions.h"
 #include "assert.h"
+#include "murmur/MurmurHash3.h"
 
 namespace zec
 {
-
     // Converts an ANSI string to a std::wstring
     inline std::wstring ansi_to_wstring(const char* ansiString)
     {
@@ -153,6 +153,9 @@ namespace zec
     {
         return N;
     }
+
+#define VAR_NAME_HELPER(name) #name
+#define VAR_NAME(x) VAR_NAME_HELPER(x)
 
 #define ARRAY_SIZE(x) ((sizeof(x) / sizeof(0 [x])) / ((size_t)(!(sizeof(x) % sizeof(0 [x])))))
 

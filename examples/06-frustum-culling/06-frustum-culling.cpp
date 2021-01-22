@@ -53,8 +53,8 @@ namespace DebugPass
 
         // Not owned
         bool active = true;
-        Camera const* camera = nullptr;
-        Camera const* debug_camera = nullptr;
+        PerspectiveCamera const* camera = nullptr;
+        PerspectiveCamera const* debug_camera = nullptr;
         Scene const* scene = nullptr;
         //Array<u32> const* visibility_list = nullptr;
         BufferHandle view_cb_handle = {};
@@ -87,7 +87,7 @@ namespace DebugPass
 
         Array<vec3> frustum_positions;
 
-        const Camera* camera = pass_context->camera;
+        const PerspectiveCamera* camera = pass_context->camera;
         geometry::generate_frustum_data(frustum_positions, camera->near_plane, camera->far_plane, camera->vertical_fov, camera->aspect_ratio);
 
         // Each slice requires 6 indices
@@ -309,10 +309,10 @@ public:
     FrustumCullingApp() : App{ L"View Frustum Culling" } { }
     float frame_times[120] = { 0.0f };
 
-    Camera camera = {};
+    PerspectiveCamera camera = {};
     FPSCameraController camera_controller = FPSCameraController{};
 
-    Camera debug_camera = {};
+    PerspectiveCamera debug_camera = {};
 
     ViewConstantData view_constant_data = {};
 

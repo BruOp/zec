@@ -2,7 +2,6 @@
 #include "core/zec_math.h"
 #include "utils/exceptions.h"
 #include "imgui/imgui.h"
-#include "gfx/d3d12/globals.h"
 
 using namespace zec;
 

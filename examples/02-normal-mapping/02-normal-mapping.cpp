@@ -37,7 +37,7 @@ public:
 
     float clear_color[4] = { 0.2f, 0.2f, 0.2f, 1.0f };
 
-    Camera camera = {};
+    PerspectiveCamera camera = {};
     OrbitCameraController camera_controller = OrbitCameraController{ };
     MeshHandle cube_mesh = {};
     BufferHandle view_cb_handle = {};
