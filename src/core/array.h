@@ -238,13 +238,13 @@ namespace zec
         size_t capacity = 0;
         size_t size = 0;
 
-        Array() : Array{ 0 } { };
-        Array(size_t cap) : data{ nullptr }, capacity{ 0 }, size{ 0 } {
+        ManagedArray() : ManagedArray{ 0 } { };
+        ManagedArray(size_t cap) : data{ nullptr }, capacity{ 0 }, size{ 0 } {
             data = static_cast<T*>(memory::virtual_reserve((void*)data, g_GB));
             grow(cap);
         }
 
-        ~Array()
+        ~ManagedArray()
         {
             for (size_t i = 0; i < size; i++) {
                 data[i].~T();
@@ -264,8 +264,8 @@ namespace zec
             return data + size;
         }
 
-        UNCOPIABLE(Array);
-        UNMOVABLE(Array);
+        UNCOPIABLE(ManagedArray);
+        UNMOVABLE(ManagedArray);
 
         inline T& operator[](size_t idx)
         {
@@ -291,7 +291,7 @@ namespace zec
         void pop_back()
         {
             ASSERT(size > 0);
-            val = data[--size];
+            T& val = data[--size];
             val.~T();
         }
 

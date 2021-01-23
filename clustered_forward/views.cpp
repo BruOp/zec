@@ -22,9 +22,8 @@ namespace zec
 
             view_cb_handles[idx] = buffer_handle;
         }
-
         camera_indices[idx] = camera_idx;
-        return { idx };
+        return { u32(idx) };
     };
 
     void SceneViewManager::update()

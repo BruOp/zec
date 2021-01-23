@@ -103,22 +103,22 @@ namespace zec::gfx::dx12::descriptor_utils
     {
         // Create a heap of a specific type
         constexpr DescriptorHeapDesc descs[] = {
-          {
+            {
             .size = DescriptorHeapDesc::MAX_SIZE,
             .type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV
-          },
-          {
+            },
+            {
             .size = 128,
             .type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV
-          },
-          {
+            },
+            {
             .size = 128,
             .type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV
-          },
-          {
+            },
+            {
             .size = 128,
             .type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER
-          },
+            },
         };
 
         for (const DescriptorHeapDesc& desc : descs) {

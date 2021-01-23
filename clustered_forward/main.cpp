@@ -22,6 +22,47 @@ namespace clustered
         UIPass::Context ui_context = {};
     };
 
+    struct VertexShaderData
+    {
+        mat4 model;
+        mat3 normal_transform;
+    };
+
+    struct DrawCall
+    {
+    };
+
+    struct PerEntityDataBuffers
+    {
+        static constexpr size_t MATERIAL_DATA_BYTE_SIZE = 256;
+        static constexpr size_t MAX_NUM_OBJECTS = 16384;
+        static constexpr size_t INSTANCE_BUFFER_DATA_SIZE = MAX_NUM_OBJECTS * MATERIAL_DATA_BYTE_SIZE; // Since each object gets 256 bytes worth of material data
+        BufferHandle vs_buffer = {};
+        BufferHandle material_data_buffer = {};
+    };
+
+    void create_per_entity_data_buffers(PerEntityDataBuffers& per_entity_data_buffers)
+    {
+        ASSERT(!is_valid(per_entity_data_buffers.vs_buffer));
+        ASSERT(!is_valid(per_entity_data_buffers.material_data_buffer));
+
+        BufferDesc vs_buffer_desc{
+            .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
+            .type = BufferType::DEFAULT,
+            .byte_size = sizeof(VertexShaderData),
+            .stride = sizeof(VertexShaderData) * PerEntityDataBuffers::MAX_NUM_OBJECTS,
+        };
+        per_entity_data_buffers.vs_buffer = gfx::buffers::create(vs_buffer_desc);
+
+        BufferDesc material_data_buffer_desc{
+            .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
+            .type = BufferType::DEFAULT,
+            .byte_size = PerEntityDataBuffers::INSTANCE_BUFFER_DATA_SIZE,
+            .stride = PerEntityDataBuffers::MATERIAL_DATA_BYTE_SIZE,
+        };
+        per_entity_data_buffers.material_data_buffer = gfx::buffers::create(material_data_buffer_desc);
+    }
+
 
     class ClusteredForward : public zec::App
     {
@@ -32,6 +73,7 @@ namespace clustered
         Scene scene = {};
 
         MeshHandle fullscreen_mesh;
+        PerEntityDataBuffers per_entity_data_buffers = {};
 
         SceneViewManager scene_view_manager = {};
         SceneViewHandle main_camera_scene_view;
@@ -170,11 +212,10 @@ namespace clustered
 
 int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
-    _CrtSetBreakAlloc(457);
+    _CrtSetBreakAlloc(446);
     int res = 0;
     _CrtMemState s1, s2, s3;
     _CrtMemCheckpoint(&s1);
-    _CrtMemDumpStatistics(&s1);
     {
         clustered::ClusteredForward  app{};
         res = app.run();

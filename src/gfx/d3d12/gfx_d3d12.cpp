@@ -173,7 +173,6 @@ namespace zec::gfx
             ASSERT(g_adapter == nullptr);
             ASSERT(g_factory == nullptr);
             ASSERT(g_device == nullptr);
-            constexpr int ADAPTER_NUMBER = 1;
 
             UINT factory_flags = 0;
         #ifdef USE_DEBUG_DEVICE
@@ -194,15 +193,32 @@ namespace zec::gfx
 
             DXCall(CreateDXGIFactory2(factory_flags, IID_PPV_ARGS(&g_factory)));
 
-            g_factory->EnumAdapters1(ADAPTER_NUMBER, &g_adapter);
+            {
+                UINT i = 0;
+                IDXGIAdapter1* p_adapter;
+                u32 best_video_memory = 0;
+                u32 best_adapter_idx = UINT32_MAX; // Which adapter has most video memory
+                while (g_factory->EnumAdapters1(i, &p_adapter) != DXGI_ERROR_NOT_FOUND) {
+                    DXGI_ADAPTER_DESC1 desc{};
+                    p_adapter->GetDesc1(&desc);
+                    write_log(L"Found adapter %s with %u dedicated video memory.", desc.Description, desc.DedicatedVideoMemory);
+                    if (desc.DedicatedVideoMemory > best_video_memory) {
+                        best_adapter_idx = i;
+                    }
+                    ++i;
+                    p_adapter->Release();
+                }
 
-            if (g_adapter == nullptr) {
-                throw Exception(L"Unabled to located DXGI 1.4 adapter that supports D3D12.");
+                if (best_adapter_idx != UINT32_MAX) {
+                    g_factory->EnumAdapters1(best_adapter_idx, &g_adapter);
+                    DXGI_ADAPTER_DESC1 desc{  };
+                    g_adapter->GetDesc1(&desc);
+                    write_log("Creating DX12 device on adapter '%ls'", desc.Description);
+                }
+                else {
+                    throw Exception(L"Unabled to located DXGI 1.4 adapter that supports D3D12.");
+                }
             }
-
-            DXGI_ADAPTER_DESC1 desc{  };
-            g_adapter->GetDesc1(&desc);
-            write_log("Creating DX12 device on adapter '%ls'", desc.Description);
 
             DXCall(D3D12CreateDevice(g_adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&g_device)));
 
