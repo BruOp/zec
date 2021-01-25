@@ -276,7 +276,6 @@ namespace zec::gfx::pipelines
                 d3d_desc.InstanceDataStepRate = 0;
                 num_input_elements++;
             };
-            ASSERT(num_input_elements > 0);
         }
 
         // Create a pipeline state object description, then create the object

@@ -24,23 +24,32 @@ namespace zec
         }
         camera_indices[idx] = camera_idx;
         return { u32(idx) };
-    };
+    }
+
+    const BufferHandle SceneViewManager::get_view_constant_buffer(const SceneViewHandle view_handle)
+    {
+        return view_cb_handles[view_handle.idx];
+    }
 
     void SceneViewManager::update()
     {
-        for (size_t i = 0; i < capacity; i++) {
+        for (size_t i = 0; i < size; i++) {
 
             // Basically each scene view will need to calculate it's visibility lists
-            // Also update the ViewConstantData array
         }
     }
 
     void SceneViewManager::copy()
     {
-        for (size_t i = 0; i < capacity; i++) {
-            const auto& view_data = view_constant_data[i];
-            auto& view_cb_handle = view_cb_handles[i];
-            gfx::buffers::update(view_cb_handle, &view_data, sizeof(view_data));
+        for (size_t i = 0; i < size; i++) {
+            const auto& camera = scene->perspective_cameras[camera_indices[i]];
+            auto& view_constants = view_constant_data[i];
+            view_constants.VP = camera.projection * camera.view;
+            view_constants.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
+            view_constants.camera_position = camera.position;
+
+            auto view_cb_handle = view_cb_handles[i];
+            gfx::buffers::update(view_cb_handle, &view_constants, sizeof(view_constants));
         }
     }
 

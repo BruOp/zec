@@ -16,6 +16,7 @@ namespace zec
         mat4 VP;
         mat4 invVP;
         vec3 camera_position;
+        float padding;
     };
 
     RESOURCE_HANDLE(SceneViewHandle);
@@ -78,12 +79,14 @@ namespace zec
         //    //}
         //}
 
-        void set_scene(Scene* _scene)
+        void set_scene(RenderScene* _scene)
         {
             scene = _scene;
         }
 
         SceneViewHandle create_new_view(u32 camera_idx);
+
+        const BufferHandle get_view_constant_buffer(const SceneViewHandle view_handle);
 
         void update();
         void copy();
@@ -92,7 +95,7 @@ namespace zec
         static constexpr size_t capacity = 32;
         size_t size = 0;
 
-        Scene* scene = nullptr;
+        RenderScene* scene = nullptr;
         u32 camera_indices[capacity] = {};
         Array<u32> entity_visibility_lists[capacity] = {};
         Array<u32> light_visibility_lists[capacity] = {};

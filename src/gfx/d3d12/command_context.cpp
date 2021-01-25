@@ -334,6 +334,23 @@ namespace zec::gfx::cmd
         cmd_list->DrawInstanced(u32(vertex_buffer.size) / stride, 1, 0, 0);
     }
 
+    void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id)
+    {
+        ASSERT(get_command_queue_type(ctx) == CommandQueueType::GRAPHICS);
+        ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+        const Buffer& buffer = g_buffers.get(index_buffer_id);
+
+        D3D12_INDEX_BUFFER_VIEW view{
+            .BufferLocation = buffer.gpu_address,
+            .SizeInBytes = u32(buffer.size),
+            .Format = buffer.stride == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT,
+        };
+        cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        cmd_list->IASetIndexBuffer(&view);
+        cmd_list->DrawIndexedInstanced(u32(buffer.size / buffer.stride), 1, 0, 0, 0);
+    }
+
+
     void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id)
     {
         ASSERT(get_command_queue_type(ctx) == CommandQueueType::GRAPHICS);

@@ -1,7 +1,12 @@
 #pragma once
 #include "pch.h"
 #include "gfx/public_resources.h"
-#include "D3D12MemAlloc/D3D12MemAlloc.h"
+#include "descriptor_heap.h"
+
+namespace D3D12MA
+{
+    class Allocation;
+}
 
 namespace zec::gfx::dx12
 {
@@ -16,10 +21,10 @@ namespace zec::gfx::dx12
         D3D12_CPU_DESCRIPTOR_HANDLE uav = {};
         void* cpu_address = 0;
         u64 gpu_address = 0;
-        u64 alignment = 0;
         u64 size = 0;
-        u32 srv = UINT32_MAX;
+        u32 stride = 0;
         u32 cpu_accessible = false;
+        DescriptorRangeHandle srv = {};
     };
 
     namespace buffer_utils

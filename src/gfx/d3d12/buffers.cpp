@@ -13,6 +13,7 @@ namespace zec::gfx::dx12
         ASSERT(desc.usage != u16(RESOURCE_USAGE_UNUSED));
 
         buffer.size = desc.byte_size;
+        buffer.stride = desc.stride;
         // Create Buffer
         D3D12_HEAP_TYPE heap_type = D3D12_HEAP_TYPE_DEFAULT;
         D3D12_RESOURCE_STATES initial_resource_state = D3D12_RESOURCE_STATE_COMMON;
@@ -68,6 +69,25 @@ namespace zec::gfx::dx12
         DXCall(res);
         buffer.gpu_address = buffer.resource->GetGPUVirtualAddress();
 
+        if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
+            D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
+            buffer.srv = descriptor_utils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, &cpu_handle);
+
+            bool is_structered = desc.type == BufferType::STRUCTURED;
+            D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
+                .Format = DXGI_FORMAT_UNKNOWN,
+                .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
+                .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .Buffer = {
+                    .FirstElement = 0,
+                    .NumElements = desc.byte_size / desc.stride,
+                    .StructureByteStride = desc.stride,
+                },
+            };
+
+            g_device->CreateShaderResourceView(buffer.resource, &srv_desc, cpu_handle);
+        }
+
         if (desc.usage & RESOURCE_USAGE_DYNAMIC) {
             buffer.cpu_accessible = true;
             buffer.resource->Map(0, nullptr, &buffer.cpu_address);
@@ -112,8 +132,20 @@ namespace zec::gfx::buffers
         return handle;
     }
 
+    u32 get_shader_readable_index(const BufferHandle handle)
+    {
+        Buffer& buffer = g_buffers.get(handle);
+        return descriptor_utils::get_offset(buffer.srv);
+    };
+
+    u32 get_shader_writable_index(const BufferHandle handle)
+    {
+        throw Exception("TODO");
+    };
+
     void update(const BufferHandle buffer_id, const void* data, u64 byte_size)
     {
+        ASSERT(is_valid(buffer_id));
         Buffer& buffer = g_buffers[buffer_id];
         update_buffer(buffer, data, byte_size, g_current_frame_idx);
     }

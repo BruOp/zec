@@ -4,7 +4,7 @@
 
 namespace zec::geometry
 {
-    extern constexpr float k_cube_positions[] = {
+    constexpr float k_cube_positions[] = {
         -0.5f,  0.5f, -0.5f, // +Y (top face)
          0.5f,  0.5f, -0.5f,
          0.5f,  0.5f,  0.5f,
@@ -15,29 +15,7 @@ namespace zec::geometry
         -0.5f, -0.5f, -0.5f,
     };
 
-    constexpr float k_cube_uvs[] = {
-         0.0f,  0.0f, // +Y (top face)
-         1.0f,  0.0f,
-         1.0f,  1.0f,
-         0.0f,  1.0f,
-         0.0f,  0.0f,  // -Y (bottom face)
-         1.0f,  0.0f,
-         1.0f,  1.0f,
-         0.0f,  1.0f,
-    };
-
-    constexpr u32 k_cube_colors[] = {
-        0xff00ff00, // +Y (top face)
-        0xff00ffff,
-        0xffffffff,
-        0xffffff00,
-        0xffff0000, // -Y (bottom face)
-        0xffff00ff,
-        0xff0000ff,
-        0xff000000,
-    };
-
-    extern constexpr u16 k_cube_indices[] = {
+    constexpr u16 k_cube_indices[] = {
         2, 1, 0,
         3, 2, 0,
         5, 1, 2,

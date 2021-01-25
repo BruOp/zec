@@ -41,6 +41,9 @@ namespace zec::gfx
     {
         BufferHandle create(BufferDesc buffer_desc);
 
+        u32 get_shader_readable_index(const BufferHandle handle);
+        u32 get_shader_writable_index(const BufferHandle handle);
+
         void update(const BufferHandle buffer_id, const void* data, u64 byte_size);
 
         void set_debug_name(const BufferHandle handle, const wchar* name);
@@ -94,6 +97,7 @@ namespace zec::gfx
 
         // Draw / Dispatch
         void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices);
+        void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id);
         void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
 
         void dispatch(

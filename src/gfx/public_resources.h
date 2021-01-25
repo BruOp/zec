@@ -289,7 +289,7 @@ namespace zec
         BufferType type = BufferType::DEFAULT;
         u32 byte_size = 0;
         u32 stride = 0;
-        void* data = nullptr;
+        const void* data = nullptr;
     };
 
     struct InputAssemblyDesc

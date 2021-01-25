@@ -11,13 +11,27 @@ namespace zec
         float data[64] = {};
     };
 
-    struct Scene
+    struct Entity { u32 idx; };
+
+    class RenderScene
     {
+    public:
         Array<PerspectiveCamera> perspective_cameras;
         std::vector<std::string> camera_names;
 
-        Array<mat4> local_transforms;
-        Array<mat4> global_transforms;
-        Array<RawMaterialData> material_data;
+        // Components
+
+        Array<Entity> parent_idx = {};
+        // Transform data
+        Array<vec3> positions = {};
+        Array<quaternion> rotations;
+        Array<vec3> scales = {};
+        Array<mat4> local_transforms = {};
+        Array<mat4> global_transforms = {};
+        Array<mat3> normal_transforms = {};
+        // Rendering data
+        Array<MeshHandle> mesh_handles = {};
+        Array<RawMaterialData> material_data = {};
+    private:
     };
 }

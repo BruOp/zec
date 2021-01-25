@@ -54,7 +54,7 @@ namespace clustered::UIPass
     struct Context
     {
         zec::RenderConfigState* render_config_state;
-        zec::Scene* scene;
+        zec::RenderScene* scene;
         size_t* active_camera_idx;
     };
 

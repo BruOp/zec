@@ -197,7 +197,6 @@ namespace clustered::UIPass
         gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
         float clear_color[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-        gfx::cmd::clear_render_target(cmd_ctx, sdr_buffer, clear_color);
         gfx::cmd::set_render_targets(cmd_ctx, &sdr_buffer, 1);
 
         ui::begin_frame();
