@@ -59,34 +59,39 @@ namespace zec::gfx::dx12
     {
         TextureHandle push_back(TextureList& list, const Texture& texture);
 
-        inline u32 get_srv_index(TextureList& texture_list, TextureHandle handle)
+        inline u32 get_srv_index(const TextureList& texture_list, const TextureHandle handle)
         {
             return descriptor_utils::get_offset(texture_list.srvs[handle.idx]);
         };
 
-        inline u32 get_uav_index(TextureList& texture_list, TextureHandle handle)
+        inline u32 get_uav_index(const TextureList& texture_list, const TextureHandle handle)
         {
             return descriptor_utils::get_offset(texture_list.uavs[handle.idx]);
         };
 
-        inline DescriptorRangeHandle get_rtv(TextureList& texture_list, TextureHandle handle)
+        inline DescriptorRangeHandle get_rtv(const TextureList& texture_list, const TextureHandle handle)
         {
             return texture_list.rtvs[handle.idx];
         };
 
-        DescriptorRangeHandle get_dsv(TextureList& texture_list, TextureHandle handle);
+        DescriptorRangeHandle get_dsv(const TextureList& texture_list, const TextureHandle handle);
 
         inline void set_rtv(TextureList& texture_list, TextureHandle handle, DescriptorRangeHandle rtv)
         {
             texture_list.rtvs[handle.idx] = rtv;
         };
 
-        inline TextureInfo& get_texture_info(TextureList& texture_list, TextureHandle texture_handle)
+        inline const TextureInfo& get_texture_info(const TextureList& texture_list, TextureHandle texture_handle)
         {
             return texture_list.infos[texture_handle.idx];
         }
 
-        inline RenderTargetInfo& get_render_target_info(TextureList& texture_list, TextureHandle handle)
+        inline void set_texture_info(TextureList& texture_list, TextureHandle texture_handle, const TextureInfo& texture_info)
+        {
+            texture_list.infos[texture_handle.idx] = texture_info;
+        }
+
+        inline const RenderTargetInfo& get_render_target_info(const TextureList& texture_list, TextureHandle handle)
         {
             return texture_list.render_target_infos[handle.idx];
         };

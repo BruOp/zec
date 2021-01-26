@@ -126,13 +126,13 @@ namespace ForwardPass
         gfx::pipelines::set_debug_name(forward_context->pso_handle, L"Forward Rendering Pipeline");
     }
 
-    void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
+    void record(render_pass_system::RenderPassList& render_list, CommandContextHandle cmd_ctx, void* context)
     {
         constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
         Context* forward_context = reinterpret_cast<Context*>(context);
 
-        TextureHandle depth_target = RenderSystem::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
-        TextureHandle hdr_buffer = RenderSystem::get_texture_resource(render_list, ResourceNames::HDR_BUFFER);
+        TextureHandle depth_target = render_pass_system::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
+        TextureHandle hdr_buffer = render_pass_system::get_texture_resource(render_list, ResourceNames::HDR_BUFFER);
         TextureInfo& texture_info = gfx::textures::get_texture_info(hdr_buffer);
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
         Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
@@ -226,12 +226,12 @@ namespace BackgroundPass
         background_context->pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
     }
 
-    void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
+    void record(render_pass_system::RenderPassList& render_list, CommandContextHandle cmd_ctx, void* context)
     {
         Context* background_context = reinterpret_cast<Context*>(context);
 
-        TextureHandle depth_target = RenderSystem::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
-        TextureHandle hdr_buffer = RenderSystem::get_texture_resource(render_list, ResourceNames::HDR_BUFFER);
+        TextureHandle depth_target = render_pass_system::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
+        TextureHandle hdr_buffer = render_pass_system::get_texture_resource(render_list, ResourceNames::HDR_BUFFER);
         TextureInfo& texture_info = gfx::textures::get_texture_info(hdr_buffer);
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
         Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
@@ -310,12 +310,12 @@ namespace ToneMapping
         tonemapping_context->pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
     }
 
-    void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
+    void record(render_pass_system::RenderPassList& render_list, CommandContextHandle cmd_ctx, void* context)
     {
         Context* tonemapping_context = reinterpret_cast<Context*>(context);
 
-        TextureHandle hdr_buffer = RenderSystem::get_texture_resource(render_list, ResourceNames::HDR_BUFFER);
-        TextureHandle sdr_buffer = RenderSystem::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
+        TextureHandle hdr_buffer = render_pass_system::get_texture_resource(render_list, ResourceNames::HDR_BUFFER);
+        TextureHandle sdr_buffer = render_pass_system::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
 
         gfx::cmd::set_render_targets(cmd_ctx, &sdr_buffer, 1);
 
@@ -492,7 +492,7 @@ public:
     BackgroundPass::Context background_context = {};
     ToneMapping::Context tonemapping_context = {};
 
-    RenderSystem::RenderList render_list;
+    render_pass_system::RenderPassList render_list;
 
 protected:
     void init() override final
@@ -635,20 +635,20 @@ protected:
             .fullscreen_mesh = fullscreen_mesh,
         };
 
-        RenderSystem::RenderPassDesc render_pass_descs[] = {
+        render_pass_system::RenderPassDesc render_pass_descs[] = {
             {
                 .queue_type = CommandQueueType::GRAPHICS,
                 .inputs = {},
                 .outputs = {
                     {
                         .name = ResourceNames::HDR_BUFFER,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_RENDER_TARGET,
                         .texture_desc = {.format = BufferFormat::R16G16B16A16_FLOAT}
                     },
                     {
                         .name = ResourceNames::DEPTH_TARGET,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_DEPTH_STENCIL,
                         .texture_desc = {.format = BufferFormat::D32 }
                     }
@@ -664,13 +664,13 @@ protected:
                 .outputs = {
                     {
                         .name = ResourceNames::HDR_BUFFER,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_RENDER_TARGET,
                         .texture_desc = {.format = BufferFormat::R16G16B16A16_FLOAT}
                     },
                     {
                         .name = ResourceNames::DEPTH_TARGET,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_DEPTH_STENCIL,
                         .texture_desc = {.format = BufferFormat::D32 }
                     }
@@ -685,14 +685,14 @@ protected:
                 .inputs = {
                     {
                         .name = ResourceNames::HDR_BUFFER,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_SHADER_READABLE
                     }
                 },
                 .outputs = {
                     {
                         .name = ResourceNames::SDR_BUFFER,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_RENDER_TARGET,
                         .texture_desc = {.format = BufferFormat::R8G8B8A8_UNORM_SRGB }
                     }
@@ -703,14 +703,14 @@ protected:
                 .destroy = &ToneMapping::destroy
             },
         };
-        RenderSystem::RenderListDesc render_list_desc = {
+        render_pass_system::RenderPassListDesc render_list_desc = {
             .render_pass_descs = render_pass_descs,
             .num_render_passes = ARRAY_SIZE(render_pass_descs),
             .resource_to_use_as_backbuffer = ResourceNames::SDR_BUFFER,
         };
 
-        RenderSystem::compile_render_list(render_list, render_list_desc);
-        RenderSystem::setup(render_list);
+        render_pass_system::compile_render_list(render_list, render_list_desc);
+        render_pass_system::setup(render_list);
 
 
         {
@@ -752,7 +752,7 @@ protected:
 
     void shutdown() override final
     {
-        RenderSystem::destroy(render_list);
+        render_pass_system::destroy(render_list);
     }
 
     void update(const zec::TimeData& time_data) override final
@@ -779,7 +779,7 @@ protected:
 
     void render() override final
     {
-        RenderSystem::execute(render_list);
+        render_pass_system::execute(render_list);
     }
 
     void before_reset() override final

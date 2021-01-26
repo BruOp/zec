@@ -305,8 +305,7 @@ namespace zec::gfx::cmd
     void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot)
     {
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-        const Buffer& buffer = g_buffers[buffer_handle];
-        auto gpu_address = buffer.cpu_accessible ? buffer.gpu_address + (buffer.size * g_current_frame_idx) : buffer.gpu_address;
+        auto gpu_address = buffer_utils::get_gpu_address(g_buffers, buffer_handle, g_current_frame_idx);
         CommandQueueType queue_type = get_command_queue_type(ctx);
         if (queue_type == CommandQueueType::GRAPHICS) {
             cmd_list->SetGraphicsRootConstantBufferView(binding_slot, gpu_address);
@@ -322,32 +321,32 @@ namespace zec::gfx::cmd
         ASSERT(get_command_queue_type(ctx) == CommandQueueType::GRAPHICS);
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
 
-        const Buffer& vertex_buffer = g_buffers[vertices];
+        const BufferInfo& buffer_info = buffer_utils::get_buffer_info(g_buffers, vertices);
         u32 stride = sizeof(float) * 3;
         D3D12_VERTEX_BUFFER_VIEW vb_view = {
-            .BufferLocation = vertex_buffer.gpu_address,
-            .SizeInBytes = u32(vertex_buffer.size),
+            .BufferLocation = buffer_info.gpu_address,
+            .SizeInBytes = u32(buffer_info.size),
             .StrideInBytes = stride,
         };
         cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINESTRIP);
         cmd_list->IASetVertexBuffers(0, 1, &vb_view);
-        cmd_list->DrawInstanced(u32(vertex_buffer.size) / stride, 1, 0, 0);
+        cmd_list->DrawInstanced(u32(buffer_info.size) / stride, 1, 0, 0);
     }
 
     void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id)
     {
         ASSERT(get_command_queue_type(ctx) == CommandQueueType::GRAPHICS);
         ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-        const Buffer& buffer = g_buffers.get(index_buffer_id);
+        const BufferInfo& buffer_info = buffer_utils::get_buffer_info(g_buffers, index_buffer_id);
 
         D3D12_INDEX_BUFFER_VIEW view{
-            .BufferLocation = buffer.gpu_address,
-            .SizeInBytes = u32(buffer.size),
-            .Format = buffer.stride == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT,
+            .BufferLocation = buffer_info.gpu_address,
+            .SizeInBytes = u32(buffer_info.size),
+            .Format = buffer_info.stride == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT,
         };
         cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         cmd_list->IASetIndexBuffer(&view);
-        cmd_list->DrawIndexedInstanced(u32(buffer.size / buffer.stride), 1, 0, 0, 0);
+        cmd_list->DrawIndexedInstanced(u32(buffer_info.size / buffer_info.stride), 1, 0, 0, 0);
     }
 
 
@@ -459,7 +458,7 @@ namespace zec::gfx::cmd
                 resource = get_resource(g_textures, transition_descs[i].texture);
             }
             else {
-                resource = g_buffers.get(transition_descs[i].buffer).resource;
+                resource = buffer_utils::get_resource(g_buffers, transition_descs[i].buffer);
             }
             barrier.Transition.pResource = resource;
             barrier.Transition.StateBefore = to_d3d_resource_state(transition_descs[i].before);

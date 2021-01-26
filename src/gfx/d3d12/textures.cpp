@@ -27,7 +27,7 @@ namespace zec::gfx::dx12
             return handle;
         }
 
-        DescriptorRangeHandle get_dsv(TextureList& texture_list, TextureHandle handle)
+        DescriptorRangeHandle get_dsv(const TextureList& texture_list, const TextureHandle handle)
         {
             for (size_t i = 0; i < texture_list.dsv_infos.size; i++) {
                 const auto& dsv_info = texture_list.dsv_infos[i];
@@ -253,7 +253,7 @@ namespace zec::gfx::textures
         return texture_utils::get_uav_index(g_textures, handle);
     }
 
-    TextureInfo& get_texture_info(const TextureHandle texture_handle)
+    const TextureInfo& get_texture_info(const TextureHandle texture_handle)
     {
         return dx12::texture_utils::get_texture_info(dx12::g_textures, texture_handle);
     };
@@ -372,7 +372,7 @@ namespace zec::gfx::textures
     void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage)
     {
         DirectX::ScratchImage scratch{ };
-        TextureInfo& texture_info = get_texture_info(texture_handle);
+        const TextureInfo& texture_info = get_texture_info(texture_handle);
         ID3D12Resource* resource = dx12::get_resource(dx12::g_textures, texture_handle);
         ID3D12CommandQueue* gfx_queue = dx12::cmd_utils::get_pool(CommandQueueType::GRAPHICS).queue;
         DXCall(DirectX::CaptureTexture(

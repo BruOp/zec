@@ -155,15 +155,15 @@ namespace DebugPass
         gfx::buffers::update(pass_context->debug_frustum_cb_handle, &frustum_draw_data, sizeof(frustum_draw_data));
     }
 
-    void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
+    void record(render_pass_system::RenderPassList& render_list, CommandContextHandle cmd_ctx, void* context)
     {
         constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
         Context* pass_context = reinterpret_cast<Context*>(context);
         if (!pass_context->active) return;
 
-        //TextureHandle depth_target = RenderSystem::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
-        TextureHandle sdr_buffer = RenderSystem::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
-        TextureHandle depth_target = RenderSystem::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
+        //TextureHandle depth_target = render_pass_system::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
+        TextureHandle sdr_buffer = render_pass_system::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
+        TextureHandle depth_target = render_pass_system::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
 
         TextureInfo& texture_info = gfx::textures::get_texture_info(sdr_buffer);
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
@@ -266,13 +266,13 @@ namespace ForwardPass
         gfx::pipelines::set_debug_name(forward_context->pso_handle, L"Forward Rendering Pipeline");
     }
 
-    void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
+    void record(render_pass_system::RenderPassList& render_list, CommandContextHandle cmd_ctx, void* context)
     {
         constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
         Context* pass_context = reinterpret_cast<Context*>(context);
 
-        TextureHandle depth_target = RenderSystem::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
-        TextureHandle render_target = RenderSystem::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
+        TextureHandle depth_target = render_pass_system::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
+        TextureHandle render_target = render_pass_system::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
         TextureInfo& texture_info = gfx::textures::get_texture_info(render_target);
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
         Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
@@ -330,7 +330,7 @@ public:
     ForwardPass::Context forward_context = {};
     DebugPass::Context debug_context = {};
 
-    RenderSystem::RenderList render_list;
+    render_pass_system::RenderPassList render_list;
 
     //ftl::TaskScheduler task_scheduler;
 
@@ -626,7 +626,7 @@ protected:
         debug_context.debug_camera = &debug_camera;
         debug_context.scene = &scene;
 
-        RenderSystem::RenderPassDesc render_pass_descs[] = {
+        render_pass_system::RenderPassDesc render_pass_descs[] = {
             {
                 .name = "Forward Render Pass",
                 .queue_type = CommandQueueType::GRAPHICS,
@@ -634,13 +634,13 @@ protected:
                 .outputs = {
                     {
                         .name = ResourceNames::SDR_BUFFER,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_RENDER_TARGET,
                         .texture_desc = {.format = BufferFormat::R8G8B8A8_UNORM_SRGB}
                     },
                     {
                         .name = ResourceNames::DEPTH_TARGET,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_DEPTH_STENCIL,
                         .texture_desc = {.format = BufferFormat::D32 }
                     }
@@ -656,14 +656,14 @@ protected:
                 .inputs = {
                     {
                         .name = ResourceNames::DEPTH_TARGET,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_DEPTH_STENCIL,
                     }
                 },
                 .outputs = {
                     {
                         .name = ResourceNames::SDR_BUFFER,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_RENDER_TARGET,
                         .texture_desc = {.format = BufferFormat::R8G8B8A8_UNORM_SRGB}
                     }
@@ -674,14 +674,14 @@ protected:
                 .destroy = &DebugPass::destroy
             },
         };
-        RenderSystem::RenderListDesc render_list_desc = {
+        render_pass_system::RenderPassListDesc render_list_desc = {
             .render_pass_descs = render_pass_descs,
             .num_render_passes = ARRAY_SIZE(render_pass_descs),
             .resource_to_use_as_backbuffer = ResourceNames::SDR_BUFFER,
         };
 
-        RenderSystem::compile_render_list(render_list, render_list_desc);
-        RenderSystem::setup(render_list);
+        render_pass_system::compile_render_list(render_list, render_list_desc);
+        render_pass_system::setup(render_list);
 
         CmdReceipt receipt = gfx::end_upload();
         gfx::cmd::cpu_wait(receipt);
@@ -690,7 +690,7 @@ protected:
 
     void shutdown() override final
     {
-        RenderSystem::destroy(render_list);
+        render_pass_system::destroy(render_list);
     }
 
     void update(const zec::TimeData& time_data) override final
@@ -730,7 +730,7 @@ protected:
 
     void render() override final
     {
-        RenderSystem::execute(render_list);
+        render_pass_system::execute(render_list);
     }
 
     void before_reset() override final

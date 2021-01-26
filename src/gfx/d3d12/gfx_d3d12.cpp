@@ -85,13 +85,15 @@ namespace zec::gfx
                 resource->SetName(make_string(L"Back Buffer %llu", i).c_str());
 
                 // Copy properties from swap chain to backbuffer textures, in case we need em
-                TextureInfo& texture_info = texture_utils::get_texture_info(g_textures, texture_handle);
-                texture_info.width = swap_chain.width;
-                texture_info.height = swap_chain.height;
-                texture_info.depth = 1;
-                texture_info.array_size = 1;
-                texture_info.format = from_d3d_format(swap_chain.format);
-                texture_info.num_mips = 1;
+                TextureInfo texture_info = {
+                    .width = swap_chain.width,
+                    .height = swap_chain.height,
+                    .depth = 1,
+                    .num_mips = 1,
+                    .array_size = 1,
+                    .format = from_d3d_format(swap_chain.format),
+                };
+                texture_utils::set_texture_info(g_textures, texture_handle, texture_info);
             }
             swap_chain.back_buffer_idx = swap_chain.swap_chain->GetCurrentBackBufferIndex();
         }
@@ -256,6 +258,7 @@ namespace zec::gfx
                 // These happen when capturing with VS diagnostics
                 D3D12_MESSAGE_ID_MAP_INVALID_NULLRANGE,
                 D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE,
+                D3D12_MESSAGE_ID_GPU_BASED_VALIDATION_SRV_RESOURCE_DIMENSION_MISMATCH,
             };
 
             D3D12_INFO_QUEUE_FILTER filter = { };
@@ -389,13 +392,21 @@ namespace zec::gfx
         g_pipelines.destroy();
 
         g_upload_manager.destroy();
+
         destroy(
             g_destruction_queue,
             g_current_frame_idx,
             g_descriptor_heaps,
             g_textures
         );
-        destroy(g_destruction_queue, g_current_frame_idx, g_buffers);
+
+        destroy(
+            g_destruction_queue,
+            g_current_frame_idx,
+            g_descriptor_heaps,
+            g_buffers
+        );
+
         destroy(g_destruction_queue, g_current_frame_idx, g_fences);
 
         descriptor_utils::destroy_descriptor_heaps();
@@ -409,12 +420,14 @@ namespace zec::gfx
         flush_destruction_queue(g_destruction_queue);
         dx_destroy(&g_allocator);
 
-        //ID3D12DebugDevice* debug_device = nullptr;
-        //DXCall(g_device->QueryInterface(&debug_device));
-        //if (debug_device) {
-        //    DXCall(debug_device->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL | D3D12_RLDO_IGNORE_INTERNAL));
-        //    debug_device->Release();
-        //}
+    #ifdef USE_DEBUG_DEVICE 
+        ID3D12DebugDevice* debug_device = nullptr;
+        DXCall(g_device->QueryInterface(&debug_device));
+        if (debug_device) {
+            DXCall(debug_device->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL | D3D12_RLDO_IGNORE_INTERNAL));
+            debug_device->Release();
+        }
+    #endif // USE_DEBUG_DEVICE
 
         dx_destroy(&g_device);
         dx_destroy(&g_adapter);

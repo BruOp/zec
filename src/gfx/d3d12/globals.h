@@ -49,7 +49,7 @@ namespace zec::gfx::dx12
     extern DXPtrArray<ID3D12RootSignature, ResourceLayoutHandle> g_root_signatures;
     extern DXPtrArray<ID3D12PipelineState, PipelineStateHandle> g_pipelines;
 
-    extern ResourceList<Buffer, BufferHandle> g_buffers;
+    extern BufferList g_buffers;
     extern TextureList g_textures;
     extern Array<Mesh> g_meshes;
 

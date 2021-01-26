@@ -7,6 +7,7 @@
 #include "wrappers.h"
 #include "resource_managers.h"
 #include "textures.h"
+#include "buffers.h"
 
 namespace zec::gfx::dx12
 {
@@ -51,6 +52,14 @@ namespace zec::gfx::dx12
     void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, ResourceList<typename Resource, ResourceHandle>& list);
 
     void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, Array<Fence>& fences);
+
+    // Destroys only the buffer list, the heaps are used to free allocated SRVs, UAVs, etc.
+    void destroy(
+        ResourceDestructionQueue& destruction_queue,
+        const u64 current_frame_idx,
+        DescriptorHeap* heaps,
+        BufferList& buffer_list
+    );
 
     // Destroys only the texture list, the heaps are used to free allocated SRVs, UAVs, etc.
     void destroy(

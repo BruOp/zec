@@ -15,10 +15,10 @@ namespace zec::gfx::meshes
             ASSERT(mesh_desc.index_buffer_desc.usage == RESOURCE_USAGE_INDEX);
             mesh.index_buffer_handle = buffers::create(mesh_desc.index_buffer_desc);
 
-            const Buffer& index_buffer = g_buffers[mesh.index_buffer_handle];
-            mesh.index_buffer_view.BufferLocation = index_buffer.gpu_address;
-            ASSERT(index_buffer.size < u64(UINT32_MAX));
-            mesh.index_buffer_view.SizeInBytes = u32(index_buffer.size);
+            const BufferInfo& index_buffer_info = buffer_utils::get_buffer_info(g_buffers, mesh.index_buffer_handle);
+            mesh.index_buffer_view.BufferLocation = index_buffer_info.gpu_address;
+            ASSERT(index_buffer_info.size < u64(UINT32_MAX));
+            mesh.index_buffer_view.SizeInBytes = u32(index_buffer_info.size);
 
             switch (mesh_desc.index_buffer_desc.stride) {
             case 2u:
@@ -43,10 +43,10 @@ namespace zec::gfx::meshes
             ASSERT(attr_desc.type == BufferType::DEFAULT);
 
             mesh.vertex_buffer_handles[i] = buffers::create(attr_desc);
-            const Buffer& buffer = g_buffers[mesh.vertex_buffer_handles[i]];
+            const BufferInfo& vertex_info = buffer_utils::get_buffer_info(g_buffers, mesh.vertex_buffer_handles[i]);
 
             D3D12_VERTEX_BUFFER_VIEW& view = mesh.buffer_views[i];
-            view.BufferLocation = buffer.gpu_address;
+            view.BufferLocation = vertex_info.gpu_address;
             view.StrideInBytes = attr_desc.stride;
             view.SizeInBytes = attr_desc.byte_size;
             mesh.num_vertex_buffers++;

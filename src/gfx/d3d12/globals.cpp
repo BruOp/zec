@@ -39,7 +39,7 @@ namespace zec::gfx::dx12
     DXPtrArray<ID3D12RootSignature, ResourceLayoutHandle> g_root_signatures = {};
     DXPtrArray<ID3D12PipelineState, PipelineStateHandle> g_pipelines = {};
 
-    ResourceList<Buffer, BufferHandle> g_buffers = {};
+    BufferList g_buffers = {};
     TextureList g_textures = {};
     Array<Mesh> g_meshes = {};
 }

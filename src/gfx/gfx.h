@@ -61,7 +61,7 @@ namespace zec::gfx
         u32 get_shader_readable_index(const TextureHandle handle);
         u32 get_shader_writable_index(const TextureHandle handle);
 
-        TextureInfo& get_texture_info(const TextureHandle texture_handle);
+        const TextureInfo& get_texture_info(const TextureHandle texture_handle);
 
         TextureHandle load_from_file(const char* file_path, const bool force_srgb = false);
         void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);

@@ -1,11 +1,10 @@
 #pragma once
-#include <string>
-
+#include "murmur/MurmurHash3.h"
 #include "pch.h"
 #include "core/array.h"
 #include "gfx.h"
 
-namespace zec::RenderSystem
+namespace zec::render_pass_system
 {
     enum struct SizeClass : u8
     {
@@ -49,7 +48,8 @@ namespace zec::RenderSystem
 
     struct PassOutputDesc
     {
-        std::string name = "";
+        u64 id;
+        const char* name;
         PassResourceType type = PassResourceType::INVALID;
         ResourceUsage usage = RESOURCE_USAGE_UNUSED;
         union
@@ -61,17 +61,50 @@ namespace zec::RenderSystem
 
     struct PassInputDesc
     {
-        std::string name = "";
+        u64 id;
         PassResourceType type = PassResourceType::INVALID;
         ResourceUsage usage = RESOURCE_USAGE_UNUSED;
     };
 
-    struct RenderList;
+    struct RenderPassList;
 
-    typedef void(*SetupFn)(void* context);
-    typedef void(*CopyFn)(void* context);
-    typedef void(*ExecuteFn)(RenderList& render_list, CommandContextHandle cmd_context, void* context);
-    typedef void(*DestroyFn)(void* context);
+    struct ResourceState
+    {
+        PassResourceType type = PassResourceType::INVALID;
+        ResourceUsage last_usages[RENDER_LATENCY] = { RESOURCE_USAGE_UNUSED, RESOURCE_USAGE_UNUSED };
+        TextureHandle textures[RENDER_LATENCY] = {};
+        BufferHandle buffers[RENDER_LATENCY] = {};
+    };
+
+    class ResourceMap
+    {
+    public:
+        ResourceState& operator[](const u64 resource_id)
+        {
+            return internal_map[resource_id];
+        }
+
+        ResourceState& at(const u64 resource_id)
+        {
+            return internal_map.at(resource_id);
+        }
+        const ResourceState& at(const u64 resource_id) const
+        {
+            return internal_map.at(resource_id);
+        }
+
+        BufferHandle get_buffer_resource(const u64 resource_id) const;
+        TextureHandle get_texture_resource(const u64 resource_id) const;
+
+    private:
+        std::unordered_map<u64, ResourceState> internal_map;
+    };
+
+    // SetupFn returns pointer to internal state for us to store
+    typedef void* (*SetupFn)(void* settings);
+    typedef void(*CopyFn)(void* settings, void* internal_state);
+    typedef void(*ExecuteFn)(const ResourceMap& resource_map, CommandContextHandle cmd_context, void* settings, void* internal_state);
+    typedef void* (*DestroyFn)(void* settings, void* internal_state);
 
     struct RenderPassDesc
     {
@@ -80,18 +113,18 @@ namespace zec::RenderSystem
         PassInputDesc inputs[8] = {};
         PassOutputDesc outputs[8] = {};
 
-        void* context = nullptr;
+        void* settings = nullptr;
         SetupFn setup = nullptr;
         CopyFn copy = nullptr;
         ExecuteFn execute = nullptr;
         DestroyFn destroy = nullptr;
     };
 
-    struct RenderListDesc
+    struct RenderPassListDesc
     {
         RenderPassDesc* render_pass_descs;
         u32 num_render_passes;
-        std::string resource_to_use_as_backbuffer;
+        u64 resource_to_use_as_backbuffer;
     };
 
     struct RenderPass
@@ -102,7 +135,8 @@ namespace zec::RenderSystem
         u32 receipt_idx_to_wait_on = UINT32_MAX; // Index into the graph's fence list
         bool requires_flush = false;
 
-        void* context = nullptr;
+        void* settings = nullptr;
+        void* internal_state = nullptr; // Created during setup
         SetupFn setup = nullptr;
         CopyFn copy = nullptr;
         ExecuteFn execute = nullptr;
@@ -111,25 +145,16 @@ namespace zec::RenderSystem
 
     struct PassResourceTransitionDesc
     {
-        char name[64] = "";
+        u64 resource_id;
         ResourceTransitionType type = ResourceTransitionType::INVALID;
         ResourceUsage usage = RESOURCE_USAGE_UNUSED;
     };
 
-    struct ResourceState
+    struct RenderPassList
     {
-        PassResourceType type = PassResourceType::INVALID;
-        ResourceUsage last_usages[RENDER_LATENCY] = { RESOURCE_USAGE_UNUSED, RESOURCE_USAGE_UNUSED };
-        TextureHandle textures[RENDER_LATENCY] = {};
-        BufferHandle buffers[RENDER_LATENCY] = {};
-    };
+        u64 backbuffer_resource_id;
 
-    struct RenderList
-    {
-        std::string backbuffer_resource_name = "";
-
-        // TODO: Replace with our own map? And get rid of std::string?
-        std::unordered_map<std::string, ResourceState> resource_map = {};
+        ResourceMap resource_map;
 
         // Do I need two seperate lists? Probably not?
         Array<RenderPass> render_passes = {};
@@ -138,12 +163,10 @@ namespace zec::RenderSystem
         Array<CommandContextHandle> cmd_contexts{ };
     };
 
-    void compile_render_list(RenderList& in_render_list, const RenderListDesc& render_list_desc);
-    void setup(RenderList& render_list);
-    void copy(RenderList& render_list);
-    void execute(RenderList& render_list);
-    void destroy(RenderList& render_list);
+    void compile_render_list(RenderPassList& in_render_list, const RenderPassListDesc& render_list_desc);
+    void setup(RenderPassList& render_list);
+    void copy(RenderPassList& render_list);
+    void execute(RenderPassList& render_list);
+    void destroy(RenderPassList& render_list);
 
-    BufferHandle get_buffer_resource(RenderList& render_list, const std::string& resource_name);
-    TextureHandle get_texture_resource(RenderList& render_list, const std::string& resource_name);
 }

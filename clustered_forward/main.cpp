@@ -1,5 +1,6 @@
 #include "app.h"
 #include "core/zec_math.h"
+#include "utils/crc_hash.h"
 #include "utils/exceptions.h"
 #include "camera.h"
 #include "gltf_loading.h"
@@ -12,13 +13,20 @@ using namespace zec;
 static constexpr u32 DESCRIPTOR_TABLE_SIZE = 4096;
 static constexpr size_t MAX_NUM_OBJECTS = 16384;
 
+#define PASS_RESOURCE_IDENTIFIER(x) { .id = ctcrc32(x), .name = x }
+
 namespace clustered
 {
-    namespace ResourceNames
+    struct ResourceIdentifier
     {
-        constexpr char DEPTH_TARGET[] = "depth";
-        constexpr char HDR_BUFFER[] = "hdr";
-        constexpr char SDR_BUFFER[] = "sdr";
+        u64 id;
+        const char* name;
+    };
+
+    namespace PassResources
+    {
+        constexpr ResourceIdentifier DEPTH_TARGET = PASS_RESOURCE_IDENTIFIER("depth");
+        constexpr ResourceIdentifier SDR_TARGET = PASS_RESOURCE_IDENTIFIER("sdr");
     }
 
     struct ViewConstantData
@@ -69,7 +77,15 @@ namespace clustered
         per_entity_data_buffers.material_data_buffer = gfx::buffers::create(material_data_buffer_desc);
     }
 
-    class SceneRenderData
+    // Ideally, our draw call data is in an API specific format
+    // So that we can literally just bind it and go
+    // 
+    struct DrawCall
+    {
+
+    };
+
+    class Renderables
     {
     public:
         size_t num_entities;
@@ -82,16 +98,19 @@ namespace clustered
     {
         struct Settings
         {
-            SceneRenderData* scene_render_data = nullptr;
+            Renderables* scene_render_data = nullptr;
             BufferHandle view_cb_handle = {};
-            // Internal
-            PipelineStateHandle pso = {};
-            ResourceLayoutHandle resource_layout = {};
         };
 
-        void setup(void* context)
+        struct InternalState
         {
-            Settings* settings = reinterpret_cast<Settings*>(context);
+            ResourceLayoutHandle resource_layout = {};
+            PipelineStateHandle pso = {};
+        };
+
+        void* setup(void* settings)
+        {
+            InternalState* internal_state = new InternalState{};
             ResourceLayoutDesc layout_desc{
                 .constants = {
                     {.visibility = ShaderVisibility::ALL, .num_constants = 1 },
@@ -125,7 +144,7 @@ namespace clustered
                 //.num_static_samplers = 2,
             };
 
-            settings->resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
+            ResourceLayoutHandle resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
 
             // Create the Pipeline State Object
             PipelineStateObjectDesc pipeline_desc = {};
@@ -133,35 +152,38 @@ namespace clustered
             pipeline_desc.shader_file_path = L"shaders/clustered_forward/mesh_forward.hlsl";
             pipeline_desc.rtv_formats[0] = BufferFormat::R8G8B8A8_UNORM_SRGB;
             pipeline_desc.depth_buffer_format = BufferFormat::D32;
-            pipeline_desc.resource_layout = settings->resource_layout;
+            pipeline_desc.resource_layout = resource_layout;
             pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CCW;
             pipeline_desc.raster_state_desc.flags |= DEPTH_CLIP_ENABLED;
             pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::LESS;
             pipeline_desc.depth_stencil_state.depth_write = TRUE;
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
-            settings->pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
-            gfx::pipelines::set_debug_name(settings->pso, L"Forward Pipeline");
+            PipelineStateHandle pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+            gfx::pipelines::set_debug_name(pso, L"Forward Pipeline");
+
+            return new InternalState{ .resource_layout = resource_layout, .pso = pso };
         };
 
-        void copy(void* context)
+        void copy(void* settings, void* internal_state)
         {
             // Shrug
         };
 
-        void record(RenderSystem::RenderList& render_list, CommandContextHandle cmd_ctx, void* context)
+        void record(const render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx, void* settings, void* internal_state)
         {
             constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-            Settings* pass_context = reinterpret_cast<Settings*>(context);
+            Settings* pass_context = reinterpret_cast<Settings*>(settings);
+            InternalState* pass_state = reinterpret_cast<InternalState*>(internal_state);
 
-            TextureHandle depth_target = RenderSystem::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
-            TextureHandle render_target = RenderSystem::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
-            TextureInfo& texture_info = gfx::textures::get_texture_info(render_target);
+            TextureHandle depth_target = resource_map.get_texture_resource(PassResources::DEPTH_TARGET.id);
+            TextureHandle render_target = resource_map.get_texture_resource(PassResources::SDR_TARGET.id);
+            const TextureInfo& texture_info = gfx::textures::get_texture_info(render_target);
             Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
             Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-            gfx::cmd::set_active_resource_layout(cmd_ctx, pass_context->resource_layout);
-            gfx::cmd::set_pipeline_state(cmd_ctx, pass_context->pso);
+            gfx::cmd::set_active_resource_layout(cmd_ctx, pass_state->resource_layout);
+            gfx::cmd::set_pipeline_state(cmd_ctx, pass_state->pso);
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
@@ -186,29 +208,36 @@ namespace clustered
             }
         };
 
-        void destroy(void* context)
-        { };
+        void* destroy(void* context, void* internal_state)
+        {
+            InternalState* state = reinterpret_cast<InternalState*>(internal_state);
+            // TODO: Free pipeline and resource layouts
+            delete state;
+            return nullptr;
+        };
 
-        RenderSystem::RenderPassDesc generate_desc(Settings* settings)
+        render_pass_system::RenderPassDesc generate_desc(Settings* settings)
         {
             return {
                 .name = "ForwardPass",
                 .inputs = { },
                 .outputs = {
                     {
-                        .name = ResourceNames::SDR_BUFFER,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .id = PassResources::SDR_TARGET.id,
+                        .name = PassResources::SDR_TARGET.name,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_RENDER_TARGET,
                         .texture_desc = {.format = BufferFormat::R8G8B8A8_UNORM_SRGB}
                     },
                     {
-                        .name = ResourceNames::DEPTH_TARGET,
-                        .type = RenderSystem::PassResourceType::TEXTURE,
+                        .id = PassResources::DEPTH_TARGET.id,
+                        .name = PassResources::DEPTH_TARGET.name,
+                        .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_DEPTH_STENCIL,
                         .texture_desc = {.format = BufferFormat::D32 }
                     }
                 },
-                .context = settings,
+                .settings = settings,
                 .setup = ForwardPass::setup,
                 .copy = ForwardPass::copy,
                 .execute = ForwardPass::record,
@@ -230,10 +259,10 @@ namespace clustered
         PerspectiveCamera camera;
         PerspectiveCamera debug_camera;
 
-        SceneRenderData scene_render_data = {};
+        Renderables scene_render_data = {};
 
         ForwardPass::Settings forward_pass_context = {};
-        RenderSystem::RenderList render_list;
+        render_pass_system::RenderPassList render_list;
 
         // Are handles necessary for something like this?
         size_t active_camera_idx;
@@ -340,17 +369,17 @@ namespace clustered
             forward_pass_context.view_cb_handle = view_cb_handle;
             forward_pass_context.scene_render_data = &scene_render_data;
 
-            RenderSystem::RenderPassDesc render_pass_descs[] = {
+            render_pass_system::RenderPassDesc render_pass_descs[] = {
                 clustered::ForwardPass::generate_desc(&forward_pass_context),
             };
-            RenderSystem::RenderListDesc render_list_desc = {
+            render_pass_system::RenderPassListDesc render_list_desc = {
                 .render_pass_descs = render_pass_descs,
                 .num_render_passes = ARRAY_SIZE(render_pass_descs),
-                .resource_to_use_as_backbuffer = ResourceNames::SDR_BUFFER,
+                .resource_to_use_as_backbuffer = PassResources::SDR_TARGET.id,
             };
 
-            RenderSystem::compile_render_list(render_list, render_list_desc);
-            RenderSystem::setup(render_list);
+            render_pass_system::compile_render_list(render_list, render_list_desc);
+            render_pass_system::setup(render_list);
 
             CmdReceipt receipt = gfx::end_upload();
             gfx::cmd::cpu_wait(receipt);
@@ -359,7 +388,7 @@ namespace clustered
 
         void shutdown() override final
         {
-            RenderSystem::destroy(render_list);
+            render_pass_system::destroy(render_list);
         }
 
         void update(const zec::TimeData& time_data) override final
@@ -382,12 +411,12 @@ namespace clustered
                 scene_render_data.vertex_shader_data.data,
                 scene_render_data.vertex_shader_data.size * sizeof(VertexShaderData));
 
-            RenderSystem::copy(render_list);
+            render_pass_system::copy(render_list);
         }
 
         void render() override final
         {
-            RenderSystem::execute(render_list);
+            render_pass_system::execute(render_list);
         }
 
         void before_reset() override final

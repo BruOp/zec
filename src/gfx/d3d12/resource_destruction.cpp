@@ -56,6 +56,30 @@ namespace zec::gfx::dx12
         ResourceDestructionQueue& destruction_queue,
         const u64 current_frame_idx,
         DescriptorHeap* heaps,
+        BufferList& buffer_list
+    )
+    {
+        DescriptorHeap& srv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
+        for (size_t i = 0; i < buffer_list.resources.size; i++) {
+            if (buffer_list.resources[i]) {
+                queue_destruction(destruction_queue, current_frame_idx, buffer_list.resources[i], buffer_list.allocations[i]);
+            }
+
+            descriptor_utils::free_descriptors(srv_heap, buffer_list.srvs[i]);
+            descriptor_utils::free_descriptors(srv_heap, buffer_list.uavs[i]);
+        }
+
+        buffer_list.resources.empty();
+        buffer_list.allocations.empty();
+        buffer_list.srvs.empty();
+        buffer_list.uavs.empty();
+        buffer_list.infos.empty();
+    }
+
+    void destroy(
+        ResourceDestructionQueue& destruction_queue,
+        const u64 current_frame_idx,
+        DescriptorHeap* heaps,
         TextureList& texture_list
     )
     {

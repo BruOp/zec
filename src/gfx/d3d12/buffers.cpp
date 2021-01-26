@@ -5,15 +5,15 @@
 #include "dx_utils.h"
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 
-namespace zec::gfx::dx12
+namespace zec::gfx::dx12::buffer_utils
 {
     void init(Buffer& buffer, const BufferDesc& desc, D3D12MA::Allocator* allocator)
     {
         ASSERT(desc.byte_size != 0);
         ASSERT(desc.usage != u16(RESOURCE_USAGE_UNUSED));
 
-        buffer.size = desc.byte_size;
-        buffer.stride = desc.stride;
+        buffer.info.size = desc.byte_size;
+        buffer.info.stride = desc.stride;
         // Create Buffer
         D3D12_HEAP_TYPE heap_type = D3D12_HEAP_TYPE_DEFAULT;
         D3D12_RESOURCE_STATES initial_resource_state = D3D12_RESOURCE_STATE_COMMON;
@@ -21,10 +21,10 @@ namespace zec::gfx::dx12
         u16 vertex_or_index = u16(RESOURCE_USAGE_VERTEX) | u16(RESOURCE_USAGE_INDEX);
         // There are three different sizes to keep track of here:
         // desc.bytes_size  => the minimum size (in bytes) that we desire our buffer to occupy
-        // buffer.size      => the above size that's been potentially grown to match alignment requirements
+        // buffer.info.size=> the above size that's been potentially grown to match alignment requirements
         // alloc_size       => If the buffer is used "dynamically" then we actually allocate enough memory
         //                     to update different regions of the buffer for different frames
-        //                     (so RENDER_LATENCY * buffer.size)
+        //                     (so RENDER_LATENCY * buffer.info.size)
 
         if (desc.usage & vertex_or_index) {
             // ASSERT it's only one or the other
@@ -33,21 +33,21 @@ namespace zec::gfx::dx12
         }
 
         if (desc.usage & RESOURCE_USAGE_VERTEX) {
-            buffer.size = align_to(buffer.size, dx12::VERTEX_BUFFER_ALIGNMENT);
+            buffer.info.size = align_to(buffer.info.size, dx12::VERTEX_BUFFER_ALIGNMENT);
         }
         else if (desc.usage & RESOURCE_USAGE_INDEX) {
-            buffer.size = align_to(buffer.size, dx12::INDEX_BUFFER_ALIGNMENT);
+            buffer.info.size = align_to(buffer.info.size, dx12::INDEX_BUFFER_ALIGNMENT);
         }
         else if (desc.usage & RESOURCE_USAGE_CONSTANT) {
-            buffer.size = align_to(buffer.size, dx12::CONSTANT_BUFFER_ALIGNMENT);
+            buffer.info.size = align_to(buffer.info.size, dx12::CONSTANT_BUFFER_ALIGNMENT);
         }
 
-        size_t alloc_size = buffer.size;
+        size_t alloc_size = buffer.info.size;
 
         if (desc.usage & RESOURCE_USAGE_DYNAMIC) {
             heap_type = D3D12_HEAP_TYPE_UPLOAD;
             initial_resource_state = D3D12_RESOURCE_STATE_GENERIC_READ;
-            alloc_size = RENDER_LATENCY * buffer.size;
+            alloc_size = RENDER_LATENCY * buffer.info.size;
         }
 
         D3D12_RESOURCE_DESC resource_desc = CD3DX12_RESOURCE_DESC::Buffer(alloc_size);
@@ -67,7 +67,7 @@ namespace zec::gfx::dx12
             DXCall(res);
         }
         DXCall(res);
-        buffer.gpu_address = buffer.resource->GetGPUVirtualAddress();
+        buffer.info.gpu_address = buffer.resource->GetGPUVirtualAddress();
 
         if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
@@ -89,17 +89,31 @@ namespace zec::gfx::dx12
         }
 
         if (desc.usage & RESOURCE_USAGE_DYNAMIC) {
-            buffer.cpu_accessible = true;
-            buffer.resource->Map(0, nullptr, &buffer.cpu_address);
+            buffer.info.cpu_accessible = true;
+            buffer.resource->Map(0, nullptr, &buffer.info.cpu_address);
         }
     }
 
-    void update_buffer(Buffer& buffer, const void* data, const u64 data_size, const u64 frame_idx)
+    BufferHandle push_back(BufferList& buffer_list, const Buffer& buffer)
     {
-        ASSERT(buffer.cpu_accessible);
+        ASSERT(buffer_list.resources.size < UINT32_MAX);
+        u32 idx = u32(buffer_list.resources.push_back(buffer.resource));
+        buffer_list.allocations.push_back(buffer.allocation);
+        buffer_list.infos.push_back(buffer.info);
+        buffer_list.srvs.push_back(buffer.srv);
+        buffer_list.uavs.push_back(buffer.uav);
+        return { idx };
+    }
+
+    void update(BufferList& buffer_list, const BufferHandle buffer, const void* data, const u64 data_size, const u64 frame_idx)
+    {
+        const BufferInfo& buffer_info = buffer_utils::get_buffer_info(buffer_list, buffer);
+        ASSERT(buffer_info.cpu_accessible);
+
+        const auto cpu_address = buffer_utils::get_cpu_address(buffer_list, buffer, frame_idx);
 
         memory::copy(
-            reinterpret_cast<u8*>(buffer.cpu_address) + (frame_idx * buffer.size),
+            reinterpret_cast<u8*>(cpu_address),
             data,
             data_size
         );
@@ -115,14 +129,15 @@ namespace zec::gfx::buffers
         ASSERT(desc.byte_size != 0);
         ASSERT(desc.usage != RESOURCE_USAGE_UNUSED);
 
-        BufferHandle handle = { g_buffers.create_back() };
-        Buffer& buffer = g_buffers.get(handle);
+        Buffer buffer = {};
 
-        init(buffer, desc, g_allocator);
+        buffer_utils::init(buffer, desc, g_allocator);
+
+        BufferHandle handle = buffer_utils::push_back(g_buffers, buffer);
 
         if (desc.usage & RESOURCE_USAGE_DYNAMIC && desc.data != nullptr) {
             for (size_t i = 0; i < RENDER_LATENCY; i++) {
-                update_buffer(buffer, desc.data, desc.byte_size, i);
+                buffer_utils::update(g_buffers, handle, desc.data, desc.byte_size, i);
             }
         }
         else if (desc.data != nullptr) {
@@ -134,25 +149,23 @@ namespace zec::gfx::buffers
 
     u32 get_shader_readable_index(const BufferHandle handle)
     {
-        Buffer& buffer = g_buffers.get(handle);
-        return descriptor_utils::get_offset(buffer.srv);
+        return buffer_utils::get_srv_index(g_buffers, handle);
     };
 
     u32 get_shader_writable_index(const BufferHandle handle)
     {
-        throw Exception("TODO");
+        return buffer_utils::get_uav_index(g_buffers, handle);
     };
 
     void update(const BufferHandle buffer_id, const void* data, u64 byte_size)
     {
         ASSERT(is_valid(buffer_id));
-        Buffer& buffer = g_buffers[buffer_id];
-        update_buffer(buffer, data, byte_size, g_current_frame_idx);
+        buffer_utils::update(g_buffers, buffer_id, data, byte_size, g_current_frame_idx);
     }
 
     void set_debug_name(const BufferHandle handle, const wchar* name)
     {
-        ID3D12Resource* resource = g_buffers[handle].resource;
+        ID3D12Resource* resource = g_buffers.resources[handle.idx];
         resource->SetName(name);
     }
 }

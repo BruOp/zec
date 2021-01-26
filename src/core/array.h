@@ -51,7 +51,7 @@ namespace zec
         size_t push_back(const T& val)
         {
             ASSERT(size < capacity);
-            memory::copy((void*)&data[size], (void*)&val, sizeof(T));
+            T[size] = val;
             return size++;
         };
 
@@ -142,7 +142,7 @@ namespace zec
             if (size >= capacity) {
                 reserve(capacity + 1);
             }
-            memory::copy((void*)&data[size], (void*)&val, sizeof(T));
+            data[size] = val;
             return size++;
         };
 
@@ -161,14 +161,6 @@ namespace zec
             data[size] = T{ args... };
             return size++;
         };
-
-        void insert_grow(size_t idx, const T& value)
-        {
-            if (idx > capacity - 1) {
-                grow(idx + 1);
-            }
-            memory::copy((void*)&data[idx], (void*)&value, sizeof(T));
-        }
 
         // Grow both reserves and increases the size, so new items are indexable
         size_t grow(size_t additional_slots)

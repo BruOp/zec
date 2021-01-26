@@ -38,13 +38,13 @@ namespace clustered::DebugPass
         zec::vec4 color;
     };
 
-    zec::RenderSystem::RenderPassDesc generate_desc(Context* context);
+    zec::render_pass_system::RenderPassDesc generate_desc(Context* context);
 
     void setup(void* context);
 
     void copy(void* context);
 
-    void record(zec::RenderSystem::RenderList& render_list, zec::CommandContextHandle cmd_ctx, void* context);
+    void record(zec::render_pass_system::RenderPassList& render_list, zec::CommandContextHandle cmd_ctx, void* context);
 
     void destroy(void* context);
 }
@@ -58,13 +58,13 @@ namespace clustered::UIPass
         size_t* active_camera_idx;
     };
 
-    zec::RenderSystem::RenderPassDesc generate_desc(Context* context);
+    zec::render_pass_system::RenderPassDesc generate_desc(Context* context);
 
     void setup(void* context);
 
     void copy(void* context);
 
-    void record(zec::RenderSystem::RenderList& render_list, zec::CommandContextHandle cmd_ctx, void* context);
+    void record(zec::render_pass_system::RenderPassList& render_list, zec::CommandContextHandle cmd_ctx, void* context);
 
     void destroy(void* context);
 }
