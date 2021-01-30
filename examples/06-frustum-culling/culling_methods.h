@@ -34,10 +34,10 @@ namespace zec
     void matrix_mul_sse(const mat4& lhs, const mat4& rhs, mat4& dest)
     {
         for (size_t i = 0; i < ARRAY_SIZE(lhs.rows); i++) {
-            __m128 v_x = _mm_broadcast_ss(reinterpret_cast<const float*>(&lhs.rows[i].x));
-            __m128 v_y = _mm_broadcast_ss(reinterpret_cast<const float*>(&lhs.rows[i].y));
-            __m128 v_z = _mm_broadcast_ss(reinterpret_cast<const float*>(&lhs.rows[i].z));
-            __m128 v_w = _mm_broadcast_ss(reinterpret_cast<const float*>(&lhs.rows[i].w));
+            __m128 v_x = _mm_broadcast_ss(static_cast<const float*>(&lhs.rows[i].x));
+            __m128 v_y = _mm_broadcast_ss(static_cast<const float*>(&lhs.rows[i].y));
+            __m128 v_z = _mm_broadcast_ss(static_cast<const float*>(&lhs.rows[i].z));
+            __m128 v_w = _mm_broadcast_ss(static_cast<const float*>(&lhs.rows[i].w));
 
             v_x = _mm_mul_ps(v_x, _mm_load_ps(reinterpret_cast<const float*>(&rhs.rows[0])));
             v_x = _mm_fmadd_ps(v_y, _mm_load_ps(reinterpret_cast<const float*>(&rhs.rows[1])), v_x);
@@ -274,7 +274,7 @@ namespace zec
     void cull_obbs_task(ftl::TaskScheduler* task_scheduler, void* arg)
     {
         (void)task_scheduler;
-        ViewFrustumCullTaskData* task_data = reinterpret_cast<ViewFrustumCullTaskData*>(arg);
+        ViewFrustumCullTaskData* task_data = static_cast<ViewFrustumCullTaskData*>(arg);
 
         for (size_t i = 0; i < task_data->num_to_process; i++) {
             mat4 transform;

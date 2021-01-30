@@ -1,16 +1,16 @@
 #pragma once
 #include "pch.h"
-#include "D3D12MemAlloc/D3D12MemAlloc.h"
 #include "core/array.h"
 #include "gfx/public_resources.h"
-#include "descriptor_heap.h"
 #include "wrappers.h"
-#include "resource_managers.h"
-#include "textures.h"
-#include "buffers.h"
+#include "dx_helpers.h"
+#include "D3D12MemAlloc/D3D12MemAlloc.h"
 
 namespace zec::gfx::dx12
 {
+    class CommandContextPool;
+
+
     class ResourceDestructionQueue
     {
         struct ResourceToDelete
@@ -34,12 +34,27 @@ namespace zec::gfx::dx12
         Array<ResourceToDelete> internal_queues[RENDER_LATENCY] = {};
     };
 
+    class AsyncResourceDestructionQueue
+    {
+    public:
+        struct Node
+        {
+            IUnknown* ptr = nullptr;
+            D3D12MA::Allocation* allocation = nullptr;
+            CmdReceipt cmd_receipt;
+        };
+
+        Array<Node> internal_queue;
+    };
+
     inline void queue_destruction(ResourceDestructionQueue& queue, const u64 current_frame_idx, IUnknown* d3d_ptr, D3D12MA::Allocation* allocation = nullptr)
     {
         queue.internal_queues[current_frame_idx].create_back(d3d_ptr, allocation);
     }
 
     void process_destruction_queue(ResourceDestructionQueue& queue, const u64 current_frame_idx);
+
+    void process_destruction_queue(AsyncResourceDestructionQueue& queue, const CommandContextPool* command_pools);
 
     inline void flush_destruction_queue(ResourceDestructionQueue& queue)
     {
@@ -48,34 +63,29 @@ namespace zec::gfx::dx12
         }
     }
 
-    template<typename Resource, typename ResourceHandle>
-    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, ResourceList<typename Resource, ResourceHandle>& list);
+    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, Fence& fence);
 
-    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, Array<Fence>& fences);
+    template<typename SoA>
+    void destroy_resources(ResourceDestructionQueue& queue, const u64 current_frame_idx, SoA& list);
 
-    // Destroys only the buffer list, the heaps are used to free allocated SRVs, UAVs, etc.
-    void destroy(
-        ResourceDestructionQueue& destruction_queue,
-        const u64 current_frame_idx,
-        DescriptorHeap* heaps,
-        BufferList& buffer_list
-    );
+    template<typename T, typename H>
+    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, DXPtrArray<T, H>& resources);
 
-    // Destroys only the texture list, the heaps are used to free allocated SRVs, UAVs, etc.
-    void destroy(
-        ResourceDestructionQueue& destruction_queue,
-        const u64 current_frame_idx,
-        DescriptorHeap* heaps,
-        TextureList& texture_list
-    );
-
-    template<typename Resource, typename ResourceHandle>
-    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, ResourceList<typename Resource, ResourceHandle>& list)
+    template<typename SoA>
+    void destroy_resources(ResourceDestructionQueue& queue, const u64 current_frame_idx, SoA& list)
     {
-        for (size_t i = 0; i < list.size(); i++) {
-            Resource& resource = list.resources[i];
-            queue_destruction(queue, current_frame_idx, resource.resource, resource.allocation);
+        for (size_t i = 0; i < list.size; i++) {
+            ID3D12Resource* resource = list.resources[i];
+            D3D12MA::Allocation* allocation = list.allocations[i];
+            queue_destruction(queue, current_frame_idx, resource, allocation);
         }
-        list.resources.empty();
+    }
+
+    template<typename T, typename H>
+    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, DXPtrArray<T, H>& resources)
+    {
+        for (T resource : resources) {
+            queue_destruction(queue, current_frame_idx, resource);
+        }
     }
 }

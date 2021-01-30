@@ -242,7 +242,7 @@ namespace zec::render_pass_system
 
                     resource_state.buffers[j] = buffers::create(buffer_desc);
                     std::wstring debug_name = ansi_to_wstring(resource_desc.name) + to_string(j);
-                    buffers::set_debug_name(resource_state.buffers[j], debug_name.c_str());
+                    set_debug_name(resource_state.buffers[j], debug_name.c_str());
 
                 }
                 in_render_list.resource_map[name] = resource_state;
@@ -278,7 +278,7 @@ namespace zec::render_pass_system
                 for (size_t j = 0; j < RENDER_LATENCY; j++) {
                     resource_state.textures[j] = textures::create(texture_desc);
                     std::wstring debug_name = ansi_to_wstring(resource_desc.name) + to_string(j);
-                    textures::set_debug_name(resource_state.textures[j], debug_name.c_str());
+                    set_debug_name(resource_state.textures[j], debug_name.c_str());
                 }
                 in_render_list.resource_map[name] = resource_state;
             }
@@ -382,7 +382,7 @@ namespace zec::render_pass_system
         // --------------- SUBMIT --------------- 
         {
             PROFILE_EVENT("Render System Submission");
-            // TODO: Move this struct
+
             struct CommandStream
             {
                 size_t pending_count = 0;

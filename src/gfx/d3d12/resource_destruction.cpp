@@ -1,14 +1,11 @@
 #include "pch.h"
 #include "resource_destruction.h"
 #include "dx_helpers.h"
+#include "command_context.h"
+#include "D3D12MemAlloc/D3D12MemAlloc.h"
 
 namespace zec::gfx::dx12
 {
-    // The destruction of different objects is defined here, rather than in their respective utility namespaces,
-    // because destruction involves so many different classes.
-    // I'd rather keep it this way on the very slim chance that I do end up moving to more explicitly modifying
-    // my resource lists on creation.
-
     void process_destruction_queue(ResourceDestructionQueue& queue, const u64 current_frame_idx)
     {
         ASSERT(current_frame_idx < RENDER_LATENCY);
@@ -22,91 +19,43 @@ namespace zec::gfx::dx12
         internal_queue.empty();
     }
 
-    template<typename ResourceList>
-    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, ResourceList& list)
+    void process_destruction_queue(AsyncResourceDestructionQueue& queue, CommandContextManager& command_pool_manager)
     {
-        for (size_t i = 0; i < list.size(); i++) {
-            queue_destruction(queue, current_frame_idx, list.resources[i], list.allocations[i]);
+        u64 completed_values[ARRAY_SIZE(command_pool_manager.fences)];
+        for (size_t i = 0; i < ARRAY_SIZE(command_pool_manager.fences); i++) {
+            auto& fence = command_pool_manager.fences[i];
+            completed_values[i] = get_completed_value(fence);
         }
-        list.resources.empty();
-    }
+        size_t node_idx = 0;
+        while (node_idx < queue.internal_queue.size) {
+            const auto node = queue.internal_queue[node_idx];
+            // If it's done
+            if (completed_values[size_t(node.cmd_receipt.queue_type)] <= node.cmd_receipt.fence_value) {
 
-    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, Array<Fence>& fences)
-    {
-        for (size_t i = 0; i < fences.size; i++) {
-            Fence& fence = fences[i];
-            queue_destruction(queue, current_frame_idx, fence.d3d_fence);
-        }
-        fences.empty();
-    }
+                // Swap with the back, unless there's only one element
+                if (queue.internal_queue.size == 1) {
+                    queue.internal_queue.pop_back();
+                }
+                else {
+                    queue.internal_queue[node_idx] = queue.internal_queue.pop_back();
+                }
 
-    void destroy(
-        ResourceDestructionQueue& queue,
-        TextureList& texture_list,
-        DescriptorHeap& rtv_descriptor_heap,
-        SwapChain& swap_chain
-    )
-    {
-        // The backbuffers will be destroyed when we destroy our Texture List
-        swap_chain.swap_chain->Release();
-        if (swap_chain.output) swap_chain.output->Release();
-    }
-
-    void destroy(
-        ResourceDestructionQueue& destruction_queue,
-        const u64 current_frame_idx,
-        DescriptorHeap* heaps,
-        BufferList& buffer_list
-    )
-    {
-        DescriptorHeap& srv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
-        for (size_t i = 0; i < buffer_list.resources.size; i++) {
-            if (buffer_list.resources[i]) {
-                queue_destruction(destruction_queue, current_frame_idx, buffer_list.resources[i], buffer_list.allocations[i]);
+                node.ptr->Release();
+                if (node.allocation) {
+                    node.allocation->Release();
+                }
             }
-
-            descriptor_utils::free_descriptors(srv_heap, buffer_list.srvs[i]);
-            descriptor_utils::free_descriptors(srv_heap, buffer_list.uavs[i]);
-        }
-
-        buffer_list.resources.empty();
-        buffer_list.allocations.empty();
-        buffer_list.srvs.empty();
-        buffer_list.uavs.empty();
-        buffer_list.infos.empty();
-    }
-
-    void destroy(
-        ResourceDestructionQueue& destruction_queue,
-        const u64 current_frame_idx,
-        DescriptorHeap* heaps,
-        TextureList& texture_list
-    )
-    {
-        DescriptorHeap& srv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
-        DescriptorHeap& rtv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_RTV];
-        for (size_t i = 0; i < texture_list.resources.size; i++) {
-            if (texture_list.resources[i]) {
-                queue_destruction(destruction_queue, current_frame_idx, texture_list.resources[i], texture_list.allocations[i]);
+            else {
+                // continue
+                ++node_idx;
             }
-
-            descriptor_utils::free_descriptors(srv_heap, texture_list.srvs[i]);
-            descriptor_utils::free_descriptors(srv_heap, texture_list.uavs[i]);
-            descriptor_utils::free_descriptors(rtv_heap, texture_list.rtvs[i]);
         }
-
-        DescriptorHeap& dsv_heap = heaps[D3D12_DESCRIPTOR_HEAP_TYPE_DSV];
-        for (size_t i = 0; i < texture_list.dsv_infos.size; i++) {
-            const auto& dsv_info = texture_list.dsv_infos[i];
-            descriptor_utils::free_descriptors(dsv_heap, dsv_info.dsv);
-        }
-
-        texture_list.resources.empty();
-        texture_list.allocations.empty();
-        texture_list.srvs.empty();
-        texture_list.uavs.empty();
-        texture_list.rtvs.empty();
-        texture_list.infos.empty();
-        texture_list.render_target_infos.empty();
     }
+
+    void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, Fence& fence)
+    {
+        queue_destruction(queue, current_frame_idx, fence.d3d_fence);
+        fence.d3d_fence = nullptr;
+    }
+
 }

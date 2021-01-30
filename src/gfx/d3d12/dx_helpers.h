@@ -49,27 +49,25 @@ namespace zec::gfx::dx12
     {
     public:
         DXPtrArray() = default;
-        ~DXPtrArray() { destroy(); };
+        ~DXPtrArray() { ASSERT(ptrs.size == 0); };
 
         UNCOPIABLE(DXPtrArray);
         UNMOVABLE(DXPtrArray);
+
+        T* begin() { return ptrs.begin(); };
+        const T* begin() const { return ptrs.begin(); };
+
+        T* end() { return ptrs.end(); };
+        const T* end() const { return ptrs.end(); };
 
         T* operator[](ResourceHandle handle) const
         {
             return ptrs[handle.idx];
         }
 
-        void destroy()
-        {
-            for (size_t i = 0; i < ptrs.size; i++) {
-                ptrs[i]->Release();
-            }
-            ptrs.empty();
-        }
-
         inline u64 size()
         {
-            return ptrs.size();
+            return ptrs.size;
         }
 
         inline ResourceHandle push_back(T* ptr)

@@ -173,8 +173,8 @@ namespace clustered
         void record(const render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx, void* settings, void* internal_state)
         {
             constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-            Settings* pass_context = reinterpret_cast<Settings*>(settings);
-            InternalState* pass_state = reinterpret_cast<InternalState*>(internal_state);
+            Settings* pass_context = static_cast<Settings*>(settings);
+            InternalState* pass_state = static_cast<InternalState*>(internal_state);
 
             TextureHandle depth_target = resource_map.get_texture_resource(PassResources::DEPTH_TARGET.id);
             TextureHandle render_target = resource_map.get_texture_resource(PassResources::SDR_TARGET.id);
@@ -210,7 +210,7 @@ namespace clustered
 
         void* destroy(void* context, void* internal_state)
         {
-            InternalState* state = reinterpret_cast<InternalState*>(internal_state);
+            InternalState* state = static_cast<InternalState*>(internal_state);
             // TODO: Free pipeline and resource layouts
             delete state;
             return nullptr;
@@ -358,9 +358,7 @@ namespace clustered
             for (size_t i = 0; i < num_objects; i++) {
                 scene_render_data.index_buffers.push_back(cube_index_buffer);
                 scene_render_data.vertex_shader_data.push_back({
-                    // TODO: create model matrix
                     .model = identity_mat4(),
-                    // TODO: create normal matrix
                     .vertex_positions_idx = gfx::buffers::get_shader_readable_index(cube_vertex_positions_buffer),
                     .vertex_uvs_idx = gfx::buffers::get_shader_readable_index(cube_vertex_uvs_buffer),
                     });

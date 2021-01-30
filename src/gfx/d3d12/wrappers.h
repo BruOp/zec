@@ -53,23 +53,20 @@ namespace zec::gfx::dx12
             1   // Denominator
         };
         u32 num_vsync_intervals = 1;
+
     };
 
-    inline void destroy(SwapChain& swap_chain)
+    void destroy(SwapChain& swap_chain)
     {
         if (swap_chain.swap_chain != nullptr) {
             swap_chain.swap_chain->Release();
+            swap_chain.swap_chain = nullptr;
         }
         if (swap_chain.output != nullptr) {
             swap_chain.output->Release();
+            swap_chain.output = nullptr;
         }
     };
-
-    inline const TextureHandle get_current_back_buffer_handle(const SwapChain& swap_chain, const u64 current_frame_idx)
-    {
-        return swap_chain.back_buffers[current_frame_idx];
-    }
-
 
     // ---------- Fence ----------
     struct Fence
@@ -86,5 +83,4 @@ namespace zec::gfx::dx12
     void wait(Fence& fence, u64 fence_value);
     bool is_signaled(Fence& fence, u64 fence_value);
     void clear(Fence& fence, u64 fence_value);
-
 }

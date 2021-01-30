@@ -26,9 +26,9 @@ typedef wchar_t wchar;
 
 #pragma warning(disable : 4324) // structure was padded due to alignment specifier
 
-#define _CRTDBG_MAP_ALLOC
+//#define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
-#include <crtdbg.h>
+//#include <crtdbg.h>
 
 // Use the C++ standard templated min/max
 #define NOMINMAX

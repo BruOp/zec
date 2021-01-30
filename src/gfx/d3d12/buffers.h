@@ -1,6 +1,9 @@
 #pragma once
 #include "pch.h"
 #include "gfx/public_resources.h"
+#include "gfx/resource_array.h"
+#include "dx_helpers.h"
+//TODO: Remove
 #include "descriptor_heap.h"
 
 namespace D3D12MA
@@ -18,7 +21,12 @@ namespace zec::gfx::dx12
     {
         void* cpu_address = 0;
         u64 gpu_address = 0;
-        u64 size = 0;
+        // Total represents the total amount of memory allocated for this resource
+        // If the buffer is CPU accessible, then it will be RENDER_LATENCY * per_frame_size
+        u32 total_size = 0;
+        // If the buffer is CPU accessible this will equal total_size / RENDER_LATENCY
+        // Else, it's just the total size
+        u32 per_frame_size = 0;
         u32 stride = 0;
         u32 cpu_accessible = 0;
     };
@@ -37,62 +45,39 @@ namespace zec::gfx::dx12
         BufferList() = default;
         ~BufferList()
         {
+            ASSERT(num_buffers == 0);
             ASSERT(resources.size == 0);
             ASSERT(allocations.size == 0);
         }
 
-        Array<ID3D12Resource*> resources = {};
-        Array<D3D12MA::Allocation*> allocations = {};
-        Array<BufferInfo> infos = {};
-        Array<DescriptorRangeHandle> srvs = {};
-        Array<DescriptorRangeHandle> uavs = {};
+        BufferHandle push_back(const Buffer& buffer);
+
+        // Getters
+        size_t size()
+        {
+            return num_buffers;
+        }
+
+        size_t num_buffers;
+        ResourceArray<ID3D12Resource*, BufferHandle> resources = {};
+        ResourceArray<D3D12MA::Allocation*, BufferHandle> allocations = {};
+        ResourceArray<BufferInfo, BufferHandle> infos = {};
+        ResourceArray<DescriptorRangeHandle, BufferHandle> srvs = {};
+        ResourceArray<DescriptorRangeHandle, BufferHandle> uavs = {};
     };
 
     namespace buffer_utils
     {
-        BufferHandle push_back(BufferList& buffer_list, const Buffer& buffer);
-        void update(BufferList& buffer_list, const BufferHandle handle, const void* data, const u64 data_size, const u64 frame_idx);
-
-        inline ID3D12Resource* get_resource(const BufferList& buffer_list, const BufferHandle handle)
+        void* get_cpu_address(const BufferInfo& buffer_info, const u64 current_frame_idx)
         {
-            return buffer_list.resources[handle.idx];
-        }
+            ASSERT(current_frame_idx < RENDER_LATENCY);
+            return static_cast<u8*>(buffer_info.cpu_address) + (buffer_info.per_frame_size * current_frame_idx);
+        };
 
-        inline void* get_cpu_address(const BufferList& buffer_list, const BufferHandle handle, const u64 current_frame_idx)
+        u64 get_gpu_address(const BufferInfo& buffer_info, const u64 current_frame_idx)
         {
-            const BufferInfo& buffer_info = buffer_list.infos[handle.idx];
-            if (buffer_info.cpu_accessible) {
-                return reinterpret_cast<u8*>(buffer_info.cpu_address) + (buffer_info.size * current_frame_idx);
-            }
-            else {
-                return buffer_info.cpu_address;
-            }
-        }
-
-        inline u64 get_gpu_address(const BufferList& buffer_list, const BufferHandle handle, const u64 current_frame_idx)
-        {
-            const BufferInfo& buffer_info = buffer_list.infos[handle.idx];
-            if (buffer_info.cpu_accessible) {
-                return buffer_info.gpu_address + (buffer_info.size * current_frame_idx);
-            }
-            else {
-                return buffer_info.gpu_address;
-            }
-        }
-
-        inline u32 get_srv_index(const BufferList& buffer_list, const BufferHandle handle)
-        {
-            return descriptor_utils::get_offset(buffer_list.srvs[handle.idx]);
-        }
-
-        inline u32 get_uav_index(const BufferList& buffer_list, const BufferHandle handle)
-        {
-            return descriptor_utils::get_offset(buffer_list.uavs[handle.idx]);
-        }
-
-        inline const BufferInfo& get_buffer_info(const BufferList& buffer_list, BufferHandle buffer_handle)
-        {
-            return buffer_list.infos[buffer_handle.idx];
-        }
+            ASSERT(current_frame_idx < RENDER_LATENCY);
+            return buffer_info.gpu_address + (buffer_info.per_frame_size * current_frame_idx);
+        };
     }
 }

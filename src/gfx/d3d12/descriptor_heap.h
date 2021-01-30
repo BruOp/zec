@@ -69,9 +69,6 @@ namespace zec::gfx::dx12
             return handle.id != zec::k_invalid_handle;
         }
 
-        void init(ID3D12Device* device, DescriptorHeap& heap, const DescriptorHeapDesc& heap_desc);
-        void destroy(DescriptorHeap& heap);
-
         // This takes a heap and a null CPU_DESCRIPTOR_HANDLE and returns an index, but also sets the in_handles ptr value
         // to the appropriate one so it can be used to create views
         DescriptorRangeHandle allocate_descriptors(DescriptorHeap& heap, const size_t count, D3D12_CPU_DESCRIPTOR_HANDLE in_handles[]);
@@ -84,13 +81,13 @@ namespace zec::gfx::dx12
                 heap.num_free += get_count(descriptor_range);
             }
         };
-        void free_descriptors(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorRangeHandle descriptor_range); // Use globals
 
-        void init_descriptor_heaps();
-        void destroy_descriptor_heaps();
+        inline void free_descriptors(DescriptorHeap& heap, const Array<DescriptorRangeHandle>& descriptors)
+        {
+            for (const DescriptorRangeHandle descriptor : descriptors) {
+                free_descriptors(heap, descriptor);
+            }
+        }
 
-        // Helpers
-        D3D12_CPU_DESCRIPTOR_HANDLE get_cpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorRangeHandle descriptor_range, size_t local_offset = 0);
-        D3D12_GPU_DESCRIPTOR_HANDLE get_gpu_descriptor_handle(const D3D12_DESCRIPTOR_HEAP_TYPE type, const DescriptorRangeHandle descriptor_range, size_t local_offset = 0);
     }
 }

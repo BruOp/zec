@@ -11,12 +11,8 @@ namespace zec::gfx
     RenderConfigState get_config_state();
 
     u64 get_current_frame_idx();
-    u64 get_current_cpu_frame();
 
     void flush_gpu();
-
-    void begin_upload();
-    CmdReceipt end_upload();
 
     CommandContextHandle begin_frame();
     void end_frame(const CommandContextHandle command_context);
@@ -32,9 +28,12 @@ namespace zec::gfx
     {
         ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
         PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
+    }
 
-        void set_debug_name(ResourceLayoutHandle handle, const wchar* name);
-        void set_debug_name(PipelineStateHandle handle, const wchar* name);
+    namespace upload
+    {
+        UploadContextHandle begin();
+        CmdReceipt end(const UploadContextHandle upload_context);
     }
 
     namespace buffers
@@ -45,8 +44,6 @@ namespace zec::gfx
         u32 get_shader_writable_index(const BufferHandle handle);
 
         void update(const BufferHandle buffer_id, const void* data, u64 byte_size);
-
-        void set_debug_name(const BufferHandle handle, const wchar* name);
     }
 
     namespace meshes
@@ -66,7 +63,6 @@ namespace zec::gfx
         TextureHandle load_from_file(const char* file_path, const bool force_srgb = false);
         void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);
 
-        void set_debug_name(const TextureHandle handle, const wchar* name);
     }
 
     namespace cmd
@@ -82,30 +78,48 @@ namespace zec::gfx
 
         void cpu_wait(const CmdReceipt receipt);
 
-        void gpu_wait(CommandQueueType type, const CmdReceipt receipt);
+        void gpu_wait(const CommandQueueType queue_to_insert_wait, const CmdReceipt receipt_to_wait_on);
 
-        //--------- Resource Binding ----------
-        void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
 
-        void set_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle);
+        namespace graphics
+        {
+            //--------- Resource Binding ----------
+            void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
 
-        void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
+            void set_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle);
 
-        void bind_constant(const CommandContextHandle ctx, const void* data, const u64 num_constants, const u32 binding_slot);
+            void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
 
-        void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
+            void bind_constant(const CommandContextHandle ctx, const void* data, const u64 num_constants, const u32 binding_slot);
 
-        // Draw / Dispatch
-        void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices);
-        void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id);
-        void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
+            void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
 
-        void dispatch(
-            const CommandContextHandle ctx,
-            const u32 thread_group_count_x,
-            const u32 thread_group_count_y,
-            const u32 thread_group_count_z
-        );
+            // Draw
+            void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices);
+            void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id);
+            void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
+
+        }
+
+        namespace compute
+        {
+            //--------- Resource Binding ----------
+            void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
+
+            void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
+
+            void bind_constant(const CommandContextHandle ctx, const void* data, const u64 num_constants, const u32 binding_slot);
+
+            void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, const u32 binding_slot);
+
+            // Dispatch
+            void dispatch(
+                const CommandContextHandle ctx,
+                const u32 thread_group_count_x,
+                const u32 thread_group_count_y,
+                const u32 thread_group_count_z
+            );
+        }
 
         // Misc
         void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const float* clear_color);
@@ -139,4 +153,9 @@ namespace zec::gfx
             u64 num_transitions
         );
     }
+
+    void set_debug_name(const ResourceLayoutHandle handle, const wchar* name);
+    void set_debug_name(const PipelineStateHandle handle, const wchar* name);
+    void set_debug_name(const BufferHandle handle, const wchar* name);
+    void set_debug_name(const TextureHandle handle, const wchar* name);
 }

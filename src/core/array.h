@@ -4,6 +4,8 @@
 #include "utils/utils.h"
 #include "utils/memory.h"
 
+#include <type_traits>
+
 namespace zec
 {
     static constexpr size_t g_GB = 1024 * 1024 * 1024;
@@ -17,6 +19,7 @@ namespace zec
     template<typename T, size_t Capacity>
     class FixedArray
     {
+        static_assert(std::is_trivially_copyable<T>::value&& std::is_trivially_destructible<T>::value);
     public:
         T data[Capacity] = {};
         const size_t capacity = Capacity;
@@ -51,7 +54,7 @@ namespace zec
         size_t push_back(const T& val)
         {
             ASSERT(size < capacity);
-            T[size] = val;
+            data[size] = val;
             return size++;
         };
 
@@ -112,15 +115,11 @@ namespace zec
             }
         };
 
-        T* begin()
-        {
-            return data;
-        }
+        T* begin() { return data; }
+        const T* begin() const { return data; }
 
-        T* end()
-        {
-            return data + size;
-        }
+        T* end() { return data + size; }
+        const T* end() const { return data + size; }
 
         UNCOPIABLE(Array);
         UNMOVABLE(Array);

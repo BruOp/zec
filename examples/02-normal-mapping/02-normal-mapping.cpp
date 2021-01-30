@@ -3,7 +3,6 @@
 #include "utils/exceptions.h"
 #include "camera.h"
 
-// TODO: Remove this once no longer using DXCall directly
 using namespace zec;
 
 struct ViewConstantData

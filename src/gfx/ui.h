@@ -12,6 +12,5 @@ namespace zec::ui
 
     void begin_frame();
 
-    // TODO: Switch to using a command context
     void end_frame(const CommandContextHandle context_handle);
 }

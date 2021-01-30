@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "dx_utils.h"
-#include "globals.h"
 
 #if USE_ASSERTS
 #else // USE_ASSERTS

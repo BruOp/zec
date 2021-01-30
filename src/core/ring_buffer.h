@@ -7,6 +7,7 @@ namespace zec
     template<typename T, size_t Capacity>
     class FixedRingBuffer
     {
+        static_assert(std::is_trivially_copyable<T>::value&& std::is_trivially_destructible<T>::value);
     public:
         FixedArray<T, Capacity> elements;
         u64 read_idx = 0;
@@ -22,7 +23,7 @@ namespace zec
 
         void push_back(T item)
         {
-            ASSERT(remaining_capacity());
+            ASSERT(remaining_capacity() > 0);
             const u64 idx = (write_idx) % Capacity;
             elements[idx] = item;
             ++write_idx;
@@ -68,6 +69,7 @@ namespace zec
     template<typename T>
     class RingBuffer
     {
+        static_assert(std::is_trivially_copyable<T>::value&& std::is_trivially_destructible<T>::value);
     public:
         T* data = nullptr;
         size_t capacity = 0;
@@ -139,7 +141,7 @@ namespace zec
             size_t memory_required = (new_capacity * sizeof(T));
             size_t pages_required = size_t(ceil(double(memory_required) / double(sys_info.page_size)));
 
-            T* new_data = reinterpret_cast<T*>(memory::alloc(pages_required * sys_info.page_size));
+            T* new_data = static_cast<T*>(memory::alloc(pages_required * sys_info.page_size));
             size_t r = capacity != 0 ? read_idx % capacity : read_idx;
             size_t w = capacity != 0 ? write_idx % capacity : write_idx;
 

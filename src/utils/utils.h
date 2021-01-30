@@ -159,7 +159,7 @@ namespace zec
 
 #define ARRAY_SIZE(x) ((sizeof(x) / sizeof(0 [x])) / ((size_t)(!(sizeof(x) % sizeof(0 [x])))))
 
-    inline u64 align_to(u64 num, u64 alignment)
+    inline u32 align_to(u32 num, u32 alignment)
     {
         ASSERT(alignment > 0);
         return ((num + alignment - 1) / alignment) * alignment;

@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "wrappers.h"
 #include "dx_utils.h"
-#include "globals.h"
 
 namespace zec::gfx::dx12
 {
@@ -32,6 +31,4 @@ namespace zec::gfx::dx12
         ASSERT(fence.d3d_fence != nullptr);
         fence.d3d_fence->Signal(fence_value);
     }
-
-
 }

@@ -28,6 +28,7 @@ namespace zec
     RESOURCE_HANDLE(PipelineStateHandle);
     RESOURCE_HANDLE(CommandContextPoolHandle);
     RESOURCE_HANDLE(CommandContextHandle);
+    RESOURCE_HANDLE(UploadContextHandle);
 
     // ---------- Enums ----------
     enum ResourceUsage : u16
@@ -38,6 +39,7 @@ namespace zec
         RESOURCE_USAGE_CONSTANT = (1 << 2),
         RESOURCE_USAGE_SHADER_READABLE = (1 << 3),
         RESOURCE_USAGE_COMPUTE_WRITABLE = (1 << 4),
+        // Use this if you want to copy data over per-frame
         RESOURCE_USAGE_DYNAMIC = (1 << 5),
         RESOURCE_USAGE_RENDER_TARGET = (1 << 6),
         RESOURCE_USAGE_DEPTH_STENCIL = (1 << 7),
@@ -102,7 +104,6 @@ namespace zec
         R32G32B32A32_FLOAT = FLOAT_4,
 
         R8G8B8A8_UNORM_SRGB = UNORM8_4_SRGB,
-        // TODO: STRUCTURED?
     };
 
     enum struct ShaderVisibility : u8
@@ -256,9 +257,11 @@ namespace zec
 
     enum struct CommandQueueType : u8
     {
+        // Suitable for graphics as well as compute
         GRAPHICS = 0,
-        COMPUTE,
+        // Only suitable for "async" compute
         ASYNC_COMPUTE,
+        // Only suitable for resource uploads
         COPY,
 
         NUM_COMMAND_CONTEXT_POOLS
@@ -301,9 +304,6 @@ namespace zec
             BufferFormat format = BufferFormat::INVALID;
             u32 input_slot = 0;
             u32 aligned_byte_offset = 0;
-            // TODO: Support instancing?
-            // input_slot_class (used to distinguish between per vertex data and per instance data)
-            // instance_data_step_rate (i'm not sure what this is for just yet)
         };
 
         InputElementDesc elements[MAX_NUM_MESH_VERTEX_BUFFERS];
@@ -329,6 +329,7 @@ namespace zec
         BufferFormat format;
         u16 usage = 0;
         ResourceUsage initial_state = RESOURCE_USAGE_UNUSED;
+        // TODO: Optimized clear values?
     };
 
     struct SamplerDesc

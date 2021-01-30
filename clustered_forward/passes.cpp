@@ -30,7 +30,7 @@ using namespace zec;
 //
 //    void setup(void* context)
 //    {
-//        //Context* pass_context = reinterpret_cast<Context*>(context);
+//        //Context* pass_context = static_cast<Context*>(context);
 //
 //        //pass_context->debug_frustum_cb_handle = gfx::buffers::create({
 //        //    .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
@@ -107,7 +107,7 @@ using namespace zec;
 //
 //    void copy(void* context)
 //    {
-//        //Context* pass_context = reinterpret_cast<Context*>(context);
+//        //Context* pass_context = static_cast<Context*>(context);
 //        //ViewConstantData debug_view_data{
 //        //    .VP = pass_context->debug_camera->projection * pass_context->debug_camera->view ,
 //        //    .invVP = invert(pass_context->debug_camera->view * mat4(to_mat3(pass_context->debug_camera->view), {})),
@@ -126,7 +126,7 @@ using namespace zec;
 //    void record(render_pass_system::RenderPassList& render_list, CommandContextHandle cmd_ctx, void* context)
 //    {
 //        constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-//        Context* pass_context = reinterpret_cast<Context*>(context);
+//        Context* pass_context = static_cast<Context*>(context);
 //
 //        //TextureHandle depth_target = render_pass_system::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
 //        TextureHandle sdr_buffer = render_pass_system::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
@@ -187,7 +187,7 @@ using namespace zec;
 //
 //    void record(zec::render_pass_system::RenderPassList& render_list, zec::CommandContextHandle cmd_ctx, void* context)
 //    {
-//        Context* pass_context = reinterpret_cast<Context*>(context);
+//        Context* pass_context = static_cast<Context*>(context);
 //        TextureHandle sdr_buffer = render_pass_system::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
 //        TextureInfo& texture_info = gfx::textures::get_texture_info(sdr_buffer);
 //

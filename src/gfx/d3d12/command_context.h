@@ -4,41 +4,114 @@
 #include "core/ring_buffer.h"
 #include "gfx/public_resources.h"
 #include "gfx/gfx.h"
+#include "dx_utils.h"
 #include "wrappers.h"
 
 namespace zec::gfx::dx12
 {
-    struct CommandContextPool
+    template<size_t capacity>
+    struct AsyncFreeList
     {
-        ID3D12Device* device = nullptr; // Non-owning
-        ID3D12CommandQueue* queue = nullptr; // Non-owning
+        struct Node
+        {
+            u32 idx;
+            u64 fence_value;
+        };
+
+        u32 push(u32 index, u64 fence_value)
+        {
+            in_flight.push_back({ .idx = index, .fence_value = fence_value });
+        }
+
+        u32 get_free_index()
+        {
+            if (free_indices.size() > 0) {
+                return free_indices.pop_front();
+            }
+            else {
+                return INVALID_FREE_INDEX;
+            }
+        }
+
+        void process_in_flight(u64 fence_value)
+        {
+            while (in_flight.front().fence_value > fence_value) {
+                free_indices.push_back(in_flight.pop_front().idx);
+            }
+        }
+
+        static constexpr u32 INVALID_FREE_INDEX = UINT32_MAX;
+        FixedRingBuffer<u32, capacity> free_indices = {};
+        FixedRingBuffer<Node, capacity> in_flight = {};
+    };
+
+    class CommandContextPool
+    {
+    public:
+        // Non owning
+        ID3D12Device* device;
+        // Owning
+        CommandQueueType queue_type;
+        FixedArray<ID3D12GraphicsCommandList*, 128> cmd_lists = {};
+        FixedRingBuffer<u8, 128> free_cmd_list_indices = {};
+        FixedArray<ID3D12CommandAllocator*, 128> allocators = {};
+        AsyncFreeList<128> allocators_free_list = {};
+
+        void initialize(CommandQueueType queue_type, ID3D12Device* device);
+        void destroy();
+
+        CommandContextHandle provision();
+
+        void return_to_pool(const u64 fence_value, CommandContextHandle& handles);
+
+        void reset(const u64 fence_value);
+
+        ID3D12GraphicsCommandList* get_graphics_command_list(const CommandContextHandle context_handle);
+    };
+
+    struct CommandQueue
+    {
         CommandQueueType type = CommandQueueType::GRAPHICS;
-        Fence fence; // Don't destroy this (it'll get destroyed by Fence list destruction at the end)
+        ID3D12CommandQueue* queue = nullptr;
+        Fence fence = {};
         u64 last_used_fence_value = 0;
 
-        Array<ID3D12GraphicsCommandList*> cmd_lists = {};
-        Array<ID3D12CommandAllocator*> cmd_allocators = {};
+        ~CommandQueue();
 
-        Array<u8> free_cmd_list_indices = {};
-        Array<u16> free_allocator_indices = {};
-        FixedRingBuffer<u16, 128> in_flight_allocator_indices = {};
-        FixedRingBuffer<u64, 128> in_flight_fence_values = {};
+        void initialize(CommandQueueType type, ID3D12Device* device);
+        void destroy();
+
+        // Returns the fence value used
+        u64 execute(ID3D12GraphicsCommandList** command_lists, const size_t num_command_lists)
+        {
+            queue->ExecuteCommandLists(num_command_lists, reinterpret_cast<ID3D12CommandList**>(command_lists));
+            signal(fence, queue, ++last_used_fence_value);
+        };
+
+        void flush()
+        {
+            wait(fence, last_used_fence_value);
+        };
+
+        void cpu_wait(u64 fence_value)
+        {
+            wait(fence, fence_value);
+        };
+
+        void insert_wait_on_queue(const CommandQueue& queue_to_wait_on, u64 fence_value)
+        {
+            queue->Wait(queue_to_wait_on.fence.d3d_fence, fence_value);
+        };
+
+        bool check_fence_status(const u64 fence_value)
+        {
+            return get_completed_value(fence) >= fence_value;
+        }
     };
+
 
     namespace cmd_utils
     {
-        CommandContextPool& get_pool(const CommandQueueType type);
-        ID3D12GraphicsCommandList* get_command_list(const CommandContextHandle handle);
-
-        void destroy(CommandContextPool& pool);
-        void reset(CommandContextPool& pool);
-
-        void initialize_pools();
-        void destroy_pools();
-
-        void insert_resource_barrier(const CommandContextHandle context, D3D12_RESOURCE_BARRIER barriers[], const size_t num_barriers);
-
-        CommandContextHandle provision(CommandContextPool& pool);
-        CmdReceipt return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts);
+        CommandQueueType get_command_queue_type(const CommandContextHandle context_handle);
     }
 }

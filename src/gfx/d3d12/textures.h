@@ -1,11 +1,16 @@
 #pragma once
 #include "pch.h"
 #include "gfx/public_resources.h"
-#include "utils/utils.h"
-#include "dx_utils.h"
+#include "dx_helpers.h"
+#include "gfx/resource_array.h"
+// TODO: Remove this
 #include "descriptor_heap.h"
-#include "D3D12MemAlloc/D3D12MemAlloc.h"
-#include <DirectXTex.h>
+
+namespace D3D12MA
+{
+    class Allocation;
+}
+
 
 namespace zec::gfx::dx12
 {
@@ -33,8 +38,25 @@ namespace zec::gfx::dx12
         DescriptorRangeHandle dsv;
     };
 
-    struct TextureList
+    class DSVStore
     {
+    public:
+        size_t push_back(const DepthStencilInfo depth_stencil_info)
+        {
+            data.push_back(depth_stencil_info);
+        }
+
+        DescriptorRangeHandle& operator[](const TextureHandle handle);
+        const DescriptorRangeHandle& operator[](const TextureHandle handle) const;
+
+        Array<DepthStencilInfo> data;
+    };
+
+    // This is really just a data repository
+    // Most of the logic involve in updating and creating textures is not in this class!
+    class TextureList
+    {
+    public:
         TextureList() = default;
         ~TextureList()
         {
@@ -42,58 +64,25 @@ namespace zec::gfx::dx12
             ASSERT(allocations.size == 0);
         }
 
-        Array<ID3D12Resource*> resources = {};
-        Array<D3D12MA::Allocation*> allocations = {};
-        Array<DescriptorRangeHandle> srvs = {};
-        Array<DescriptorRangeHandle> uavs = {};
-        Array<DescriptorRangeHandle> rtvs = {};
-        Array<TextureInfo> infos = {};
-        Array<RenderTargetInfo> render_target_infos = {};
+        TextureHandle push_back(const Texture& texture);
+
+        // Getters
+        size_t size()
+        {
+            return count;
+        }
+
+        size_t count = 0;
+        ResourceArray<ID3D12Resource*, TextureHandle> resources = {};
+        ResourceArray<D3D12MA::Allocation*, TextureHandle> allocations = {};
+        ResourceArray<DescriptorRangeHandle, TextureHandle> srvs = {};
+        ResourceArray<DescriptorRangeHandle, TextureHandle> uavs = {};
+        ResourceArray<DescriptorRangeHandle, TextureHandle> rtvs = {};
+        ResourceArray<TextureInfo, TextureHandle> infos = {};
+        ResourceArray<RenderTargetInfo, TextureHandle> render_target_infos = {};
         // Note, this is not 1-1 like other arrays in this structure.
         // Instead, we loop through and find the dsv_info with matching TextureHandle.
         // Since we have so few DSVs, this should be pretty cheap.
-        Array<DepthStencilInfo> dsv_infos = {};
+        DSVStore dsv_infos = {};
     };
-
-    namespace texture_utils
-    {
-        TextureHandle push_back(TextureList& list, const Texture& texture);
-
-        inline u32 get_srv_index(const TextureList& texture_list, const TextureHandle handle)
-        {
-            return descriptor_utils::get_offset(texture_list.srvs[handle.idx]);
-        };
-
-        inline u32 get_uav_index(const TextureList& texture_list, const TextureHandle handle)
-        {
-            return descriptor_utils::get_offset(texture_list.uavs[handle.idx]);
-        };
-
-        inline DescriptorRangeHandle get_rtv(const TextureList& texture_list, const TextureHandle handle)
-        {
-            return texture_list.rtvs[handle.idx];
-        };
-
-        DescriptorRangeHandle get_dsv(const TextureList& texture_list, const TextureHandle handle);
-
-        inline void set_rtv(TextureList& texture_list, TextureHandle handle, DescriptorRangeHandle rtv)
-        {
-            texture_list.rtvs[handle.idx] = rtv;
-        };
-
-        inline const TextureInfo& get_texture_info(const TextureList& texture_list, TextureHandle texture_handle)
-        {
-            return texture_list.infos[texture_handle.idx];
-        }
-
-        inline void set_texture_info(TextureList& texture_list, TextureHandle texture_handle, const TextureInfo& texture_info)
-        {
-            texture_list.infos[texture_handle.idx] = texture_info;
-        }
-
-        inline const RenderTargetInfo& get_render_target_info(const TextureList& texture_list, TextureHandle handle)
-        {
-            return texture_list.render_target_infos[handle.idx];
-        };
-    }
 }
