@@ -3,7 +3,6 @@
 #include "utils/exceptions.h"
 #include "camera.h"
 #include "gltf_loading.h"
-#include "gfx/d3d12/globals.h"
 
 using namespace zec;
 
@@ -118,19 +117,16 @@ protected:
             pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
         }
 
-        gfx::begin_upload();
-
+        CommandContextHandle upload_cmd_ctx = gfx::cmd::provision(CommandQueueType::COPY);
         //gltf::load_gltf_file("models/damaged_helmet/DamagedHelmet.gltf", gltf_context);
-        gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", gltf_context);
-
-        gfx::end_upload();
+        gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", upload_cmd_ctx, gltf_context);
+        CmdReceipt upload_receipt = gfx::cmd::return_and_execute(&upload_cmd_ctx, 1);
 
         BufferDesc cb_desc = {
             .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
             .type = BufferType::DEFAULT,
             .byte_size = sizeof(ViewConstantData),
             .stride = 0,
-            .data = nullptr,
         };
 
         view_cb_handle = gfx::buffers::create(cb_desc);
@@ -149,11 +145,10 @@ protected:
                 .material_data = gltf_context.materials[draw_call.material_index],
                 });
 
-            cb_desc.data = &draw_constant_data[data_idx];
-
             const size_t node_idx = draw_data_buffer_handles.push_back(
                 gfx::buffers::create(cb_desc)
             );
+            gfx::buffers::set_data(draw_data_buffer_handles[node_idx], &draw_constant_data[data_idx], sizeof(DrawConstantData));
         }
 
         TextureDesc depth_texture_desc = {
@@ -167,6 +162,9 @@ protected:
             .usage = RESOURCE_USAGE_DEPTH_STENCIL,
         };
         depth_target = gfx::textures::create(depth_texture_desc);
+
+
+        gfx::cmd::cpu_wait(upload_receipt);
     }
 
     void shutdown() override final
@@ -174,7 +172,9 @@ protected:
 
     void update(const zec::TimeData& time_data) override final
     {
-        frame_times[gfx::get_current_cpu_frame() % 120] = time_data.delta_milliseconds_f;
+        static size_t frame_idx = 0;
+        frame_times[frame_idx] = time_data.delta_milliseconds_f;
+        frame_idx = (frame_idx + 1) % 120;
 
         camera_controller.update(time_data.delta_seconds_f);
         view_constant_data.view = camera.view;
@@ -214,19 +214,19 @@ protected:
         gfx::cmd::clear_render_target(cmd_ctx, backbuffer, clear_color);
         gfx::cmd::clear_depth_target(cmd_ctx, depth_target, 1.0f, 0);
 
-        gfx::cmd::set_active_resource_layout(cmd_ctx, resource_layout);
-        gfx::cmd::set_pipeline_state(cmd_ctx, pso_handle);
+        gfx::cmd::graphics::set_active_resource_layout(cmd_ctx, resource_layout);
+        gfx::cmd::graphics::set_pipeline_state(cmd_ctx, pso_handle);
         gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
         gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
         gfx::cmd::set_render_targets(cmd_ctx, &backbuffer, 1, depth_target);
 
-        gfx::cmd::bind_resource_table(cmd_ctx, 2);
-        gfx::cmd::bind_constant_buffer(cmd_ctx, view_cb_handle, 1);
+        gfx::cmd::graphics::bind_resource_table(cmd_ctx, 2);
+        gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, view_cb_handle, 1);
 
         for (size_t i = 0; i < gltf_context.draw_calls.size; i++) {
-            gfx::cmd::bind_constant_buffer(cmd_ctx, draw_data_buffer_handles[i], 0);
-            gfx::cmd::draw_mesh(cmd_ctx, gltf_context.draw_calls[i].mesh);
+            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, draw_data_buffer_handles[i], 0);
+            gfx::cmd::graphics::draw_mesh(cmd_ctx, gltf_context.draw_calls[i].mesh);
         }
 
         ui::end_frame(cmd_ctx);

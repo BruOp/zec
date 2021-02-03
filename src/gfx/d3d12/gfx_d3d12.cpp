@@ -986,20 +986,22 @@ namespace zec::gfx
             return descriptor.get_offset();
         };
 
+        // Only use this for CPU accessible buffers. Otherwise, use the other form of this function that takes a CommandContext
         void set_data(const BufferHandle handle, const void* data, const u64 data_byte_size)
         {
             ASSERT(data != nullptr);
-            const BufferInfo& buffer_info = g_context.buffers.infos[handle];
+            ASSERT(is_valid(handle));
+            BufferInfo& buffer_info = g_context.buffers.infos[handle];
+            ASSERT(buffer_info.cpu_accessible);
 
-            if (buffer_info.cpu_accessible) {
-                for (size_t i = 0; i < RENDER_LATENCY; i++) {
-                    buffers::update(handle, data, data_byte_size);
-                }
-                return;
+            for (size_t i = 0; i < RENDER_LATENCY; i++) {
+                void* cpu_address = buffer_info.get_cpu_address(i);
+                memory::copy(cpu_address, data, data_byte_size);
             }
 
         };
 
+        // Only use this for GPU exclusive buffers.
         void set_data(CommandContextHandle cmd_ctx, const BufferHandle handle, const void* data, const u64 data_byte_size)
         {
             ASSERT(data != nullptr);
@@ -1071,8 +1073,8 @@ namespace zec::gfx
 
             DXGI_FORMAT d3d_format = to_d3d_format(texture.info.format);
             D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
-            ASSERT(desc.initial_state != RESOURCE_USAGE_UNUSED);
-            ASSERT(desc.initial_state & desc.usage);
+            /*if (desc.initial_state != RESOURCE_USAGE_UNUSED);
+            ASSERT(desc.initial_state & desc.usage);*/
             // TODO: Is this needed?
             //initial_state = to_d3d_resource_state(desc.initial_state);
 
@@ -1133,7 +1135,6 @@ namespace zec::gfx
             case RESOURCE_USAGE_DEPTH_STENCIL:
                 initial_state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
                 break;
-
             }
 
 
@@ -1299,6 +1300,8 @@ namespace zec::gfx
                 .array_size = u32(meta_data.arraySize),
                 .is_cubemap = u16(meta_data.IsCubemap()),
                 .format = from_d3d_format(meta_data.format),
+                .usage = RESOURCE_USAGE_SHADER_READABLE,
+                .initial_state = RESOURCE_USAGE_SHADER_READABLE,
             };
             TextureHandle texture_handle = textures::create(texture_desc);
 
