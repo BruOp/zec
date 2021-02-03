@@ -1,6 +1,7 @@
 #pragma once
 #include "pch.h"
 #include "gfx/public_resources.h"
+#include "gfx/resource_array.h"
 
 namespace zec::gfx::dx12
 {
@@ -13,4 +14,6 @@ namespace zec::gfx::dx12
         u32 num_vertex_buffers = 0;
         u32 index_count = 0;
     };
+
+    using MeshStore = ResourceArray<Mesh, MeshHandle>;
 }

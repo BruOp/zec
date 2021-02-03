@@ -43,7 +43,7 @@ namespace zec::gfx::dx12
     public:
         size_t push_back(const DepthStencilInfo depth_stencil_info)
         {
-            data.push_back(depth_stencil_info);
+            return data.push_back(depth_stencil_info);
         }
 
         DescriptorRangeHandle& operator[](const TextureHandle handle);
@@ -66,8 +66,10 @@ namespace zec::gfx::dx12
 
         TextureHandle push_back(const Texture& texture);
 
+        void destroy(void (*resource_destruction_callback)(ID3D12Resource*, D3D12MA::Allocation*), void(*descriptor_destruction_callback)(D3D12_DESCRIPTOR_HEAP_TYPE, DescriptorRangeHandle));
+
         // Getters
-        size_t size()
+        size_t size() const
         {
             return count;
         }

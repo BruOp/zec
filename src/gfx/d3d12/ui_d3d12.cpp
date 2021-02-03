@@ -3,8 +3,8 @@
 #include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui_impl_dx12.h"
 #include "gfx/constants.h"
-#include "globals.h"
-#include "command_context.h"
+
+#include "render_context.h"
 
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -31,6 +31,7 @@ namespace zec::ui
     {
         IMGUI_CHECKVERSION();
         ASSERT_MSG(!g_is_ui_initialized, "UI can only be initialized once!");
+
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO(); (void)io;
         ImGui::StyleColorsDark();
@@ -38,14 +39,15 @@ namespace zec::ui
 
         window.register_message_callback(window_callback, nullptr);
 
-        DescriptorHeap& srv_heap = g_descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
+        RenderContext& render_context = gfx::dx12::get_render_context();
+        DescriptorHeap& srv_heap = render_context.descriptor_heaps[HeapTypes::SRV];
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-        g_ui_state.srv_handle = descriptor_utils::allocate_descriptors(srv_heap, 1, &cpu_handle);
-        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = descriptor_utils::get_gpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
+        g_ui_state.srv_handle = srv_heap.allocate_descriptors(1, &cpu_handle);
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = srv_heap.get_gpu_descriptor_handle(g_ui_state.srv_handle);
         ImGui_ImplDX12_Init(
-            g_device,
+            render_context.device,
             RENDER_LATENCY,
-            g_swap_chain.format,
+            render_context.swap_chain.format,
             srv_heap.heap,
             cpu_handle,
             gpu_handle);
@@ -55,7 +57,9 @@ namespace zec::ui
     void destroy()
     {
         ASSERT(g_is_ui_initialized);
-        descriptor_utils::free_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, g_ui_state.srv_handle);
+        RenderContext& render_context = gfx::dx12::get_render_context();
+        DescriptorHeap& srv_heap = render_context.descriptor_heaps[HeapTypes::SRV];
+        srv_heap.free_descriptors(g_ui_state.srv_handle);
         ImGui_ImplDX12_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
@@ -74,7 +78,8 @@ namespace zec::ui
     void end_frame(const CommandContextHandle handle)
     {
         ASSERT(g_is_ui_initialized);
-        ID3D12GraphicsCommandList* cmd_list = cmd_utils::get_command_list(handle);
+        RenderContext& render_context = gfx::dx12::get_render_context();
+        ID3D12GraphicsCommandList* cmd_list = get_command_list(render_context, handle);
         ImGui::Render();
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
     }

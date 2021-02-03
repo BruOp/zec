@@ -7,7 +7,6 @@
 #include "descriptor_heap.h"
 #include "buffers.h"
 #include "textures.h"
-#include "meshes.h"
 #include "upload_manager.h"
 #include "command_context.h"
 #include "resource_destruction.h"
@@ -19,8 +18,6 @@ namespace D3D12MA
 
 namespace zec::gfx::dx12
 {
-    using ResourceLayoutStore = DXPtrArray<ID3D12RootSignature, ResourceLayoutHandle>;
-    using PipelineStateStore = DXPtrArray<ID3D12PipelineState, PipelineStateHandle>;
 
     template<typename T>
     struct PerQueueArray
@@ -39,6 +36,8 @@ namespace zec::gfx::dx12
 
     class RenderContext
     {
+        typedef DXPtrArray<ID3D12RootSignature, ResourceLayoutHandle> ResourceLayoutStore;
+        typedef DXPtrArray<ID3D12PipelineState, PipelineStateHandle> PipelineStateStore;
     public:
         RenderConfigState config_state = {};
         u64 current_frame_idx = 0;
@@ -59,9 +58,11 @@ namespace zec::gfx::dx12
         PerQueueArray<CommandQueue> command_queues;
         PerQueueArray<CommandContextPool> command_pools = {};
 
+        UploadContextStore upload_store;
         ResourceDestructionQueue destruction_queue = {};
+        AsyncResourceDestructionQueue async_destruction_queue = {};
 
-        DescriptorHeap descriptor_heaps[size_t(D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES)] = {};
+        DescriptorHeap descriptor_heaps[HeapTypes::NUM_HEAPS] = {};
 
         Fence frame_fence = { };
 
@@ -70,7 +71,6 @@ namespace zec::gfx::dx12
 
         BufferList buffers = {};
         TextureList textures = {};
-        Array<Mesh> meshes = {};
     };
 
     inline ID3D12GraphicsCommandList* get_command_list(RenderContext& render_context, const CommandContextHandle& handle)
@@ -79,4 +79,6 @@ namespace zec::gfx::dx12
         CommandContextPool& command_pool = render_context.command_pools[type];
         return command_pool.get_graphics_command_list(handle);
     };
+
+    RenderContext& get_render_context();
 }

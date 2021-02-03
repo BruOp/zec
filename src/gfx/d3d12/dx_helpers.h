@@ -54,11 +54,11 @@ namespace zec::gfx::dx12
         UNCOPIABLE(DXPtrArray);
         UNMOVABLE(DXPtrArray);
 
-        T* begin() { return ptrs.begin(); };
-        const T* begin() const { return ptrs.begin(); };
+        T** begin() { return ptrs.begin(); };
+        const T** begin() const { return ptrs.begin(); };
 
-        T* end() { return ptrs.end(); };
-        const T* end() const { return ptrs.end(); };
+        T** end() { return ptrs.end(); };
+        const T** end() const { return ptrs.end(); };
 
         T* operator[](ResourceHandle handle) const
         {
@@ -76,7 +76,6 @@ namespace zec::gfx::dx12
             return { static_cast<u32>(ptrs.push_back(ptr)) };
         }
 
-    private:
         Array<T*> ptrs;
 
     };

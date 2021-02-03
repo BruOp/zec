@@ -9,21 +9,21 @@
 
 namespace zec::gfx::dx12
 {
-    template<size_t capacity>
+    template<typename IndexType, size_t capacity>
     struct AsyncFreeList
     {
         struct Node
         {
-            u32 idx;
+            IndexType idx;
             u64 fence_value;
         };
 
-        u32 push(u32 index, u64 fence_value)
+        void push(IndexType index, u64 fence_value)
         {
             in_flight.push_back({ .idx = index, .fence_value = fence_value });
         }
 
-        u32 get_free_index()
+        IndexType get_free_index()
         {
             if (free_indices.size() > 0) {
                 return free_indices.pop_front();
@@ -35,13 +35,13 @@ namespace zec::gfx::dx12
 
         void process_in_flight(u64 fence_value)
         {
-            while (in_flight.front().fence_value > fence_value) {
+            while (in_flight.size() > 0 && in_flight.front().fence_value <= fence_value) {
                 free_indices.push_back(in_flight.pop_front().idx);
             }
         }
 
-        static constexpr u32 INVALID_FREE_INDEX = UINT32_MAX;
-        FixedRingBuffer<u32, capacity> free_indices = {};
+        static constexpr IndexType INVALID_FREE_INDEX = capacity;
+        FixedRingBuffer<IndexType, capacity> free_indices = {};
         FixedRingBuffer<Node, capacity> in_flight = {};
     };
 
@@ -55,7 +55,7 @@ namespace zec::gfx::dx12
         FixedArray<ID3D12GraphicsCommandList*, 128> cmd_lists = {};
         FixedRingBuffer<u8, 128> free_cmd_list_indices = {};
         FixedArray<ID3D12CommandAllocator*, 128> allocators = {};
-        AsyncFreeList<128> allocators_free_list = {};
+        AsyncFreeList<u16, 128> allocators_free_list = {};
 
         void initialize(CommandQueueType queue_type, ID3D12Device* device);
         void destroy();
@@ -86,6 +86,7 @@ namespace zec::gfx::dx12
         {
             queue->ExecuteCommandLists(num_command_lists, reinterpret_cast<ID3D12CommandList**>(command_lists));
             signal(fence, queue, ++last_used_fence_value);
+            return last_used_fence_value;
         };
 
         void flush()

@@ -16,7 +16,6 @@ namespace zec
                 .type = BufferType::DEFAULT,
                 .byte_size = sizeof(ViewConstantData),
                 .stride = 0,
-                .data = nullptr,
             };
             BufferHandle buffer_handle = gfx::buffers::create(buffer_desc);
 

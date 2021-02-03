@@ -62,8 +62,9 @@ protected:
             pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
         }
 
-        gfx::begin_upload();
         // Create the vertex buffer.
+        CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::COPY);
+
         {
             // Define the geometry for a triangle.
             constexpr float cube_positions[] = {
@@ -108,26 +109,27 @@ protected:
             mesh_desc.index_buffer_desc.type = BufferType::DEFAULT;
             mesh_desc.index_buffer_desc.byte_size = sizeof(cube_indices);
             mesh_desc.index_buffer_desc.stride = sizeof(cube_indices[0]);
-            mesh_desc.index_buffer_desc.data = (void*)cube_indices;
+            mesh_desc.index_buffer_data = cube_indices;
 
             mesh_desc.vertex_buffer_descs[0] = {
                     RESOURCE_USAGE_VERTEX,
                     BufferType::DEFAULT,
                     sizeof(cube_positions),
-                    3 * sizeof(cube_positions[0]),
-                    (void*)(cube_positions)
+                    3 * sizeof(cube_positions[0])
             };
+            mesh_desc.vertex_buffer_data[0] = cube_positions;
             mesh_desc.vertex_buffer_descs[1] = {
                RESOURCE_USAGE_VERTEX,
                BufferType::DEFAULT,
                sizeof(cube_colors),
-               sizeof(cube_colors[0]),
-               (void*)(cube_colors)
+               sizeof(cube_colors[0])
             };
+            mesh_desc.vertex_buffer_data[1] = cube_colors;
 
-            cube_mesh = gfx::meshes::create(mesh_desc);
+            cube_mesh = gfx::meshes::create(cmd_ctx, mesh_desc);
+
         }
-        gfx::end_upload();
+        CmdReceipt receipt = gfx::cmd::return_and_execute(&cmd_ctx, 1);
 
         mesh_transform.model_transform = identity_mat4();
         mesh_transform.view_transform = look_at({ 0.0f, 0.0f, -2.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
@@ -143,13 +145,15 @@ protected:
         {
             BufferDesc cb_desc = {};
             cb_desc.byte_size = sizeof(DrawData);
-            cb_desc.data = &mesh_transform;
             cb_desc.stride = 0;
             cb_desc.type = BufferType::DEFAULT;
             cb_desc.usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC;
 
             cb_handle = gfx::buffers::create(cb_desc);
+            gfx::buffers::set_data(cb_handle, &mesh_transform, sizeof(DrawData));
         }
+
+        gfx::cmd::cpu_wait(receipt);
     }
 
     void shutdown() override final
@@ -157,7 +161,9 @@ protected:
 
     void update(const zec::TimeData& time_data) override final
     {
-        frame_times[gfx::get_current_cpu_frame() % 120] = time_data.delta_milliseconds_f;
+        static size_t frame_idx = 0;
+        frame_times[frame_idx % 120] = time_data.delta_milliseconds_f;
+        frame_idx++;
 
         quaternion q = from_axis_angle(vec3{ 0.0f, 1.0f, -1.0f }, time_data.delta_seconds_f);
         rotate(mesh_transform.model_transform, q);
@@ -195,14 +201,14 @@ protected:
         TextureHandle render_target = gfx::get_current_back_buffer_handle();
         gfx::cmd::clear_render_target(command_ctx, render_target, clear_color);
 
-        gfx::cmd::set_active_resource_layout(command_ctx, resource_layout);
-        gfx::cmd::set_pipeline_state(command_ctx, pso_handle);
-        gfx::cmd::bind_constant_buffer(command_ctx, cb_handle, 0);
+        gfx::cmd::graphics::set_active_resource_layout(command_ctx, resource_layout);
+        gfx::cmd::graphics::set_pipeline_state(command_ctx, pso_handle);
+        gfx::cmd::graphics::bind_constant_buffer(command_ctx, cb_handle, 0);
         gfx::cmd::set_viewports(command_ctx, &viewport, 1);
         gfx::cmd::set_scissors(command_ctx, &scissor, 1);
 
         gfx::cmd::set_render_targets(command_ctx, &render_target, 1);
-        gfx::cmd::draw_mesh(command_ctx, cube_mesh);
+        gfx::cmd::graphics::draw_mesh(command_ctx, cube_mesh);
 
         ui::end_frame(command_ctx);
         gfx::end_frame(command_ctx);

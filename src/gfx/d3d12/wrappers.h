@@ -56,7 +56,7 @@ namespace zec::gfx::dx12
 
     };
 
-    void destroy(SwapChain& swap_chain)
+    inline void destroy(SwapChain& swap_chain)
     {
         if (swap_chain.swap_chain != nullptr) {
             swap_chain.swap_chain->Release();
@@ -74,6 +74,9 @@ namespace zec::gfx::dx12
         ID3D12Fence* d3d_fence = nullptr;
         HANDLE fence_event = INVALID_HANDLE_VALUE;
     };
+
+
+    Fence create_fence(ID3D12Device* device, const u64 initial_value);
 
     inline u64 get_completed_value(Fence& fence)
     {

@@ -133,7 +133,7 @@ namespace zec
         }
 
 
-        void process_textures(const tinygltf::Model& model, const std::string& gltf_file, Context& out_context)
+        void process_textures(const tinygltf::Model& model, CommandContextHandle cmd_ctx, const std::string& gltf_file, Context& out_context)
         {
             const std::filesystem::path file_path{ gltf_file };
             const std::filesystem::path folder_path = file_path.parent_path();
@@ -145,15 +145,17 @@ namespace zec
                 const auto& image = model.images[texture.source];
                 std::filesystem::path image_path = folder_path / std::filesystem::path{ image.uri };
 
-                const TextureHandle texture = gfx::textures::load_from_file(image_path.string().c_str());
+                const TextureHandle texture = gfx::textures::create_from_file(cmd_ctx, image_path.string().c_str());
                 out_context.textures.push_back(texture);
 
                 // TODO: Process Samplers?
             }
+
         }
 
-        void process_primitives(const tinygltf::Model& model, Array<MeshArrayView>& mesh_to_mesh_mapping, Context& out_context)
+        void process_primitives(const tinygltf::Model& model, CommandContextHandle cmd_ctx, Array<MeshArrayView>& mesh_to_mesh_mapping, Context& out_context)
         {
+
             for (size_t their_mesh_idx = 0; their_mesh_idx < model.meshes.size(); ++their_mesh_idx) {
                 const auto& mesh = model.meshes[their_mesh_idx];
                 // New entry for each gltf mesh
@@ -177,8 +179,8 @@ namespace zec
                             .type = BufferType::DEFAULT,
                             .byte_size = u32(buffer_view.byteLength),
                             .stride = u32(accessor.ByteStride(buffer_view)),
-                            .data = (void*)(&buffer.data.at(offset)),
                         };
+                        mesh_desc.index_buffer_data = (void*)(&buffer.data.at(offset));
                     }
 
                     const auto& attributes = primitive.attributes;
@@ -223,12 +225,12 @@ namespace zec
                             .type = BufferType::DEFAULT,
                             .byte_size = u32(buffer_view.byteLength),
                             .stride = u32(accessor.ByteStride(buffer_view)),
-                            .data = (void*)(&buffer.data.at(offset)),
                         };
+                        mesh_desc.vertex_buffer_data[i] = (void*)(&buffer.data.at(offset));
                     }
 
                     // Create mesh
-                    out_context.meshes.push_back(gfx::meshes::create(mesh_desc));
+                    out_context.meshes.push_back(gfx::meshes::create(cmd_ctx, mesh_desc));
                 }
             }
         }
@@ -339,7 +341,7 @@ namespace zec
             }
         }
 
-        void load_gltf_file(const std::string& gltf_file, Context& out_context, bool is_binary)
+        void load_gltf_file(const std::string& gltf_file, CommandContextHandle cmd_ctx, Context& out_context, bool is_binary)
         {
             tinygltf::TinyGLTF loader;
             loader.SetImageLoader(loadImageDataCallback, nullptr);
@@ -380,11 +382,11 @@ namespace zec
             // todo: Mark Joint Nodes?
 
             // Process Textures
-            process_textures(model, gltf_file, out_context);
+            process_textures(model, cmd_ctx, gltf_file, out_context);
 
             // Process Primitives
             Array<MeshArrayView> mesh_to_mesh_mapping = {};
-            process_primitives(model, mesh_to_mesh_mapping, out_context);
+            process_primitives(model, cmd_ctx, mesh_to_mesh_mapping, out_context);
 
             // Process Materials
             process_materials(model, node_processing_list, out_context);

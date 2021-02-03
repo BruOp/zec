@@ -47,10 +47,10 @@ namespace zec::gfx::dx12
         return size_t(cmd_utils::get_command_queue_type(handle));
     }
 
-    void CommandContextPool::initialize(CommandQueueType type_, ID3D12Device* device)
+    void CommandContextPool::initialize(CommandQueueType type, ID3D12Device* device)
     {
-        queue_type = type_;
-        device = device;
+        this->queue_type = type;
+        this->device = device;
     }
 
     void CommandContextPool::destroy()
@@ -76,7 +76,7 @@ namespace zec::gfx::dx12
             // No free index
 
             // Create and push into our list
-            ASSERT(allocators.size < UINT16_MAX);
+            ASSERT(allocators.size < allocators.capacity);
             DXCall(device->CreateCommandAllocator(to_d3d_queue_type(queue_type), IID_PPV_ARGS(&cmd_allocator)
             ));
             allocator_idx = u16(allocators.push_back(cmd_allocator));
@@ -103,7 +103,7 @@ namespace zec::gfx::dx12
             cmd_list->Reset(cmd_allocator, nullptr);
         }
 
-        encode_command_context_handle(queue_type, allocator_idx, cmd_list_idx);
+        return encode_command_context_handle(queue_type, allocator_idx, cmd_list_idx);
     }
 
     void CommandContextPool::return_to_pool(const u64 fence_value, CommandContextHandle& handle)
@@ -127,6 +127,9 @@ namespace zec::gfx::dx12
 
     void CommandQueue::initialize(CommandQueueType type_, ID3D12Device* device)
     {
+        ASSERT(fence.d3d_fence == nullptr);
+        ASSERT(queue == nullptr);
+
         type = type_;
         D3D12_COMMAND_QUEUE_DESC queue_desc{
             .Type = to_d3d_queue_type(type),
@@ -146,6 +149,8 @@ namespace zec::gfx::dx12
             queue->SetName(L"Copy Queue");
             break;
         }
+
+        fence = create_fence(device, 0);
     };
 
     void CommandQueue::destroy()

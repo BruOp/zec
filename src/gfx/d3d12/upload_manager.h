@@ -1,76 +1,73 @@
-//#pragma once
-//#include "pch.h"
-//#include "core/ring_buffer.h"
-//#include "gfx/constants.h"
-//#include "gfx/public_resources.h"
-//#include "wrappers.h"
-//#include "textures.h"
-//#include "buffers.h"
-//
-//
-//namespace DirectX
-//{
-//    class ScratchImage;
-//}
-//
-//namespace zec::gfx::dx12
-//{
-//    struct UploadManagerDesc
-//    {
-//        CommandQueueType type;
-//        ID3D12Device* device;
-//        D3D12MA::Allocator* allocator;
-//    };
-//
-//    struct TextureUploadDesc
-//    {
-//        DirectX::ScratchImage* data = nullptr;
-//        D3D12_RESOURCE_DESC d3d_texture_desc = {};
-//        u64 num_subresources = 0;
-//        bool is_cube_map = false;
-//    };
-//
-//    class UploadManager
-//    {
-//        struct UploadBatchInfo
-//        {
-//            u64 fence_value;
-//            u64 size;
-//        };
-//
-//        struct Upload
-//        {
-//            ID3D12Resource* resource = nullptr;
-//            D3D12MA::Allocation* allocation = nullptr;
-//        };
-//
-//    public:
-//        UploadManager() = default;
-//        ~UploadManager();
-//
-//        void init(const UploadManagerDesc& desc);
-//        void destroy();
-//
-//        void begin_upload();
-//        CmdReceipt end_upload();
-//
-//        void queue_upload(const BufferDesc& buffer_desc, ID3D12Resource* destination_resource);
-//        void queue_upload(const TextureUploadDesc& texture_upload_desc, Texture& texture);
-//
-//    private:
-//
-//        CommandQueueType type = CommandQueueType::COPY;
-//        // Non-owning
-//        ID3D12Device* device;
-//        D3D12MA::Allocator* allocator;
-//
-//        CommandContextHandle cmd_ctx = {};
-//
-//        // Owned
-//        u64 num_pending_resources;
-//
-//        static constexpr u64 MAX_IN_FLIGHT_UPLOAD_BATCHES = 8; // Totally arbitrary
-//        RingBuffer<Upload> upload_queue = {};
-//        FixedRingBuffer<UploadBatchInfo, MAX_IN_FLIGHT_UPLOAD_BATCHES> upload_batch_info = {};
-//    };
-//}
+#pragma once
+#include "pch.h"
+#include "core/ring_buffer.h"
+#include "gfx/public_resources.h"
+
+namespace D3D12MA
+{
+    class Allocation;
+}
+
+namespace DirectX
+{
+    class ScratchImage;
+}
+
+namespace std
+{
+    template<>
+    struct hash<zec::CommandContextHandle>
+    {
+        size_t operator()(const zec::CommandContextHandle& handle) const noexcept
+        {
+            return size_t(handle.idx);
+        }
+    };
+
+}
+
+namespace zec::gfx::dx12
+{
+    class UploadContextStore
+    {
+
+    public:
+        struct Upload
+        {
+            ID3D12Resource* resource = nullptr;
+            D3D12MA::Allocation* allocation = nullptr;
+        };
+
+        UploadContextStore() = default;
+        ~UploadContextStore()
+        {
+            ASSERT(upload_contexts.size() == 0);
+        };
+
+        // Only call after a flush
+        void destroy();
+
+        inline void push(const CommandContextHandle handle, ID3D12Resource* resource, D3D12MA::Allocation* allocation)
+        {
+            upload_contexts[handle].push_back({ resource, allocation });
+        };
+
+        inline bool has_staged_uploads(const CommandContextHandle cmd_ctx) const
+        {
+            return upload_contexts.contains(cmd_ctx);
+        }
+
+        inline Array<Upload>* get_staged_uploads(const CommandContextHandle cmd_ctx)
+        {
+            return &upload_contexts[cmd_ctx];
+        }
+
+        void clear_staged_uploads(const CommandContextHandle handle)
+        {
+            upload_contexts.erase(handle);
+        };
+
+    private:
+        std::unordered_map<CommandContextHandle, Array<Upload>> upload_contexts;
+    };
+}

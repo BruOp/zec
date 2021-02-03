@@ -292,7 +292,6 @@ namespace zec
         BufferType type = BufferType::DEFAULT;
         u32 byte_size = 0;
         u32 stride = 0;
-        const void* data = nullptr;
     };
 
     struct InputAssemblyDesc
@@ -313,11 +312,12 @@ namespace zec
     {
         BufferDesc index_buffer_desc;
         BufferDesc vertex_buffer_descs[MAX_NUM_MESH_VERTEX_BUFFERS];
+        void const* index_buffer_data = nullptr;
+        void const* vertex_buffer_data[MAX_NUM_MESH_VERTEX_BUFFERS] = { nullptr };
     };
 
     struct TextureDesc
     {
-        void* data = nullptr;
         u32 width = 0;
         u32 height = 0;
         u32 depth = 0;

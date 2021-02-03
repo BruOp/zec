@@ -397,9 +397,10 @@ namespace zec::gfx::dx12
         case RESOURCE_USAGE_PRESENT:
             return D3D12_RESOURCE_STATE_PRESENT;
         case RESOURCE_USAGE_DYNAMIC:
+            return D3D12_RESOURCE_STATE_COMMON;
         case RESOURCE_USAGE_UNUSED:
         default:
-            throw std::runtime_error("Cannot do anything with UNUSED or DYNAMIC you dullard.");
+            throw std::runtime_error("Cannot do anything with UNUSED you dullard.");
         }
     }
 

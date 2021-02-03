@@ -145,7 +145,7 @@ namespace clustered
             };
 
             ResourceLayoutHandle resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
-
+            gfx::set_debug_name(resource_layout, L"Forward Pass Layout");
             // Create the Pipeline State Object
             PipelineStateObjectDesc pipeline_desc = {};
             pipeline_desc.input_assembly_desc = {};
@@ -160,7 +160,7 @@ namespace clustered
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
             PipelineStateHandle pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
-            gfx::pipelines::set_debug_name(pso, L"Forward Pipeline");
+            gfx::set_debug_name(pso, L"Forward Pass Pipeline");
 
             return new InternalState{ .resource_layout = resource_layout, .pso = pso };
         };
@@ -182,8 +182,8 @@ namespace clustered
             Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
             Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-            gfx::cmd::set_active_resource_layout(cmd_ctx, pass_state->resource_layout);
-            gfx::cmd::set_pipeline_state(cmd_ctx, pass_state->pso);
+            gfx::cmd::graphics::set_active_resource_layout(cmd_ctx, pass_state->resource_layout);
+            gfx::cmd::graphics::set_pipeline_state(cmd_ctx, pass_state->pso);
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
@@ -192,19 +192,19 @@ namespace clustered
             gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1, depth_target);
 
             const BufferHandle view_cb_handle = pass_context->view_cb_handle;
-            gfx::cmd::bind_constant_buffer(cmd_ctx, pass_context->view_cb_handle, 2);
-            gfx::cmd::bind_resource_table(cmd_ctx, 3);
-            gfx::cmd::bind_resource_table(cmd_ctx, 4);
-            gfx::cmd::bind_resource_table(cmd_ctx, 5);
+            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_context->view_cb_handle, 2);
+            gfx::cmd::graphics::bind_resource_table(cmd_ctx, 3);
+            gfx::cmd::graphics::bind_resource_table(cmd_ctx, 4);
+            gfx::cmd::graphics::bind_resource_table(cmd_ctx, 5);
 
             const auto* scene_data = pass_context->scene_render_data;
             u32 vs_cb_idx = gfx::buffers::get_shader_readable_index(scene_data->per_entity_data_buffers.vs_buffer);
-            gfx::cmd::bind_constant(cmd_ctx, &vs_cb_idx, 1, 1);
+            gfx::cmd::graphics::bind_constants(cmd_ctx, &vs_cb_idx, 1, 1);
 
             for (u32 i = 0; i < scene_data->num_entities; i++) {
-                gfx::cmd::bind_constant(cmd_ctx, &i, 1, 0);
+                gfx::cmd::graphics::bind_constants(cmd_ctx, &i, 1, 0);
 
-                gfx::cmd::draw_mesh(cmd_ctx, scene_data->index_buffers[i]);
+                gfx::cmd::graphics::draw_mesh(cmd_ctx, scene_data->index_buffers[i]);
             }
         };
 
@@ -284,8 +284,6 @@ namespace clustered
             camera_controller.init();
             camera_controller.set_camera(&camera);
 
-            gfx::begin_upload();
-
             constexpr float fullscreen_positions[] = {
                  1.0f,  3.0f, 1.0f,
                  1.0f, -1.0f, 1.0f,
@@ -300,57 +298,71 @@ namespace clustered
 
             constexpr u16 fullscreen_indices[] = { 0, 1, 2 };
 
-            MeshDesc fullscreen_desc{};
-            fullscreen_desc.index_buffer_desc.usage = RESOURCE_USAGE_INDEX;
-            fullscreen_desc.index_buffer_desc.type = BufferType::DEFAULT;
-            fullscreen_desc.index_buffer_desc.byte_size = sizeof(fullscreen_indices);
-            fullscreen_desc.index_buffer_desc.stride = sizeof(fullscreen_indices[0]);
-            fullscreen_desc.index_buffer_desc.data = (void*)fullscreen_indices;
-
             view_cb_handle = gfx::buffers::create({
                 .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
                 .type = BufferType::DEFAULT,
                 .byte_size = sizeof(ViewConstantData),
-                .stride = 0,
-                .data = nullptr });
+                .stride = 0 });
+            gfx::set_debug_name(view_cb_handle, L"View Constant Buffer");
 
-            fullscreen_desc.vertex_buffer_descs[0] = {
+            /*MeshDesc fullscreen_desc{};
+            fullscreen_desc.index_buffer_desc.usage = RESOURCE_USAGE_INDEX;
+            fullscreen_desc.index_buffer_desc.type = BufferType::DEFAULT;
+            fullscreen_desc.index_buffer_desc.byte_size = sizeof(fullscreen_indices);
+            fullscreen_desc.index_buffer_desc.stride = sizeof(fullscreen_indices[0]);
+            fullscreen_desc.index_buffer_data = fullscreen_indices;*/
+
+
+            /*fullscreen_desc.vertex_buffer_descs[0] = {
                 .usage = RESOURCE_USAGE_VERTEX,
                 .type = BufferType::DEFAULT,
                 .byte_size = sizeof(fullscreen_positions),
-                .stride = 3 * sizeof(fullscreen_positions[0]),
-                .data = (void*)(fullscreen_positions)
-            };
+                .stride = 3 * sizeof(fullscreen_positions[0]) };
+            fullscreen_desc.vertex_buffer_data[0] = fullscreen_positions;
+
+
             fullscreen_desc.vertex_buffer_descs[1] = {
                .usage = RESOURCE_USAGE_VERTEX,
                .type = BufferType::DEFAULT,
                .byte_size = sizeof(fullscreen_uvs),
-               .stride = 2 * sizeof(fullscreen_uvs[0]),
-               .data = (void*)(fullscreen_uvs)
+               .stride = 2 * sizeof(fullscreen_uvs[0])
             };
+            fullscreen_desc.vertex_buffer_data[1] = fullscreen_uvs;*/
 
-            fullscreen_mesh = gfx::meshes::create(fullscreen_desc);
+            CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
+
+            //fullscreen_mesh = gfx::meshes::create(copy_ctx, fullscreen_desc);
 
             BufferHandle cube_index_buffer = gfx::buffers::create({
                 .usage = RESOURCE_USAGE_INDEX,
                 .type = BufferType::DEFAULT,
                 .byte_size = sizeof(geometry::k_cube_indices),
-                .stride = sizeof(geometry::k_cube_indices[0]),
-                .data = geometry::k_cube_indices });
+                .stride = sizeof(geometry::k_cube_indices[0])
+                });
+            gfx::set_debug_name(cube_index_buffer, L"Cube Index Buffer");
+            gfx::buffers::set_data(copy_ctx, cube_index_buffer, geometry::k_cube_indices, sizeof(geometry::k_cube_indices));
+
             BufferHandle cube_vertex_positions_buffer = gfx::buffers::create({
                 .usage = RESOURCE_USAGE_SHADER_READABLE,
                 .type = BufferType::STRUCTURED,
                 .byte_size = sizeof(geometry::k_cube_positions),
-                .stride = 3 * sizeof(geometry::k_cube_positions[0]),
-                .data = geometry::k_cube_positions });
+                .stride = 3 * sizeof(geometry::k_cube_positions[0])
+                });
+            gfx::set_debug_name(cube_vertex_positions_buffer, L"Cube Vertex Positions Buffer");
+            gfx::buffers::set_data(copy_ctx, cube_vertex_positions_buffer, geometry::k_cube_positions, sizeof(geometry::k_cube_positions));
+
             BufferHandle cube_vertex_uvs_buffer = gfx::buffers::create({
                 .usage = RESOURCE_USAGE_SHADER_READABLE,
                 .type = BufferType::STRUCTURED,
                 .byte_size = sizeof(geometry::k_cube_uvs),
-                .stride = 2 * sizeof(geometry::k_cube_uvs[0]),
-                .data = geometry::k_cube_uvs });
+                .stride = 2 * sizeof(geometry::k_cube_uvs[0])
+                });
+            gfx::set_debug_name(cube_vertex_uvs_buffer, L"Cube Vertex UVs Buffer");
+            gfx::buffers::set_data(copy_ctx, cube_vertex_uvs_buffer, geometry::k_cube_uvs, sizeof(geometry::k_cube_uvs));
 
             create_per_entity_data_buffers(scene_render_data.per_entity_data_buffers);
+
+            CmdReceipt receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
 
             constexpr size_t num_objects = 10;
             scene_render_data.num_entities = num_objects;
@@ -379,7 +391,6 @@ namespace clustered
             render_pass_system::compile_render_list(render_list, render_list_desc);
             render_pass_system::setup(render_list);
 
-            CmdReceipt receipt = gfx::end_upload();
             gfx::cmd::cpu_wait(receipt);
 
         }

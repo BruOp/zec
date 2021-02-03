@@ -29,6 +29,23 @@ namespace zec::gfx::dx12
         u32 per_frame_size = 0;
         u32 stride = 0;
         u32 cpu_accessible = 0;
+
+        void* get_cpu_address(const u64 current_frame_idx)
+        {
+            ASSERT(current_frame_idx < RENDER_LATENCY);
+            return static_cast<u8*>(cpu_address) + (per_frame_size * current_frame_idx);
+        };
+        const void* get_cpu_address(const u64 current_frame_idx) const
+        {
+            ASSERT(current_frame_idx < RENDER_LATENCY);
+            return static_cast<u8*>(cpu_address) + (per_frame_size * current_frame_idx);
+        };
+
+        u64 get_gpu_address(const u64 current_frame_idx) const
+        {
+            ASSERT(current_frame_idx < RENDER_LATENCY);
+            return gpu_address + (per_frame_size * current_frame_idx);
+        };
     };
 
     struct Buffer
@@ -50,6 +67,8 @@ namespace zec::gfx::dx12
             ASSERT(allocations.size == 0);
         }
 
+        void destroy(void (*resource_destruction_callback)(ID3D12Resource*, D3D12MA::Allocation*), void(*descriptor_destruction_callback)(D3D12_DESCRIPTOR_HEAP_TYPE, DescriptorRangeHandle));
+
         BufferHandle push_back(const Buffer& buffer);
 
         // Getters
@@ -66,18 +85,4 @@ namespace zec::gfx::dx12
         ResourceArray<DescriptorRangeHandle, BufferHandle> uavs = {};
     };
 
-    namespace buffer_utils
-    {
-        void* get_cpu_address(const BufferInfo& buffer_info, const u64 current_frame_idx)
-        {
-            ASSERT(current_frame_idx < RENDER_LATENCY);
-            return static_cast<u8*>(buffer_info.cpu_address) + (buffer_info.per_frame_size * current_frame_idx);
-        };
-
-        u64 get_gpu_address(const BufferInfo& buffer_info, const u64 current_frame_idx)
-        {
-            ASSERT(current_frame_idx < RENDER_LATENCY);
-            return buffer_info.gpu_address + (buffer_info.per_frame_size * current_frame_idx);
-        };
-    }
 }

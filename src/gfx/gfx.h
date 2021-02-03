@@ -15,7 +15,7 @@ namespace zec::gfx
     void flush_gpu();
 
     CommandContextHandle begin_frame();
-    void end_frame(const CommandContextHandle command_context);
+    void end_frame(CommandContextHandle command_context);
 
     void reset_for_frame();
     CmdReceipt present_frame();
@@ -30,12 +30,6 @@ namespace zec::gfx
         PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
     }
 
-    namespace upload
-    {
-        UploadContextHandle begin();
-        CmdReceipt end(const UploadContextHandle upload_context);
-    }
-
     namespace buffers
     {
         BufferHandle create(BufferDesc buffer_desc);
@@ -43,12 +37,16 @@ namespace zec::gfx
         u32 get_shader_readable_index(const BufferHandle handle);
         u32 get_shader_writable_index(const BufferHandle handle);
 
+        void set_data(const BufferHandle handle, const void* data, const u64 data_byte_size);
+        void set_data(CommandContextHandle cmd_ctx, const BufferHandle handle, const void* data, const u64 data_byte_size);
+
         void update(const BufferHandle buffer_id, const void* data, u64 byte_size);
     }
 
     namespace meshes
     {
-        MeshHandle create(MeshDesc mesh_desc);
+        MeshHandle create(const BufferHandle index_buffer, const BufferHandle* vertex_buffers, u32 num_vertex_buffers);
+        MeshHandle create(CommandContextHandle cmd_ctx, MeshDesc mesh_desc);
     }
 
     namespace textures
@@ -60,9 +58,8 @@ namespace zec::gfx
 
         const TextureInfo& get_texture_info(const TextureHandle texture_handle);
 
-        TextureHandle load_from_file(const char* file_path, const bool force_srgb = false);
-        void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);
-
+        TextureHandle create_from_file(CommandContextHandle cmd_ctx, const char* file_path);
+        /*void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);*/
     }
 
     namespace cmd
@@ -70,7 +67,7 @@ namespace zec::gfx
         // ---------- Command Contexts ----------
         CommandContextHandle provision(CommandQueueType type);
 
-        CmdReceipt return_and_execute(const CommandContextHandle context_handles[], const size_t num_contexts);
+        CmdReceipt return_and_execute(CommandContextHandle* context_handles, const size_t num_contexts);
 
         bool check_status(const CmdReceipt receipt);
 
@@ -79,7 +76,6 @@ namespace zec::gfx
         void cpu_wait(const CmdReceipt receipt);
 
         void gpu_wait(const CommandQueueType queue_to_insert_wait, const CmdReceipt receipt_to_wait_on);
-
 
         namespace graphics
         {
@@ -90,7 +86,7 @@ namespace zec::gfx
 
             void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
 
-            void bind_constant(const CommandContextHandle ctx, const void* data, const u64 num_constants, const u32 binding_slot);
+            void bind_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot);
 
             void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
 
@@ -108,7 +104,7 @@ namespace zec::gfx
 
             void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
 
-            void bind_constant(const CommandContextHandle ctx, const void* data, const u64 num_constants, const u32 binding_slot);
+            void bind_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot);
 
             void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, const u32 binding_slot);
 

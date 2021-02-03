@@ -6,7 +6,12 @@
 
 #include "shader_utils.h"
 #include "render_context.h"
+#include "upload_manager.h"
+#include "meshes.h"
+
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
+#include "DirectXTex.h"
+#include <filesystem>
 
 #if _DEBUG
 #define USE_DEBUG_DEVICE 1
@@ -28,13 +33,9 @@ namespace zec::gfx
             return pool.get_graphics_command_list(cmd_ctx);
         };
 
-        Fence create_fence(const u64 initial_value)
+        RenderContext& get_render_context()
         {
-            Fence fence;
-            DXCall(g_context.device->CreateFence(initial_value, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence.d3d_fence)));
-            fence.fence_event = CreateEventEx(nullptr, FALSE, FALSE, EVENT_ALL_ACCESS);
-            ASSERT(fence.fence_event != 0);
-            return fence;
+            return g_context;
         }
 
         static void set_formats(SwapChain& swap_chain, const DXGI_FORMAT format)
@@ -61,14 +62,14 @@ namespace zec::gfx
                 g_context.textures.resources[texture_handle] = nullptr;
 
                 const auto rtv_handle = g_context.textures.rtvs[texture_handle];
-                auto& descriptor_heap = g_context.descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_RTV];
-                descriptor_utils::free_descriptors(descriptor_heap, rtv_handle);
+                auto& descriptor_heap = g_context.descriptor_heaps[HeapTypes::RTV];
+                descriptor_heap.free_descriptors(rtv_handle);
 
                 DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&resource)));
                 g_context.textures.resources[texture_handle] = resource;
 
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle{};
-                DescriptorRangeHandle rtv = descriptor_utils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, &cpu_handle);
+                DescriptorRangeHandle rtv = descriptor_heap.allocate_descriptors(1, &cpu_handle);
                 g_context.textures.rtvs[texture_handle] = rtv;
 
                 D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = { };
@@ -110,9 +111,9 @@ namespace zec::gfx
                 if (resource != nullptr) resource->Release();
                 g_context.textures.resources[texture_handle] = nullptr;
                 // Free descriptors
-                DescriptorHeap& descriptor_heap = g_context.descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_RTV];
+                DescriptorHeap& descriptor_heap = g_context.descriptor_heaps[HeapTypes::RTV];
                 const auto rtv_handle = g_context.textures.rtvs[texture_handle];
-                descriptor_utils::free_descriptors(descriptor_heap, rtv_handle);
+                descriptor_heap.free_descriptors(rtv_handle);
                 g_context.textures.rtvs[texture_handle] = INVALID_HANDLE;
             }
 
@@ -282,8 +283,6 @@ namespace zec::gfx
 
                 // Initialize Pool
 
-                Fence fence = create_fence(0);
-
                 g_context.command_pools[queue_type].initialize(queue_type, g_context.device);
 
             }
@@ -296,15 +295,15 @@ namespace zec::gfx
             constexpr DescriptorHeapDesc descs[] = {
                 {
                 .size = DescriptorHeapDesc::MAX_SIZE,
-                .type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV
+                .type = HeapTypes::SRV,
                 },
                 {
                 .size = 128,
-                .type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV
+                .type = HeapTypes::RTV,
                 },
                 {
                 .size = 128,
-                .type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV
+                .type = HeapTypes::DSV
                 },
                 {
                 .size = 128,
@@ -316,8 +315,7 @@ namespace zec::gfx
                 DescriptorHeap& heap = g_context.descriptor_heaps[u64(desc.type)];
                 heap.num_allocated = 0;
                 heap.capacity = desc.size;
-                heap.is_shader_visible = desc.type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-
+                heap.is_shader_visible = desc.type == HeapTypes::SRV;
                 u32 total_num_descriptors = heap.capacity;
                 D3D12_DESCRIPTOR_HEAP_DESC d3d_desc{ };
                 d3d_desc.NumDescriptors = total_num_descriptors;
@@ -396,7 +394,7 @@ namespace zec::gfx
 
             recreate_swap_chain_rtv_descriptors(g_context.swap_chain);
         }
-        g_context.frame_fence = create_fence(0);
+        g_context.frame_fence = create_fence(g_context.device, 0);
     };
 
     void destroy_renderer()
@@ -404,53 +402,40 @@ namespace zec::gfx
         // Chain Destruction
         destroy(g_context.swap_chain);
 
-        destroy(g_context.destruction_queue, g_context.current_frame_idx, g_context.root_signatures);
-        destroy(g_context.destruction_queue, g_context.current_frame_idx, g_context.pipelines);
+        for (ID3D12RootSignature* root_signature : g_context.root_signatures) {
+            root_signature->Release();
+        }
+        g_context.root_signatures.ptrs.empty();
 
-        /*upload_manager.destroy();*/
+        for (ID3D12PipelineState* pipeline : g_context.pipelines) {
+            pipeline->Release();
+        }
+        g_context.pipelines.ptrs.empty();
+
+        g_context.upload_store.destroy();
 
         // Destroy textures
         {
-            descriptor_utils::free_descriptors(
-                g_context.descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV],
-                g_context.textures.srvs
-            );
-            descriptor_utils::free_descriptors(
-                g_context.descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV],
-                g_context.textures.uavs
-            );
-            descriptor_utils::free_descriptors(
-                g_context.descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_RTV],
-                g_context.textures.rtvs
-            );
-            descriptor_utils::free_descriptors(
-                g_context.descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_DSV],
-                g_context.textures.rtvs
-            );
-
-            destroy_resources(
-                g_context.destruction_queue,
-                g_context.current_frame_idx,
-                g_context.textures
-            );
+            g_context.textures.destroy(
+                [](ID3D12Resource* resource, D3D12MA::Allocation* allocation) {
+                    resource->Release();
+                    if (allocation) allocation->Release();
+                },
+                [](D3D12_DESCRIPTOR_HEAP_TYPE heap_type, DescriptorRangeHandle handle) {
+                    g_context.descriptor_heaps[heap_type].free_descriptors(handle);
+                });
         }
 
         // Destroy Buffers
         {
-            descriptor_utils::free_descriptors(
-                g_context.descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV],
-                g_context.buffers.srvs
-            );
-            descriptor_utils::free_descriptors(
-                g_context.descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV],
-                g_context.buffers.uavs
-            );
-
-            destroy_resources(
-                g_context.destruction_queue,
-                g_context.current_frame_idx,
-                g_context.buffers
-            );
+            g_context.buffers.destroy(
+                [](ID3D12Resource* resource, D3D12MA::Allocation* allocation) {
+                    resource->Release();
+                    if (allocation) allocation->Release();
+                },
+                [](D3D12_DESCRIPTOR_HEAP_TYPE heap_type, DescriptorRangeHandle handle) {
+                    g_context.descriptor_heaps[heap_type].free_descriptors(handle);
+                });
         }
 
         destroy(g_context.destruction_queue, g_context.current_frame_idx, g_context.frame_fence);
@@ -469,7 +454,8 @@ namespace zec::gfx
             queue.destroy();
         }
 
-        flush_destruction_queue(g_context.destruction_queue);
+        g_context.destruction_queue.flush();
+        g_context.async_destruction_queue.flush();
         dx_destroy(&g_context.allocator);
 
     #ifdef USE_DEBUG_DEVICE 
@@ -498,9 +484,12 @@ namespace zec::gfx
 
     void flush_gpu()
     {
-        for (auto& queue : g_context.command_queues) {
+        for (size_t i = 0; i < size_t(CommandQueueType::NUM_COMMAND_CONTEXT_POOLS); i++) {
+            auto& queue = g_context.command_queues[i];
             queue.flush();
+            g_context.command_pools[i].reset(queue.last_used_fence_value);
         }
+
         u64 last_submitted_frame = g_context.current_cpu_frame - 1;
         if (last_submitted_frame > g_context.current_gpu_frame) {
             wait(g_context.frame_fence, last_submitted_frame);
@@ -508,13 +497,47 @@ namespace zec::gfx
         }
     }
 
-    CommandContextHandle begin_frame();
-    void end_frame(const CommandContextHandle command_context);
+    CommandContextHandle begin_frame()
+    {
+        CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::GRAPHICS);
+        const TextureHandle backbuffer = get_current_back_buffer_handle();
+
+        D3D12_RESOURCE_BARRIER barrier{  };
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = g_context.textures.resources[backbuffer];
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+        ID3D12GraphicsCommandList* cmd_list = get_command_list(cmd_ctx);
+        cmd_list->ResourceBarrier(1, &barrier);
+
+        return cmd_ctx;
+    };
+
+    void end_frame(CommandContextHandle cmd_ctx)
+    {
+        const TextureHandle backbuffer = get_current_back_buffer_handle();
+
+        D3D12_RESOURCE_BARRIER barrier{  };
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = g_context.textures.resources[backbuffer];
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+        ID3D12GraphicsCommandList* cmd_list = get_command_list(cmd_ctx);
+        cmd_list->ResourceBarrier(1, &barrier);
+
+        cmd::return_and_execute(&cmd_ctx, 1);
+    };
 
     void reset_for_frame()
     {
         g_context.current_frame_idx = g_context.swap_chain.swap_chain->GetCurrentBackBufferIndex();
-
+        u64 queue_completed_fence_values[size_t(CommandQueueType::NUM_COMMAND_CONTEXT_POOLS)] = { 0 };
         if (g_context.current_cpu_frame != 0) {
             // Wait for the GPU to catch up so we can freely reset our frame's command allocator
             const u64 gpu_lag = g_context.current_cpu_frame - g_context.current_gpu_frame;
@@ -528,14 +551,16 @@ namespace zec::gfx
             for (size_t i = 0; i < g_context.command_pools.size; i++) {
                 auto& queue = g_context.command_queues[i];
                 auto& command_pool = g_context.command_pools[i];
-                u64 completed_fence_value = get_completed_value(queue.fence);
-                command_pool.reset(completed_fence_value);
+                queue_completed_fence_values[i] = get_completed_value(queue.fence);
+                command_pool.reset(queue_completed_fence_values[i]);
             }
 
         }
 
         // Process resources queued for destruction
         process_destruction_queue(g_context.destruction_queue, g_context.current_frame_idx);
+
+        process_destruction_queue(g_context.async_destruction_queue, queue_completed_fence_values);
     }
 
     CmdReceipt present_frame()
@@ -845,12 +870,6 @@ namespace zec::gfx
         };
     }
 
-    /*namespace upload
-    {
-        UploadContextHandle begin();
-        CmdReceipt end(const UploadContextHandle upload_context);
-    }*/
-
     namespace buffers
     {
         BufferHandle create(BufferDesc desc)
@@ -862,7 +881,6 @@ namespace zec::gfx
             if (desc.usage & vertex_or_index) {
                 // ASSERT it's only one or the other
                 ASSERT((desc.usage & vertex_or_index) != vertex_or_index);
-                ASSERT(desc.data != nullptr);
             }
 
             // Calculate space
@@ -904,7 +922,7 @@ namespace zec::gfx
             D3D12_RESOURCE_STATES initial_resource_state = D3D12_RESOURCE_STATE_COMMON;
             if (is_cpu_accessible) {
                 heap_type = D3D12_HEAP_TYPE_UPLOAD;
-                initial_resource_state = D3D12_RESOURCE_STATE_COPY_DEST;
+                initial_resource_state = D3D12_RESOURCE_STATE_GENERIC_READ;
             }
 
             D3D12_RESOURCE_DESC resource_desc = CD3DX12_RESOURCE_DESC::Buffer(buffer.info.total_size);
@@ -929,7 +947,7 @@ namespace zec::gfx
             // Create the SRV
             if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                buffer.srv = descriptor_utils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, &cpu_handle);
+                buffer.srv = g_context.descriptor_heaps[HeapTypes::SRV].allocate_descriptors(1, &cpu_handle);
 
                 bool is_structered = desc.type == BufferType::STRUCTURED;
                 D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
@@ -953,26 +971,79 @@ namespace zec::gfx
             if (buffer.info.cpu_accessible) {
                 buffer.resource->Map(0, nullptr, &buffer.info.cpu_address);
             }
+
+            return g_context.buffers.push_back(buffer);
         };
 
         u32 get_shader_readable_index(const BufferHandle handle)
         {
             DescriptorRangeHandle descriptor = g_context.buffers.srvs[handle];
-            return descriptor_utils::get_offset(descriptor);
+            return descriptor.get_offset();
         };
         u32 get_shader_writable_index(const BufferHandle handle)
         {
             DescriptorRangeHandle descriptor = g_context.buffers.uavs[handle];
-            return descriptor_utils::get_offset(descriptor);
+            return descriptor.get_offset();
         };
+
+        void set_data(const BufferHandle handle, const void* data, const u64 data_byte_size)
+        {
+            ASSERT(data != nullptr);
+            const BufferInfo& buffer_info = g_context.buffers.infos[handle];
+
+            if (buffer_info.cpu_accessible) {
+                for (size_t i = 0; i < RENDER_LATENCY; i++) {
+                    buffers::update(handle, data, data_byte_size);
+                }
+                return;
+            }
+
+        };
+
+        void set_data(CommandContextHandle cmd_ctx, const BufferHandle handle, const void* data, const u64 data_byte_size)
+        {
+            ASSERT(data != nullptr);
+            ASSERT(is_valid(cmd_ctx));
+            ASSERT(cmd_utils::get_command_queue_type(cmd_ctx) != CommandQueueType::ASYNC_COMPUTE);
+
+            const BufferInfo& buffer_info = g_context.buffers.infos[handle];
+
+            // If it's not CPU accessible we'll have to create a new resource on the UPLOAD stack as a staging buffer
+            ID3D12Resource* destination_resource = g_context.buffers.resources[handle];
+
+            // Create upload resource and schedule copy
+            const u64 upload_buffer_size = GetRequiredIntermediateSize(destination_resource, 0, 1);
+            D3D12MA::Allocation* allocation = nullptr;
+            ID3D12Resource* staging_resource = nullptr;
+            D3D12MA::ALLOCATION_DESC upload_alloc_desc = {};
+            D3D12_RESOURCE_DESC buffer_desc = CD3DX12_RESOURCE_DESC::Buffer(upload_buffer_size);
+            upload_alloc_desc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
+            DXCall(g_context.allocator->CreateResource(
+                &upload_alloc_desc,
+                &buffer_desc,
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                NULL,
+                &allocation,
+                IID_PPV_ARGS(&staging_resource)
+            ));
+
+            void* mapped_ptr = nullptr;
+            DXCall(staging_resource->Map(0, NULL, &mapped_ptr));
+            memory::copy(mapped_ptr, data, data_byte_size);
+            staging_resource->Unmap(0, NULL);
+
+            get_command_list(cmd_ctx)->CopyBufferRegion(destination_resource, 0, staging_resource, 0, data_byte_size);
+            g_context.upload_store.push(cmd_ctx, staging_resource, allocation);
+        };
+
 
         void update(const BufferHandle buffer_handle, const void* data, u64 byte_size)
         {
             ASSERT(is_valid(buffer_handle));
-            const BufferInfo& buffer_info = g_context.buffers.infos[buffer_handle];
+            BufferInfo& buffer_info = g_context.buffers.infos[buffer_handle];
             ASSERT(buffer_info.cpu_accessible);
 
-            void* cpu_address = buffer_utils::get_cpu_address(buffer_info, g_context.current_frame_idx);
+            void* cpu_address = buffer_info.get_cpu_address(g_context.current_frame_idx);
 
             memory::copy(
                 cpu_address,
@@ -980,11 +1051,6 @@ namespace zec::gfx
                 byte_size
             );
         };
-    }
-
-    namespace meshes
-    {
-        MeshHandle create(MeshDesc mesh_desc);
     }
 
     namespace textures
@@ -1005,7 +1071,6 @@ namespace zec::gfx
 
             DXGI_FORMAT d3d_format = to_d3d_format(texture.info.format);
             D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
-            D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COMMON;
             ASSERT(desc.initial_state != RESOURCE_USAGE_UNUSED);
             ASSERT(desc.initial_state & desc.usage);
             // TODO: Is this needed?
@@ -1060,6 +1125,18 @@ namespace zec::gfx
                 .HeapType = D3D12_HEAP_TYPE_DEFAULT
             };
 
+            D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COMMON;
+            switch (desc.usage) {
+            case RESOURCE_USAGE_RENDER_TARGET:
+                initial_state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+                break;
+            case RESOURCE_USAGE_DEPTH_STENCIL:
+                initial_state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+                break;
+
+            }
+
+
             const bool depth_or_rt = bool(desc.usage & (RESOURCE_USAGE_DEPTH_STENCIL | RESOURCE_USAGE_RENDER_TARGET));
             DXCall(g_context.allocator->CreateResource(
                 &alloc_desc,
@@ -1074,7 +1151,7 @@ namespace zec::gfx
             if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
 
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                DescriptorRangeHandle srv = descriptor_utils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, &cpu_handle);
+                DescriptorRangeHandle srv = g_context.descriptor_heaps[HeapTypes::SRV].allocate_descriptors(1, &cpu_handle);
                 texture.srv = srv;
 
                 D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
@@ -1113,11 +1190,8 @@ namespace zec::gfx
                 constexpr u32 MAX_NUM_MIPS = 16;
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handles[MAX_NUM_MIPS] = {};
                 ASSERT(texture.info.num_mips < MAX_NUM_MIPS);
-                DescriptorRangeHandle uav = descriptor_utils::allocate_descriptors(
-                    D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-                    texture.info.num_mips,
-                    cpu_handles
-                );
+                DescriptorRangeHandle uav = g_context.descriptor_heaps[HeapTypes::SRV]
+                    .allocate_descriptors(texture.info.num_mips, cpu_handles);
                 texture.uav = uav;
 
                 // TODO: 3D texture support
@@ -1152,7 +1226,7 @@ namespace zec::gfx
             // Allocate RTV
             if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                DescriptorRangeHandle rtv = descriptor_utils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1, &cpu_handle);
+                DescriptorRangeHandle rtv = g_context.descriptor_heaps[HeapTypes::RTV].allocate_descriptors(1, &cpu_handle);
                 texture.rtv = rtv;
 
                 g_context.device->CreateRenderTargetView(texture.resource, nullptr, cpu_handle);
@@ -1161,7 +1235,7 @@ namespace zec::gfx
             // Allocate DSV
             if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                DescriptorRangeHandle dsv = descriptor_utils::allocate_descriptors(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, texture.info.array_size, &cpu_handle);
+                DescriptorRangeHandle dsv = g_context.descriptor_heaps[HeapTypes::DSV].allocate_descriptors(texture.info.array_size, &cpu_handle);
                 texture.dsv = dsv;
 
                 D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {
@@ -1182,18 +1256,147 @@ namespace zec::gfx
         u32 get_shader_readable_index(const TextureHandle handle)
         {
             DescriptorRangeHandle descriptor = g_context.textures.srvs[handle];
-            return descriptor_utils::get_offset(descriptor);
+            return descriptor.get_offset();
         };
         u32 get_shader_writable_index(const TextureHandle handle)
         {
             DescriptorRangeHandle descriptor = g_context.textures.uavs[handle];
-            return descriptor_utils::get_offset(descriptor);
+            return descriptor.get_offset();
         };
 
         const TextureInfo& get_texture_info(const TextureHandle texture_handle)
         {
             return g_context.textures.infos[texture_handle];
         };
+
+        TextureHandle create_from_file(CommandContextHandle cmd_ctx, const char* file_path)
+        {
+            std::wstring path = ansi_to_wstring(file_path);
+            const std::filesystem::path filesystem_path{ file_path };
+
+            DirectX::ScratchImage image;
+            const auto& extension = filesystem_path.extension();
+
+            if (extension.compare(L".dds") == 0 || extension.compare(L".DDS") == 0) {
+                DXCall(DirectX::LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image));
+            }
+            else if (extension.compare(L".hdr") == 0 || extension.compare(L".HDR") == 0) {
+                DXCall(DirectX::LoadFromHDRFile(path.c_str(), nullptr, image));
+            }
+            else if (extension.compare(L".png") == 0 || extension.compare(L".PNG") == 0) {
+                DXCall(DirectX::LoadFromWICFile(path.c_str(), DirectX::WIC_FLAGS_NONE, nullptr, image));
+            }
+            else {
+                throw std::runtime_error("Wasn't able to load file!");
+            }
+
+            const DirectX::TexMetadata meta_data = image.GetMetadata();
+            TextureDesc texture_desc{
+                .width = u32(meta_data.width),
+                .height = u32(meta_data.height),
+                .depth = u32(meta_data.depth),
+                .num_mips = u32(meta_data.mipLevels),
+                .array_size = u32(meta_data.arraySize),
+                .is_cubemap = u16(meta_data.IsCubemap()),
+                .format = from_d3d_format(meta_data.format),
+            };
+            TextureHandle texture_handle = textures::create(texture_desc);
+
+            ID3D12Resource* resource = g_context.textures.resources[texture_handle];
+
+            bool is_3d = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
+            const D3D12_RESOURCE_DESC d3d_desc = {
+                .Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(meta_data.dimension),
+                .Alignment = 0,
+                .Width = u32(meta_data.width),
+                .Height = u32(meta_data.height),
+                .DepthOrArraySize = is_3d ? u16(meta_data.depth) : u16(meta_data.arraySize),
+                .MipLevels = u16(meta_data.mipLevels),
+                .Format = meta_data.format,
+                .SampleDesc = {
+                    .Count = 1,
+                    .Quality = 0,
+                 },
+                 .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
+                 .Flags = D3D12_RESOURCE_FLAG_NONE,
+            };
+
+            DXGI_FORMAT d3d_format = meta_data.format;
+            u32 num_subresources = meta_data.mipLevels * meta_data.arraySize;
+            D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts = (D3D12_PLACED_SUBRESOURCE_FOOTPRINT*)_alloca(sizeof(D3D12_PLACED_SUBRESOURCE_FOOTPRINT) * num_subresources);
+            u32* num_rows = (u32*)_alloca(sizeof(u32) * num_subresources);
+            u64* row_sizes = (u64*)_alloca(sizeof(u64) * num_subresources);
+
+            u64 mem_size = 0;
+            g_context.device->GetCopyableFootprints(
+                &d3d_desc,
+                0,
+                u32(num_subresources),
+                0,
+                layouts, num_rows, row_sizes, &mem_size);
+
+            // Create staging resources
+            ID3D12Resource* staging_resource = nullptr;
+            D3D12MA::Allocation* allocation = nullptr;
+
+            // Get a GPU upload buffer
+            D3D12MA::ALLOCATION_DESC upload_alloc_desc = {};
+            upload_alloc_desc.HeapType = D3D12_HEAP_TYPE_UPLOAD;
+            D3D12_RESOURCE_DESC buffer_desc = CD3DX12_RESOURCE_DESC::Buffer(mem_size);
+            DXCall(g_context.allocator->CreateResource(
+                &upload_alloc_desc,
+                &buffer_desc,
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                NULL,
+                &allocation,
+                IID_PPV_ARGS(&staging_resource)
+            ));
+
+            void* mapped_ptr = nullptr;
+            DXCall(staging_resource->Map(0, NULL, &mapped_ptr));
+
+            for (u64 array_idx = 0; array_idx < meta_data.arraySize; ++array_idx) {
+
+                for (u64 mip_idx = 0; mip_idx < meta_data.mipLevels; ++mip_idx) {
+                    const u64 subresource_idx = mip_idx + (array_idx * meta_data.mipLevels);
+
+                    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& subresource_layout = layouts[subresource_idx];
+                    const u64 subresource_height = num_rows[subresource_idx];
+                    const u64 subresource_pitch = subresource_layout.Footprint.RowPitch;
+                    const u64 subresource_depth = subresource_layout.Footprint.Depth;
+                    u8* dst_subresource_mem = static_cast<u8*>(mapped_ptr) + subresource_layout.Offset;
+
+                    for (u64 z = 0; z < subresource_depth; ++z) {
+                        const DirectX::Image* sub_image = image.GetImage(mip_idx, array_idx, z);
+                        ASSERT(sub_image != nullptr);
+                        const u8* src_subresource_mem = sub_image->pixels;
+
+                        for (u64 y = 0; y < subresource_height; ++y) {
+                            memory::copy(dst_subresource_mem, src_subresource_mem, zec::min(subresource_pitch, sub_image->rowPitch));
+                            dst_subresource_mem += subresource_pitch;
+                            src_subresource_mem += sub_image->rowPitch;
+                        }
+                    }
+                }
+            }
+
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(cmd_ctx);
+            for (u64 subresource_idx = 0; subresource_idx < num_subresources; ++subresource_idx) {
+                D3D12_TEXTURE_COPY_LOCATION dst = { };
+                dst.pResource = resource;
+                dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+                dst.SubresourceIndex = u32(subresource_idx);
+                D3D12_TEXTURE_COPY_LOCATION src = { };
+                src.pResource = staging_resource;
+                src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+                src.PlacedFootprint = layouts[subresource_idx];
+
+                cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+            }
+            g_context.upload_store.push(cmd_ctx, staging_resource, allocation);
+
+            return texture_handle;
+        }
 
         /*TextureHandle load_from_file(const char* file_path, const bool force_srgb = false);
         void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);*/
@@ -1205,10 +1408,16 @@ namespace zec::gfx
         // ---------- Command Contexts ----------
         CommandContextHandle provision(CommandQueueType type)
         {
-            return g_context.command_pools[type].provision();
+            CommandContextHandle cmd_ctx = g_context.command_pools[type].provision();
+            if (type != CommandQueueType::COPY) {
+                ID3D12GraphicsCommandList* cmd_list = get_command_list(cmd_ctx);
+                auto& heap = g_context.descriptor_heaps[HeapTypes::SRV];
+                cmd_list->SetDescriptorHeaps(1, &heap.heap);
+            }
+            return cmd_ctx;
         };
 
-        CmdReceipt return_and_execute(CommandContextHandle context_handles[], const size_t num_contexts)
+        CmdReceipt return_and_execute(CommandContextHandle* context_handles, const size_t num_contexts)
         {
             constexpr size_t MAX_NUM_SIMULTANEOUS_COMMAND_LIST_EXECUTION = 128; // Arbitrary limit 
             ASSERT((num_contexts < MAX_NUM_SIMULTANEOUS_COMMAND_LIST_EXECUTION) && num_contexts > 0);
@@ -1218,7 +1427,6 @@ namespace zec::gfx
             CommandQueueType queue_type = cmd_utils::get_command_queue_type(context_handles[0]);
             CommandContextPool& pool = g_context.command_pools[queue_type];
             CommandQueue& queue = g_context.command_queues[queue_type];
-
 
             // Collect command lists
             for (size_t i = 0; i < num_contexts; i++) {
@@ -1234,11 +1442,22 @@ namespace zec::gfx
                 .queue_type = queue_type,
                 .fence_value = fence_value,
             };
-
+            // Check whether this command context was used for any upload tasks,
+            // and if so put any resources in that context onto our async destruction queue
+            for (size_t i = 0; i < num_contexts; i++) {
+                if (g_context.upload_store.get_staged_uploads(context_handles[i])) {
+                    Array<UploadContextStore::Upload>* uploads = g_context.upload_store.get_staged_uploads(context_handles[i]);
+                    for (UploadContextStore::Upload& upload : *uploads) {
+                        queue_destruction(g_context.async_destruction_queue, receipt, upload.resource, upload.allocation);
+                    }
+                    g_context.upload_store.clear_staged_uploads(context_handles[i]);
+                }
+            }
             // Return to pools
             for (size_t i = 0; i < num_contexts; i++) {
                 pool.return_to_pool(receipt.fence_value, context_handles[i]);
             }
+
             return receipt;
         };
 
@@ -1284,12 +1503,12 @@ namespace zec::gfx
             void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
             {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                const DescriptorHeap& heap = g_context.descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
+                const DescriptorHeap& heap = g_context.descriptor_heaps[HeapTypes::SRV];
                 D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
                 cmd_list->SetGraphicsRootDescriptorTable(resource_layout_entry_idx, handle);
             }
 
-            void bind_constant(const CommandContextHandle ctx, const void* data, const u64 num_constants, const u32 binding_slot)
+            void bind_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot)
             {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
                 cmd_list->SetGraphicsRoot32BitConstants(binding_slot, num_constants, data, 0);
@@ -1299,7 +1518,7 @@ namespace zec::gfx
             {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
                 const BufferInfo& buffer_info = g_context.buffers.infos[buffer_handle];
-                cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer_utils::get_gpu_address(buffer_info, g_context.current_frame_idx));
+                cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer_info.get_gpu_address(g_context.current_frame_idx));
             };
 
             // Draw / Dispatch
@@ -1333,15 +1552,6 @@ namespace zec::gfx
                 cmd_list->IASetIndexBuffer(&view);
                 cmd_list->DrawIndexedInstanced(u32(buffer_info.per_frame_size / buffer_info.stride), 1, 0, 0, 0);
             }
-            void draw_mesh(const CommandContextHandle ctx, const Mesh& mesh)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-
-                cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                cmd_list->IASetIndexBuffer(&mesh.index_buffer_view);
-                cmd_list->IASetVertexBuffers(0, mesh.num_vertex_buffers, mesh.buffer_views);
-                cmd_list->DrawIndexedInstanced(mesh.index_count, 1, 0, 0, 0);
-            }
         }
 
         namespace compute
@@ -1360,13 +1570,13 @@ namespace zec::gfx
             void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
             {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                const DescriptorHeap& heap = g_context.descriptor_heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV];
+                const DescriptorHeap& heap = g_context.descriptor_heaps[HeapTypes::SRV];
                 D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
 
                 cmd_list->SetComputeRootDescriptorTable(resource_layout_entry_idx, handle);
             }
 
-            void bind_constant(const CommandContextHandle ctx, const void* data, const u64 num_constants, const u32 binding_slot)
+            void bind_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot)
             {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
                 cmd_list->SetComputeRoot32BitConstants(binding_slot, num_constants, data, 0);
@@ -1376,7 +1586,7 @@ namespace zec::gfx
             {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
                 const BufferInfo& buffer_info = g_context.buffers.infos[buffer_handle];
-                cmd_list->SetComputeRootConstantBufferView(binding_slot, buffer_utils::get_gpu_address(buffer_info, g_context.current_frame_idx));
+                cmd_list->SetComputeRootConstantBufferView(binding_slot, buffer_info.get_gpu_address(g_context.current_frame_idx));
             };
 
             void dispatch(
@@ -1397,7 +1607,7 @@ namespace zec::gfx
             ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
             DescriptorRangeHandle rtv = g_context.textures.rtvs[render_texture];
             // TODO: Descriptors
-            auto cpu_handle = descriptor_utils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtv);
+            auto cpu_handle = g_context.descriptor_heaps[HeapTypes::RTV].get_cpu_descriptor_handle(rtv);
             cmd_list->ClearRenderTargetView(cpu_handle, clear_color, 0, nullptr);
         };
 
@@ -1406,7 +1616,7 @@ namespace zec::gfx
             ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
             const DescriptorRangeHandle dsv = g_context.textures.dsv_infos[depth_stencil_buffer];
             // TODO: Descriptors
-            auto cpu_handle = descriptor_utils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, dsv);
+            auto cpu_handle = g_context.descriptor_heaps[HeapTypes::DSV].get_cpu_descriptor_handle(dsv);
             // I don't actually think this will clear stencil. We should probably change that.
             cmd_list->ClearDepthStencilView(cpu_handle, D3D12_CLEAR_FLAG_DEPTH, depth_value, stencil_value, 0, nullptr);
         };
@@ -1434,7 +1644,7 @@ namespace zec::gfx
             const CommandContextHandle ctx,
             TextureHandle* render_textures,
             const u32 num_render_targets,
-            const TextureHandle depth_target = INVALID_HANDLE
+            const TextureHandle depth_target
         )
         {
             ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
@@ -1442,13 +1652,13 @@ namespace zec::gfx
             D3D12_CPU_DESCRIPTOR_HANDLE* dsv_ptr = nullptr;
             if (is_valid(depth_target)) {
                 DescriptorRangeHandle descriptor_handle = g_context.textures.dsv_infos[depth_target];
-                dsv = descriptor_utils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, descriptor_handle);
+                dsv = g_context.descriptor_heaps[HeapTypes::DSV].get_cpu_descriptor_handle(descriptor_handle);
                 dsv_ptr = &dsv;
             }
             D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
             for (size_t i = 0; i < num_render_targets; i++) {
                 DescriptorRangeHandle descriptor_handle = g_context.textures.rtvs[render_textures[i]];
-                rtvs[i] = descriptor_utils::get_cpu_descriptor_handle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, descriptor_handle);
+                rtvs[i] = g_context.descriptor_heaps[HeapTypes::RTV].get_cpu_descriptor_handle(descriptor_handle);
             }
             cmd_list->OMSetRenderTargets(num_render_targets, rtvs, FALSE, dsv_ptr);
         };
