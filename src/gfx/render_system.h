@@ -41,7 +41,7 @@ namespace zec::render_pass_system
     struct PassBufferResource
     {
         BufferType type = BufferType::DEFAULT;
-        BufferFormat format = BufferFormat::UNKOWN;
+        BufferFormat format = BufferFormat::UNKNOWN;
         u32 byte_size = 0;
         u32 stride = 0;
     };

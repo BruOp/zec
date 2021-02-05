@@ -39,7 +39,7 @@ namespace zec::gfx::meshes
         const BufferInfo& index_buffer_info = render_context.buffers.infos[mesh.index_buffer_handle];
         mesh.index_buffer_view = create_index_buffer_view(index_buffer_info);
         mesh.index_count = index_buffer_info.total_size / index_buffer_info.stride;
-
+        mesh.num_vertex_buffers = num_vertex_buffers;
         ASSERT(num_vertex_buffers > 0 && num_vertex_buffers < MAX_NUM_MESH_VERTEX_BUFFERS);
         for (size_t i = 0; i < num_vertex_buffers; i++) {
             mesh.vertex_buffer_handles[i] = vertex_buffers[i];

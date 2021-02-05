@@ -70,7 +70,7 @@ namespace zec
     enum struct BufferFormat : u16
     {
         INVALID = 0,
-        UNKOWN,
+        UNKNOWN,
         D32,
         UINT16,
         UINT32,
@@ -290,6 +290,7 @@ namespace zec
     {
         u16 usage = RESOURCE_USAGE_UNUSED;
         BufferType type = BufferType::DEFAULT;
+        //BufferFormat format = BufferFormat::UNKNOWN;
         u32 byte_size = 0;
         u32 stride = 0;
     };
@@ -521,7 +522,7 @@ namespace zec
         u32 depth = 0;
         u32 num_mips = 0;
         u32 array_size = 0;
-        BufferFormat format = BufferFormat::UNKOWN;
+        BufferFormat format = BufferFormat::UNKNOWN;
         u32 is_cubemap = 0;
     };
 

@@ -17,6 +17,15 @@ static constexpr size_t MAX_NUM_OBJECTS = 16384;
 
 namespace clustered
 {
+    enum ForwardPassBindingSlots : u32
+    {
+        RENDERABLE_IDX_SLOT = 0,
+        VS_DATA_IDX_SLOT,
+        VIEW_CONSTANT_BUFFER_SLOT,
+        RAW_BUFFERS_TABLE
+    };
+
+
     struct ResourceIdentifier
     {
         u64 id;
@@ -62,17 +71,17 @@ namespace clustered
 
         BufferDesc vs_buffer_desc{
             .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
-            .type = BufferType::DEFAULT,
+            .type = BufferType::RAW,
             .byte_size = sizeof(VertexShaderData) * MAX_NUM_OBJECTS,
-            .stride = sizeof(VertexShaderData),
+            .stride = 4,
         };
         per_entity_data_buffers.vs_buffer = gfx::buffers::create(vs_buffer_desc);
 
         BufferDesc material_data_buffer_desc{
             .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
-            .type = BufferType::DEFAULT,
+            .type = BufferType::RAW,
             .byte_size = PerEntityDataBuffers::INSTANCE_BUFFER_DATA_SIZE,
-            .stride = PerEntityDataBuffers::MATERIAL_DATA_BYTE_SIZE,
+            .stride = 4,
         };
         per_entity_data_buffers.material_data_buffer = gfx::buffers::create(material_data_buffer_desc);
     }
@@ -90,6 +99,7 @@ namespace clustered
     public:
         size_t num_entities;
         Array<BufferHandle> index_buffers;
+        //Array<MeshHandle> meshes;
         Array<VertexShaderData> vertex_shader_data;
         PerEntityDataBuffers per_entity_data_buffers;
     };
@@ -99,6 +109,7 @@ namespace clustered
         struct Settings
         {
             Renderables* scene_render_data = nullptr;
+            BufferHandle vertex_positions_buffer = {};
             BufferHandle view_cb_handle = {};
         };
 
@@ -123,9 +134,8 @@ namespace clustered
                 .num_constant_buffers = 1,
                 .tables = {
                     {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
-                    {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
                 },
-                .num_resource_tables = 2,
+                .num_resource_tables = 1,
                 //.static_samplers = {
                 //    {
                 //        .filtering = SamplerFilterType::ANISOTROPIC,
@@ -191,18 +201,18 @@ namespace clustered
             gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1, depth_target);
 
             const BufferHandle view_cb_handle = pass_context->view_cb_handle;
-            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_context->view_cb_handle, 2);
-            gfx::cmd::graphics::bind_resource_table(cmd_ctx, 3);
-            gfx::cmd::graphics::bind_resource_table(cmd_ctx, 4);
+            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_context->view_cb_handle, ForwardPassBindingSlots::VIEW_CONSTANT_BUFFER_SLOT);
 
             const auto* scene_data = pass_context->scene_render_data;
+            gfx::cmd::graphics::bind_resource_table(cmd_ctx, ForwardPassBindingSlots::RAW_BUFFERS_TABLE);
+
             u32 vs_cb_idx = gfx::buffers::get_shader_readable_index(scene_data->per_entity_data_buffers.vs_buffer);
-            gfx::cmd::graphics::bind_constants(cmd_ctx, &vs_cb_idx, 1, 1);
+            gfx::cmd::graphics::bind_constants(cmd_ctx, &vs_cb_idx, 1, ForwardPassBindingSlots::VS_DATA_IDX_SLOT);
 
             for (u32 i = 0; i < scene_data->num_entities; i++) {
-                gfx::cmd::graphics::bind_constants(cmd_ctx, &i, 1, 0);
+                gfx::cmd::graphics::bind_constants(cmd_ctx, &i, 1, ForwardPassBindingSlots::RENDERABLE_IDX_SLOT);
 
-                gfx::cmd::graphics::draw_mesh(cmd_ctx, scene_data->index_buffers[i]);
+            gfx::cmd::graphics::draw_mesh(cmd_ctx, scene_data->index_buffers[0]);
             }
         };
 
@@ -342,18 +352,18 @@ namespace clustered
 
             BufferHandle cube_vertex_positions_buffer = gfx::buffers::create({
                 .usage = RESOURCE_USAGE_SHADER_READABLE,
-                .type = BufferType::DEFAULT,
+                .type = BufferType::RAW,
                 .byte_size = sizeof(geometry::k_cube_positions),
-                .stride = 3 * sizeof(geometry::k_cube_positions[0])
+                .stride = 4
                 });
             gfx::set_debug_name(cube_vertex_positions_buffer, L"Cube Vertex Positions Buffer");
             gfx::buffers::set_data(copy_ctx, cube_vertex_positions_buffer, geometry::k_cube_positions, sizeof(geometry::k_cube_positions));
 
             BufferHandle cube_vertex_uvs_buffer = gfx::buffers::create({
                 .usage = RESOURCE_USAGE_SHADER_READABLE,
-                .type = BufferType::DEFAULT,
+                .type = BufferType::RAW,
                 .byte_size = sizeof(geometry::k_cube_uvs),
-                .stride = 2 * sizeof(geometry::k_cube_uvs[0])
+                .stride = sizeof(u32)
                 });
             gfx::set_debug_name(cube_vertex_uvs_buffer, L"Cube Vertex UVs Buffer");
             gfx::buffers::set_data(copy_ctx, cube_vertex_uvs_buffer, geometry::k_cube_uvs, sizeof(geometry::k_cube_uvs));
@@ -362,13 +372,19 @@ namespace clustered
 
             CmdReceipt receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
 
+            BufferHandle vertex_buffers[] = { cube_vertex_positions_buffer, cube_vertex_uvs_buffer };
+
             constexpr size_t num_objects = 10;
             scene_render_data.num_entities = num_objects;
             // Need to assign this data to my object somehow
             for (size_t i = 0; i < num_objects; i++) {
                 scene_render_data.index_buffers.push_back(cube_index_buffer);
+
+                mat4 model = identity_mat4();
+                set_translation(model, vec3{ float(i) - 0.5f * float(num_objects), 0.0f, 0.0f });
+
                 scene_render_data.vertex_shader_data.push_back({
-                    .model = identity_mat4(),
+                    .model = model,
                     .vertex_positions_idx = gfx::buffers::get_shader_readable_index(cube_vertex_positions_buffer),
                     .vertex_uvs_idx = gfx::buffers::get_shader_readable_index(cube_vertex_uvs_buffer),
                     });
@@ -376,6 +392,7 @@ namespace clustered
 
             forward_pass_context.view_cb_handle = view_cb_handle;
             forward_pass_context.scene_render_data = &scene_render_data;
+            forward_pass_context.vertex_positions_buffer = cube_vertex_positions_buffer;
 
             render_pass_system::RenderPassDesc render_pass_descs[] = {
                 clustered::ForwardPass::generate_desc(&forward_pass_context),

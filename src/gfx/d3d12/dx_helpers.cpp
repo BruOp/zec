@@ -44,7 +44,7 @@ namespace zec::gfx::dx12
     DXGI_FORMAT to_d3d_format(const BufferFormat format)
     {
         switch (format) {
-        case BufferFormat::UNKOWN:
+        case BufferFormat::UNKNOWN:
             return DXGI_FORMAT_UNKNOWN;
         case BufferFormat::D32:
             return DXGI_FORMAT_D32_FLOAT;
@@ -95,7 +95,7 @@ namespace zec::gfx::dx12
     {
         switch (format) {
         case DXGI_FORMAT_UNKNOWN:
-            return BufferFormat::UNKOWN;
+            return BufferFormat::UNKNOWN;
         case DXGI_FORMAT_D32_FLOAT:
             return BufferFormat::D32;
         case DXGI_FORMAT_R16_UINT:

@@ -875,6 +875,7 @@ namespace zec::gfx
         {
             ASSERT(desc.byte_size != 0);
             ASSERT(desc.usage != u16(RESOURCE_USAGE_UNUSED));
+            ASSERT(desc.type != BufferType::RAW || desc.stride == sizeof(u32));
 
             u16 vertex_or_index = u16(RESOURCE_USAGE_VERTEX) | u16(RESOURCE_USAGE_INDEX);
             if (desc.usage & vertex_or_index) {
@@ -949,14 +950,17 @@ namespace zec::gfx
                 buffer.srv = g_context.descriptor_heaps[HeapTypes::SRV].allocate_descriptors(1, &cpu_handle);
 
                 bool is_structered = desc.type == BufferType::STRUCTURED;
+                bool is_raw = desc.type == BufferType::RAW;
+
                 D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
-                    .Format = DXGI_FORMAT_UNKNOWN,
+                    .Format = is_raw ? DXGI_FORMAT_R32_TYPELESS : DXGI_FORMAT_UNKNOWN,
                     .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
                     .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
                     .Buffer = {
                         .FirstElement = 0,
                         .NumElements = desc.byte_size / desc.stride,
-                        .StructureByteStride = desc.stride,
+                        .StructureByteStride = is_raw ? 0 : desc.stride,
+                        .Flags= is_raw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE
                     },
                 };
 

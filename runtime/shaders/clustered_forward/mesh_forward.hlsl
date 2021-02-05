@@ -5,6 +5,7 @@ struct VSConstants
     float4x4 model;
     uint vertex_positions_idx;
     uint vertex_uvs_idx;
+    float padding[46];
 };
 
 // Two constants
@@ -30,7 +31,6 @@ cbuffer view_constants_buffer : register(b2)
 };
 
 ByteAddressBuffer buffers_table[4096] : register(t0, space1);
-StructuredBuffer<VSConstants> structured_table[4096] : register(t0, space2);
 
 struct PSInput
 {
@@ -41,11 +41,11 @@ struct PSInput
 
 PSInput VSMain(uint vert_id : SV_VertexID)
 {
-    VSConstants vs_cb = buffers_table[vs_cb_descriptor_idx].Load<VSConstants>(renderable_idx * 256);
+    VSConstants vs_cb = buffers_table[vs_cb_descriptor_idx].Load<VSConstants>(renderable_idx * sizeof(VSConstants));
     float4 vert_position = float4(
-        buffers_table[1].Load<float3>(vert_id * sizeof(float4)),
+        buffers_table[vs_cb.vertex_positions_idx].Load<float3>(vert_id * sizeof(float3)),
         1.0f);
-    float2 uv = buffers_table[2].Load<float2>(vert_id * sizeof(float2));
+    float2 uv = buffers_table[vs_cb.vertex_uvs_idx].Load<float2>(vert_id * sizeof(float2));
 
     PSInput res;
     res.position_ws = mul(vs_cb.model, vert_position);
