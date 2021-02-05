@@ -1,16 +1,19 @@
 #pragma pack_matrix( row_major )
 
-struct VSConstantBuffer
+struct VSConstants
 {
     float4x4 model;
     uint vertex_positions_idx;
     uint vertex_uvs_idx;
-    float padding[34 + 12];
 };
 
-cbuffer draw_call_constants : register(b0)
+// Two constants
+cbuffer draw_call_constants0 : register(b0)
 {
     uint renderable_idx;
+}
+cbuffer draw_call_constants1 : register(b1)
+{
     uint vs_cb_descriptor_idx;
 };
 
@@ -26,9 +29,8 @@ cbuffer view_constants_buffer : register(b2)
     float time;
 };
 
-StructuredBuffer<float3> vertex_buffers[4096] : register(t0, space1);
-StructuredBuffer<float2> uv_buffers[4096] : register(t0, space2);
-StructuredBuffer<VSConstantBuffer> vs_constant_buffers_table[4096] : register(t0, space3);
+ByteAddressBuffer buffers_table[4096] : register(t0, space1);
+StructuredBuffer<VSConstants> structured_table[4096] : register(t0, space2);
 
 struct PSInput
 {
@@ -39,12 +41,11 @@ struct PSInput
 
 PSInput VSMain(uint vert_id : SV_VertexID)
 {
-    StructuredBuffer<VSConstantBuffer> vs_contant_buffers = vs_constant_buffers_table[vs_cb_descriptor_idx];
-    VSConstantBuffer vs_cb = vs_contant_buffers[renderable_idx];
+    VSConstants vs_cb = buffers_table[vs_cb_descriptor_idx].Load<VSConstants>(renderable_idx * 256);
     float4 vert_position = float4(
-        vertex_buffers[vs_cb.vertex_positions_idx][vert_id],
+        buffers_table[1].Load<float3>(vert_id * sizeof(float4)),
         1.0f);
-    float2 uv = uv_buffers[vs_cb.vertex_uvs_idx].Load(vert_id);
+    float2 uv = buffers_table[2].Load<float2>(vert_id * sizeof(float2));
 
     PSInput res;
     res.position_ws = mul(vs_cb.model, vert_position);

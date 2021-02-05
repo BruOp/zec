@@ -114,7 +114,7 @@ namespace clustered
             ResourceLayoutDesc layout_desc{
                 .constants = {
                     {.visibility = ShaderVisibility::ALL, .num_constants = 1 },
-                    {.visibility = ShaderVisibility::VERTEX, .num_constants = 1 },
+                    {.visibility = ShaderVisibility::ALL, .num_constants = 1 },
                 },
                 .num_constants = 2,
                 .constant_buffers = {
@@ -124,9 +124,8 @@ namespace clustered
                 .tables = {
                     {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
                     {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
-                    {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
                 },
-                .num_resource_tables = 3,
+                .num_resource_tables = 2,
                 //.static_samplers = {
                 //    {
                 //        .filtering = SamplerFilterType::ANISOTROPIC,
@@ -195,7 +194,6 @@ namespace clustered
             gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_context->view_cb_handle, 2);
             gfx::cmd::graphics::bind_resource_table(cmd_ctx, 3);
             gfx::cmd::graphics::bind_resource_table(cmd_ctx, 4);
-            gfx::cmd::graphics::bind_resource_table(cmd_ctx, 5);
 
             const auto* scene_data = pass_context->scene_render_data;
             u32 vs_cb_idx = gfx::buffers::get_shader_readable_index(scene_data->per_entity_data_buffers.vs_buffer);
@@ -344,7 +342,7 @@ namespace clustered
 
             BufferHandle cube_vertex_positions_buffer = gfx::buffers::create({
                 .usage = RESOURCE_USAGE_SHADER_READABLE,
-                .type = BufferType::STRUCTURED,
+                .type = BufferType::DEFAULT,
                 .byte_size = sizeof(geometry::k_cube_positions),
                 .stride = 3 * sizeof(geometry::k_cube_positions[0])
                 });
@@ -353,7 +351,7 @@ namespace clustered
 
             BufferHandle cube_vertex_uvs_buffer = gfx::buffers::create({
                 .usage = RESOURCE_USAGE_SHADER_READABLE,
-                .type = BufferType::STRUCTURED,
+                .type = BufferType::DEFAULT,
                 .byte_size = sizeof(geometry::k_cube_uvs),
                 .stride = 2 * sizeof(geometry::k_cube_uvs[0])
                 });

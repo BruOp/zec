@@ -121,7 +121,6 @@ project("zec_lib")
     "dxgi",
     "d3d12",
     "dxguid",
-    "D3DCompiler",
     "Xinput9_1_0",
     "ws2_32",
     "imgui",
@@ -139,6 +138,7 @@ project("zec_lib")
       "gainputstatic",
       "boost_context",
       "ftl",
+      "dxcompiler",
     }
 
   configuration {"Debug"}
@@ -148,6 +148,7 @@ project("zec_lib")
       "gainputstatic-d",
       "boost_context",
       "ftl",
+      "dxcompiler",
     }
 
 

@@ -249,7 +249,6 @@ namespace zec::gfx
                 // These happen when capturing with VS diagnostics
                 D3D12_MESSAGE_ID_MAP_INVALID_NULLRANGE,
                 D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE,
-                D3D12_MESSAGE_ID_GPU_BASED_VALIDATION_SRV_RESOURCE_DIMENSION_MISMATCH,
             };
 
             D3D12_INFO_QUEUE_FILTER filter = { };
@@ -760,7 +759,7 @@ namespace zec::gfx
             if (desc.used_stages & PIPELINE_STAGE_COMPUTE) {
                 ASSERT(desc.used_stages == PIPELINE_STAGE_COMPUTE);
 
-                ID3DBlob* compute_shader = shader_utils::compile_shader(desc.shader_file_path.c_str(), PIPELINE_STAGE_COMPUTE);
+                IDxcBlob* compute_shader = shader_utils::compile_shader(desc.shader_file_path.c_str(), PIPELINE_STAGE_COMPUTE);
 
                 D3D12_COMPUTE_PIPELINE_STATE_DESC pso_desc{};
                 pso_desc.CS.BytecodeLength = compute_shader->GetBufferSize();
@@ -774,7 +773,7 @@ namespace zec::gfx
 
             // Create the input assembly desc
             std::string semantic_names[MAX_NUM_MESH_VERTEX_BUFFERS];
-            D3D12_INPUT_ELEMENT_DESC d3d_elements[MAX_NUM_MESH_VERTEX_BUFFERS];
+            D3D12_INPUT_ELEMENT_DESC d3d_elements[MAX_NUM_MESH_VERTEX_BUFFERS] = {};
             u32 num_input_elements = 0;
             {
                 for (size_t i = 0; i < MAX_NUM_MESH_VERTEX_BUFFERS; i++) {
@@ -847,8 +846,8 @@ namespace zec::gfx
                 pso_desc.NumRenderTargets = i + 1;
             }
 
-            ID3DBlob* vertex_shader = nullptr;
-            ID3DBlob* pixel_shader = nullptr;
+            IDxcBlob* vertex_shader = nullptr;
+            IDxcBlob* pixel_shader = nullptr;
             if (desc.used_stages & PIPELINE_STAGE_VERTEX) {
                 vertex_shader = shader_utils::compile_shader(desc.shader_file_path.c_str(), PIPELINE_STAGE_VERTEX);
                 pso_desc.VS.BytecodeLength = vertex_shader->GetBufferSize();

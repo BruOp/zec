@@ -46,6 +46,8 @@ function exampleProject(...)
 
     configuration{}
 
+    DLL_PATH = path.join(EXTERNAL_DIR, "../bin/*.dll")
+    postbuildcommands { "cp %{DLL_PATH} %{cfg.targetdir}" }
 
     filter "files:**.ispc"
       buildmessage "Compiling ISPC files %{file.relpath}"

@@ -28,6 +28,9 @@ links {
   "zec_lib"
 }
 
+DLL_PATH = path.join(EXTERNAL_DIR, "../bin/*.dll")
+postbuildcommands { "cp %{DLL_PATH} %{cfg.targetdir}" }
+
 configuration {"vs*", "x64"}
 linkoptions {
   "/ignore:4199" -- LNK4199: /DELAYLOAD:*.dll ignored; no imports found from *.dll
