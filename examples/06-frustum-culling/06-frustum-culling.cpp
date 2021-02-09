@@ -1,6 +1,8 @@
 #include "app.h"
 #include "core/zec_math.h"
 #include "utils/exceptions.h"
+#include "utils/crc_hash.h"
+
 #include "camera.h"
 #include "gltf_loading.h"
 #include "gfx/render_system.h"
@@ -16,8 +18,8 @@ constexpr u32 DESCRIPTOR_TABLE_SIZE = 4096;
 
 namespace ResourceNames
 {
-    const std::string DEPTH_TARGET = "depth";
-    const std::string SDR_BUFFER = "sdr";
+    const u64 DEPTH_TARGET = ctcrc32("depth");
+    const u64 SDR_BUFFER = ctcrc32("sdr");
 }
 
 struct DrawConstantData
@@ -47,9 +49,9 @@ struct Scene
 
 namespace DebugPass
 {
-    struct Context
+    struct Settings
     {
-        Context() = default;
+        Settings() = default;
 
         // Not owned
         bool active = true;
@@ -60,13 +62,17 @@ namespace DebugPass
         BufferHandle view_cb_handle = {};
         BufferHandle debug_view_cb_handle = {};
 
-        // Owned
+    };
+
+    struct InternalState
+    {
         MeshHandle debug_frustum_mesh = {};
         MeshHandle unit_cube = {};
         BufferHandle debug_frustum_cb_handle = {};
         ResourceLayoutHandle resource_layout = {};
         PipelineStateHandle pso_handle = {};
     };
+
     struct FrustumDrawData
     {
         mat4 inv_view;
@@ -74,11 +80,12 @@ namespace DebugPass
         vec4 color;
     };
 
-    void setup(void* context)
+    void* setup(void* context)
     {
-        Context* pass_context = reinterpret_cast<Context*>(context);
+        Settings* pass_context = static_cast<Settings*>(context);
+        InternalState* state = new InternalState();
 
-        pass_context->debug_frustum_cb_handle = gfx::buffers::create({
+        state->debug_frustum_cb_handle = gfx::buffers::create({
             .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
             .type = BufferType::DEFAULT,
             .byte_size = sizeof(FrustumDrawData),
@@ -90,6 +97,8 @@ namespace DebugPass
         const PerspectiveCamera* camera = pass_context->camera;
         geometry::generate_frustum_data(frustum_positions, camera->near_plane, camera->far_plane, camera->vertical_fov, camera->aspect_ratio);
 
+        CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::COPY);
+
         // Each slice requires 6 indices
         MeshDesc mesh_desc{
             .index_buffer_desc = {
@@ -97,21 +106,22 @@ namespace DebugPass
                 .type = BufferType::DEFAULT,
                 .byte_size = sizeof(geometry::k_cube_indices),
                 .stride = sizeof(geometry::k_cube_indices[0]),
-                .data = (void*)(geometry::k_cube_indices),
              },
              .vertex_buffer_descs = {{
                 .usage = RESOURCE_USAGE_VERTEX,
                 .type = BufferType::DEFAULT,
                 .byte_size = u32(sizeof(frustum_positions[0]) * frustum_positions.size),
                 .stride = sizeof(frustum_positions[0]),
-                .data = frustum_positions.data
-             }}
+             }},
+            .index_buffer_data = geometry::k_cube_indices,
+            .vertex_buffer_data = { frustum_positions.data },
         };
-        pass_context->debug_frustum_mesh = gfx::meshes::create(mesh_desc);
+        state->debug_frustum_mesh = gfx::meshes::create(cmd_ctx, mesh_desc);
 
-        mesh_desc.vertex_buffer_descs[0].data = (void*)geometry::k_cube_positions;
-        pass_context->unit_cube = gfx::meshes::create(mesh_desc);
+        mesh_desc.vertex_buffer_data[0] = geometry::k_cube_positions;
+        state->unit_cube = gfx::meshes::create(cmd_ctx, mesh_desc);
 
+        CmdReceipt receipt = gfx::cmd::return_and_execute(&cmd_ctx, 1);
 
         ResourceLayoutDesc layout_desc{
            .num_constants = 0,
@@ -124,7 +134,7 @@ namespace DebugPass
            .num_static_samplers = 0,
         };
 
-        pass_context->resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
+        state->resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
 
         // Create the Pipeline State Object
         PipelineStateObjectDesc pipeline_desc = {};
@@ -133,7 +143,7 @@ namespace DebugPass
         } };
         pipeline_desc.shader_file_path = L"shaders/06-frustum-culling/debug_shader.hlsl";
         pipeline_desc.rtv_formats[0] = BufferFormat::R8G8B8A8_UNORM_SRGB;
-        pipeline_desc.resource_layout = pass_context->resource_layout;
+        pipeline_desc.resource_layout = state->resource_layout;
         pipeline_desc.depth_buffer_format = BufferFormat::D32;
         pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
         pipeline_desc.raster_state_desc.fill_mode = FillMode::WIREFRAME;
@@ -141,76 +151,90 @@ namespace DebugPass
         pipeline_desc.depth_stencil_state.depth_write = false;
         pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
         pipeline_desc.topology_type = TopologyType::TRIANGLE;
-        pass_context->pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
-        gfx::pipelines::set_debug_name(pass_context->pso_handle, L"Debug Pipeline");
+        state->pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+        gfx::set_debug_name(state->pso_handle, L"Debug Pipeline");
+
+        gfx::cmd::cpu_wait(receipt);
+
+        return state;
     }
 
-    void copy(void* context)
+    void copy(void* context, void* internal_state)
     {
-        Context* pass_context = reinterpret_cast<Context*>(context);
+        Settings* pass_context = static_cast<Settings*>(context);
+        InternalState* state = static_cast<InternalState*>(internal_state);
 
         FrustumDrawData frustum_draw_data = {
             .inv_view = invert(pass_context->camera->view),
         };
-        gfx::buffers::update(pass_context->debug_frustum_cb_handle, &frustum_draw_data, sizeof(frustum_draw_data));
+        gfx::buffers::update(state->debug_frustum_cb_handle, &frustum_draw_data, sizeof(frustum_draw_data));
     }
 
-    void record(render_pass_system::RenderPassList& render_list, CommandContextHandle cmd_ctx, void* context)
+    void record(const render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx, void* context, void* internal_state)
     {
         constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-        Context* pass_context = reinterpret_cast<Context*>(context);
+        Settings* pass_context = static_cast<Settings*>(context);
+        InternalState* state = static_cast<InternalState*>(internal_state);
+
         if (!pass_context->active) return;
 
         //TextureHandle depth_target = render_pass_system::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
-        TextureHandle sdr_buffer = render_pass_system::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
-        TextureHandle depth_target = render_pass_system::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
+        TextureHandle sdr_buffer = resource_map.get_texture_resource(ResourceNames::SDR_BUFFER);
+        TextureHandle depth_target = resource_map.get_texture_resource(ResourceNames::DEPTH_TARGET);
 
-        TextureInfo& texture_info = gfx::textures::get_texture_info(sdr_buffer);
+        const TextureInfo& texture_info = gfx::textures::get_texture_info(sdr_buffer);
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
         Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-        gfx::cmd::set_active_resource_layout(cmd_ctx, pass_context->resource_layout);
-        gfx::cmd::set_pipeline_state(cmd_ctx, pass_context->pso_handle);
+        gfx::cmd::graphics::set_active_resource_layout(cmd_ctx, state->resource_layout);
+        gfx::cmd::graphics::set_pipeline_state(cmd_ctx, state->pso_handle);
         gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
         gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
         gfx::cmd::set_render_targets(cmd_ctx, &sdr_buffer, 1, depth_target);
 
-        gfx::cmd::bind_constant_buffer(cmd_ctx, pass_context->debug_frustum_cb_handle, 0);
-        gfx::cmd::bind_constant_buffer(cmd_ctx, pass_context->debug_view_cb_handle, 1);
+        gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, state->debug_frustum_cb_handle, 0);
+        gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_context->debug_view_cb_handle, 1);
 
-        gfx::cmd::draw_mesh(cmd_ctx, pass_context->debug_frustum_mesh);
+        gfx::cmd::graphics::draw_mesh(cmd_ctx, state->debug_frustum_mesh);
 
         for (size_t i = 0; i < pass_context->scene->debug_draw_data_buffers.size; i++) {
-            gfx::cmd::bind_constant_buffer(cmd_ctx, pass_context->scene->debug_draw_data_buffers[i], 0);
-            gfx::cmd::draw_mesh(cmd_ctx, pass_context->unit_cube);
+            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_context->scene->debug_draw_data_buffers[i], 0);
+            gfx::cmd::graphics::draw_mesh(cmd_ctx, state->unit_cube);
         }
 
     };
 
-    void destroy(void* context)
+    void* destroy(void* context, void* internal_state)
     {
-
+        InternalState* state = static_cast<InternalState*>(internal_state);
+        delete state;
+        return nullptr;
     }
 }
 
 namespace ForwardPass
 {
-    struct Context
+    struct Settings
     {
         // Not owned
         BufferHandle view_cb_handle = {};
         Scene const* scene;
         Array<u32> const* visibility_list = nullptr;
 
+    };
+
+    struct InternalState
+    {
         // Owned
         ResourceLayoutHandle resource_layout = {};
         PipelineStateHandle pso_handle = {};
     };
 
-    void setup(void* context)
+    void* setup(void* settings)
     {
-        Context* forward_context = reinterpret_cast<Context*>(context);
+        Settings* forward_pass_settings = reinterpret_cast<Settings*>(settings);
+        InternalState* internal_state = new InternalState();
 
         // What do we need to set up before we can do the forward pass?
         // Well for one, PSOs
@@ -243,7 +267,7 @@ namespace ForwardPass
             .num_static_samplers = 2,
         };
 
-        forward_context->resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
+        internal_state->resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
 
         // Create the Pipeline State Object
         PipelineStateObjectDesc pipeline_desc = {};
@@ -255,30 +279,33 @@ namespace ForwardPass
         pipeline_desc.shader_file_path = L"shaders/06-frustum-culling/simple_diffuse.hlsl";
         pipeline_desc.rtv_formats[0] = BufferFormat::R8G8B8A8_UNORM_SRGB;
         pipeline_desc.depth_buffer_format = BufferFormat::D32;
-        pipeline_desc.resource_layout = forward_context->resource_layout;
+        pipeline_desc.resource_layout = internal_state->resource_layout;
         pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CCW;
         pipeline_desc.raster_state_desc.flags |= DEPTH_CLIP_ENABLED;
         pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::LESS;
         pipeline_desc.depth_stencil_state.depth_write = TRUE;
         pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
-        forward_context->pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
-        gfx::pipelines::set_debug_name(forward_context->pso_handle, L"Forward Rendering Pipeline");
+        internal_state->pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+        gfx::set_debug_name(internal_state->pso_handle, L"Forward Rendering Pipeline");
+
+        return internal_state;
     }
 
-    void record(render_pass_system::RenderPassList& render_list, CommandContextHandle cmd_ctx, void* context)
+    void record(const render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx, void* context, void* internal_state)
     {
         constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-        Context* pass_context = reinterpret_cast<Context*>(context);
+        Settings* pass_context = reinterpret_cast<Settings*>(context);
+        InternalState* state = reinterpret_cast<InternalState*>(internal_state);
 
-        TextureHandle depth_target = render_pass_system::get_texture_resource(render_list, ResourceNames::DEPTH_TARGET);
-        TextureHandle render_target = render_pass_system::get_texture_resource(render_list, ResourceNames::SDR_BUFFER);
-        TextureInfo& texture_info = gfx::textures::get_texture_info(render_target);
+        TextureHandle depth_target = resource_map.get_texture_resource(ResourceNames::DEPTH_TARGET);
+        TextureHandle render_target = resource_map.get_texture_resource(ResourceNames::SDR_BUFFER);
+        const TextureInfo& texture_info = gfx::textures::get_texture_info(render_target);
         Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
         Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-        gfx::cmd::set_active_resource_layout(cmd_ctx, pass_context->resource_layout);
-        gfx::cmd::set_pipeline_state(cmd_ctx, pass_context->pso_handle);
+        gfx::cmd::graphics::set_active_resource_layout(cmd_ctx, state->resource_layout);
+        gfx::cmd::graphics::set_pipeline_state(cmd_ctx, state->pso_handle);
         gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
         gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
@@ -286,20 +313,22 @@ namespace ForwardPass
         gfx::cmd::clear_depth_target(cmd_ctx, depth_target, 1.0f, 0);
         gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1, depth_target);
 
-        gfx::cmd::bind_constant_buffer(cmd_ctx, pass_context->view_cb_handle, 1);
-        gfx::cmd::bind_resource_table(cmd_ctx, 2);
-        gfx::cmd::bind_resource_table(cmd_ctx, 3);
+        gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_context->view_cb_handle, 1);
+        gfx::cmd::graphics::bind_resource_table(cmd_ctx, 2);
+        gfx::cmd::graphics::bind_resource_table(cmd_ctx, 3);
 
         for (size_t i = 0; i < pass_context->visibility_list->size; i++) {
             u32 idx = (*pass_context->visibility_list)[i];
-            gfx::cmd::bind_constant_buffer(cmd_ctx, pass_context->scene->draw_data_buffers[idx], 0);
-            gfx::cmd::draw_mesh(cmd_ctx, pass_context->scene->meshes[idx]);
+            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_context->scene->draw_data_buffers[idx], 0);
+            gfx::cmd::graphics::draw_mesh(cmd_ctx, pass_context->scene->meshes[idx]);
         }
     };
 
-    void destroy(void* context)
+    void* destroy(void* context, void* internal_state)
     {
-
+        InternalState* state = reinterpret_cast<InternalState*>(internal_state);
+        delete state;
+        return nullptr;
     }
 }
 
@@ -327,8 +356,8 @@ public:
 
     AABB_SoA aabb_soa;
 
-    ForwardPass::Context forward_context = {};
-    DebugPass::Context debug_context = {};
+    ForwardPass::Settings forward_pass_settings = {};
+    DebugPass::Settings debug_context = {};
 
     render_pass_system::RenderPassList render_list;
 
@@ -352,7 +381,7 @@ protected:
         mat4 view = look_at(debug_camera.position, camera.position, { 0.0f, 0.0f, 1.0f });
         set_camera_view(debug_camera, view);
 
-        gfx::begin_upload();
+        CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
 
         constexpr float fullscreen_positions[] = {
              1.0f,  3.0f, 1.0f,
@@ -369,30 +398,6 @@ protected:
         constexpr u16 fullscreen_indices[] = { 0, 1, 2 };
 
         //task_scheduler.Init();
-
-        MeshDesc fullscreen_desc{};
-        fullscreen_desc.index_buffer_desc.usage = RESOURCE_USAGE_INDEX;
-        fullscreen_desc.index_buffer_desc.type = BufferType::DEFAULT;
-        fullscreen_desc.index_buffer_desc.byte_size = sizeof(fullscreen_indices);
-        fullscreen_desc.index_buffer_desc.stride = sizeof(fullscreen_indices[0]);
-        fullscreen_desc.index_buffer_desc.data = (void*)fullscreen_indices;
-
-        fullscreen_desc.vertex_buffer_descs[0] = {
-            .usage = RESOURCE_USAGE_VERTEX,
-            .type = BufferType::DEFAULT,
-            .byte_size = sizeof(fullscreen_positions),
-            .stride = 3 * sizeof(fullscreen_positions[0]),
-            .data = (void*)(fullscreen_positions)
-        };
-        fullscreen_desc.vertex_buffer_descs[1] = {
-           .usage = RESOURCE_USAGE_VERTEX,
-           .type = BufferType::DEFAULT,
-           .byte_size = sizeof(fullscreen_uvs),
-           .stride = 2 * sizeof(fullscreen_uvs[0]),
-           .data = (void*)(fullscreen_uvs)
-        };
-
-        fullscreen_mesh = gfx::meshes::create(fullscreen_desc);
 
         // Create the cube mesh
         {
@@ -499,7 +504,6 @@ protected:
                     .type = BufferType::DEFAULT,
                     .byte_size = sizeof(cube_indices),
                     .stride = sizeof(cube_indices[0]),
-                    .data = (void*)cube_indices,
                  },
                 .vertex_buffer_descs = {
                     {
@@ -507,26 +511,29 @@ protected:
                     .type = BufferType::DEFAULT,
                     .byte_size = sizeof(cube_positions),
                     .stride = 3 * sizeof(cube_positions[0]),
-                    .data = (void*)(cube_positions)
                     },
                     {
                         .usage = RESOURCE_USAGE_VERTEX,
                         .type = BufferType::DEFAULT,
                         .byte_size = sizeof(cube_normals),
                         .stride = 3 * sizeof(cube_normals[0]),
-                        .data = (void*)(cube_normals)
                     },
                     {
                        .usage = RESOURCE_USAGE_VERTEX,
                        .type = BufferType::DEFAULT,
                        .byte_size = sizeof(cube_uvs),
                        .stride = 2 * sizeof(cube_uvs[0]),
-                       .data = (void*)(cube_uvs)
                     }
-                }
+                },
+                .index_buffer_data = cube_indices,
+                .vertex_buffer_data = {
+                    cube_positions,
+                    cube_normals,
+                    cube_uvs,
+                },
             };
 
-            cube_mesh = gfx::meshes::create(mesh_desc);
+            cube_mesh = gfx::meshes::create(copy_ctx, mesh_desc);
         }
 
         AABB aabb;
@@ -535,7 +542,7 @@ protected:
         {
 
             gltf::Context gltf_scene{};
-            gltf::load_gltf_file("../../models/boom_box/BoomBox.gltf", gltf_scene);
+            gltf::load_gltf_file("../../models/boom_box/BoomBox.gltf", copy_ctx, gltf_scene);
             mesh_handle = gltf_scene.meshes[0];
             local_transform = gltf_scene.scene_graph.global_transforms[0];
             aabb.max = gltf_scene.aabbs[0].max;
@@ -552,7 +559,6 @@ protected:
             .type = BufferType::DEFAULT,
             .byte_size = sizeof(ViewConstantData),
             .stride = 0,
-            .data = nullptr,
         };
 
         view_cb_handle = gfx::buffers::create(cb_desc);
@@ -597,15 +603,15 @@ protected:
                             .model = scene.global_transforms[idx],
                             .normal_transform = transpose(to_mat3(scene.global_transforms[idx])),
                         };
-                        draw_cb_desc.data = &draw_data;
                         scene.draw_data_buffers[idx] = gfx::buffers::create(draw_cb_desc);
+                        gfx::buffers::set_data(scene.draw_data_buffers[idx], &draw_data, sizeof(draw_data));
 
                         mat4 debug_transform = identity_mat4();
                         set_scale(debug_transform, (aabb.max - aabb.min));
                         set_translation(debug_transform, 0.5f * (aabb.max + aabb.min));
                         debug_transform = scene.global_transforms[idx] * debug_transform;
-                        draw_cb_desc.data = &debug_transform;
                         scene.debug_draw_data_buffers[idx] = gfx::buffers::create(draw_cb_desc);
+                        gfx::buffers::set_data(scene.debug_draw_data_buffers[idx], &debug_transform, sizeof(debug_transform));
 
                         visibility_list.push_back(idx);
                     }
@@ -613,7 +619,7 @@ protected:
             }
         }
 
-        forward_context = {
+        forward_pass_settings = {
             .view_cb_handle = view_cb_handle,
             .scene = &scene,
             .visibility_list = &visibility_list,
@@ -633,20 +639,23 @@ protected:
                 .inputs = {},
                 .outputs = {
                     {
-                        .name = ResourceNames::SDR_BUFFER,
+                        .id = ResourceNames::SDR_BUFFER,
+                        .name = "SDR buffer",
                         .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_RENDER_TARGET,
                         .texture_desc = {.format = BufferFormat::R8G8B8A8_UNORM_SRGB}
                     },
                     {
-                        .name = ResourceNames::DEPTH_TARGET,
+                        .id = ResourceNames::DEPTH_TARGET,
+                        .name = "Depth buffer",
                         .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_DEPTH_STENCIL,
                         .texture_desc = {.format = BufferFormat::D32 }
                     }
                 },
-                .context = &forward_context,
+                .settings = &forward_pass_settings,
                 .setup = &ForwardPass::setup,
+                .copy = nullptr,
                 .execute = &ForwardPass::record,
                 .destroy = &ForwardPass::destroy
             },
@@ -655,21 +664,23 @@ protected:
                 .queue_type = CommandQueueType::GRAPHICS,
                 .inputs = {
                     {
-                        .name = ResourceNames::DEPTH_TARGET,
+                        .id = ResourceNames::DEPTH_TARGET,
                         .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_DEPTH_STENCIL,
                     }
                 },
                 .outputs = {
                     {
-                        .name = ResourceNames::SDR_BUFFER,
+                        .id = ResourceNames::SDR_BUFFER,
+                        .name = "SDR buffer",
                         .type = render_pass_system::PassResourceType::TEXTURE,
                         .usage = RESOURCE_USAGE_RENDER_TARGET,
                         .texture_desc = {.format = BufferFormat::R8G8B8A8_UNORM_SRGB}
                     }
                 },
-                .context = &debug_context,
+                .settings = &debug_context,
                 .setup = &DebugPass::setup,
+                .copy = nullptr,
                 .execute = &DebugPass::record,
                 .destroy = &DebugPass::destroy
             },
@@ -683,7 +694,7 @@ protected:
         render_pass_system::compile_render_list(render_list, render_list_desc);
         render_pass_system::setup(render_list);
 
-        CmdReceipt receipt = gfx::end_upload();
+        CmdReceipt receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
         gfx::cmd::cpu_wait(receipt);
 
     }
@@ -695,8 +706,6 @@ protected:
 
     void update(const zec::TimeData& time_data) override final
     {
-        frame_times[gfx::get_current_cpu_frame() % 120] = time_data.delta_milliseconds_f;
-
         camera_controller.update(time_data.delta_seconds_f);
 
         view_constant_data.VP = camera.projection * camera.view;
@@ -724,8 +733,7 @@ protected:
         };
         gfx::buffers::update(debug_view_cb_handle, &debug_view_data, sizeof(debug_view_data));
 
-        gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
-        DebugPass::copy(&debug_context);
+        gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));;
     }
 
     void render() override final

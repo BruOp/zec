@@ -341,7 +341,7 @@ namespace zec::gfx
         }
 
 
-        OPTICK_GPU_INIT_D3D12(g_context.device, &gfx_queue, 1);
+        OPTICK_GPU_INIT_D3D12(g_context.device, &g_context.command_queues[CommandQueueType::GRAPHICS].queue, 1);
 
         // Swapchain initialization
         {

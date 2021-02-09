@@ -31,16 +31,7 @@ namespace zec
         vec3 center = {};
         vec3 extents = {};
         // Orthonormal basis
-        union
-        {
-            vec3 axes[3] = {};
-            struct
-            {
-                vec3 a0;
-                vec3 a1;
-                vec3 a2;
-            };
-        };
+        vec3 axes[3] = {};
     };
 
     struct AABB_SoA
@@ -66,11 +57,11 @@ namespace zec
     bool test_using_separating_axis_theorem(const CullingFrustum& frustum, const mat4& vs_transform, const AABB& aabb)
     {
         // Near, far
-        float n = frustum.near_plane;
-        float f = frustum.far_plane;
+        float z_near = frustum.near_plane;
+        float z_far = frustum.far_plane;
         // half width, half height
-        float r = frustum.near_right;
-        float t = frustum.near_top;
+        float x_near = frustum.near_right;
+        float y_near = frustum.near_top;
 
         // So first thing we need to do is obtain the normal directions of our OBB by transforming 4 of our AABB vertices
         vec3 corners[] = {
@@ -94,17 +85,19 @@ namespace zec
             },
         };
         obb.center = corners[0] + 0.5f * (obb.axes[0] + obb.axes[1] + obb.axes[2]);
-        obb.extents = vec3{ length(obb.a0), length(obb.a1), length(obb.a2) };
+        obb.extents = vec3{ length(obb.axes[0]), length(obb.axes[1]), length(obb.axes[2]) };
         obb.axes[0] = obb.axes[0] / obb.extents.x;
         obb.axes[1] = obb.axes[1] / obb.extents.y;
         obb.axes[2] = obb.axes[2] / obb.extents.z;
         obb.extents *= 0.5f;
 
-        // M = (0, 0, 1)
         {
-            float MoR = 0.0f;
-            float MoU = 0.0f;
-            float MoD = 1.0f;
+            vec3 M = { 0, 0, 1 };
+            float MoX = 0.0f;
+            float MoY = 0.0f;
+            float MoZ = 1.0f;
+            
+            // Projected center of our OBB
             float MoC = obb.center.z;
             // Projected size of OBB
             float radius = 0.0f;
@@ -115,10 +108,10 @@ namespace zec
             float obb_min = MoC - radius;
             float obb_max = MoC + radius;
 
-            float m0 = f; // Since z is negative, far is smaller than near
-            float m1 = n;
+            float tau_0 = z_far; // Since z is negative, far is smaller than near
+            float tau_1 = z_near;
 
-            if (obb_min > m1 || obb_max < m0) {
+            if (obb_min > tau_1 || obb_max < tau_0) {
                 culling_counters[CullingCounter::FRUSTUM_NORMALS]++;
                 return false;
             }
@@ -126,15 +119,15 @@ namespace zec
 
         {
             const vec3 M[] = {
-                { n, 0.0f, r }, // Left Plane
-                { -n, 0.0f, r }, // Right plane
-                { 0.0, -n, t }, // Top plane
-                { 0.0, n, t }, // Bottom plane
+                { z_near, 0.0f, x_near }, // Left Plane
+                { -z_near, 0.0f, x_near }, // Right plane
+                { 0.0, -z_near, y_near }, // Top plane
+                { 0.0, z_near, y_near }, // Bottom plane
             };
             for (size_t m = 0; m < ARRAY_SIZE(M); m++) {
-                float MoR = fabsf(M[m].x);
-                float MoU = fabsf(M[m].y);
-                float MoD = M[m].z;
+                float MoX = fabsf(M[m].x);
+                float MoY = fabsf(M[m].y);
+                float MoZ = M[m].z;
                 float MoC = dot(M[m], obb.center);
 
                 float obb_radius = 0.0f;
@@ -144,32 +137,32 @@ namespace zec
                 float obb_min = MoC - obb_radius;
                 float obb_max = MoC + obb_radius;
 
-                float p = r * MoR + t * MoU;
+                float p = x_near * MoX + y_near * MoY;
 
-                float m0 = n * MoD - p;
-                float m1 = n * MoD + p;
+                float tau_0 = z_near * MoZ - p;
+                float tau_1 = z_near * MoZ + p;
 
-                if (m0 < 0.0f) {
-                    m0 *= f / n;
+                if (tau_0 < 0.0f) {
+                    tau_0 *= z_far / z_near;
                 }
-                if (m1 > 0.0f) {
-                    m1 *= f / n;
+                if (tau_1 > 0.0f) {
+                    tau_1 *= z_far / z_near;
                 }
 
-                if (obb_min > m1 || obb_max < m0) {
+                if (obb_min > tau_1 || obb_max < tau_0) {
                     culling_counters[CullingCounter::FRUSTUM_NORMALS]++;
                     return false;
                 }
             }
         }
 
-        // OBB Extents
+        // OBB Axes
         {
             for (size_t m = 0; m < ARRAY_SIZE(obb.axes); m++) {
                 const vec3& M = obb.axes[m];
-                float MoR = fabsf(M.x);
-                float MoU = fabsf(M.y);
-                float MoD = M.z;
+                float MoX = fabsf(M.x);
+                float MoY = fabsf(M.y);
+                float MoZ = M.z;
                 float MoC = dot(M, obb.center);
 
                 float obb_radius = obb.extents[m];
@@ -178,17 +171,17 @@ namespace zec
                 float obb_max = MoC + obb_radius;
 
                 // Frustum projection
-                float p = r * MoR + t * MoU;
-                float m0 = n * MoD - p;
-                float m1 = n * MoD + p;
-                if (m0 < 0.0f) {
-                    m0 *= f / n;
+                float p = x_near * MoX + y_near * MoY;
+                float tau_0 = z_near * MoZ - p;
+                float tau_1 = z_near * MoZ + p;
+                if (tau_0 < 0.0f) {
+                    tau_0 *= z_far / z_near;
                 }
-                if (m1 > 0.0f) {
-                    m1 *= f / n;
+                if (tau_1 > 0.0f) {
+                    tau_1 *= z_far / z_near;
                 }
 
-                if (obb_min > m1 || obb_max < m0) {
+                if (obb_min > tau_1 || obb_max < tau_0) {
                     culling_counters[CullingCounter::OBB_AXES]++;
                     return false;
                 }
@@ -200,9 +193,9 @@ namespace zec
         {
             for (size_t m = 0; m < ARRAY_SIZE(obb.axes); m++) {
                 const vec3 M = { 0.0f, -obb.axes[m].z, obb.axes[m].y };
-                float MoR = 0.0f;
-                float MoU = fabsf(M.y);
-                float MoD = M.z;
+                float MoX = 0.0f;
+                float MoY = fabsf(M.y);
+                float MoZ = M.z;
                 float MoC = M.y * obb.center.y + M.z * obb.center.z;
 
                 float obb_radius = 0.0f;
@@ -214,17 +207,17 @@ namespace zec
                 float obb_max = MoC + obb_radius;
 
                 // Frustum projection
-                float p = r * MoR + t * MoU;
-                float m0 = n * MoD - p;
-                float m1 = n * MoD + p;
-                if (m0 < 0.0f) {
-                    m0 *= f / n;
+                float p = x_near * MoX + y_near * MoY;
+                float tau_0 = z_near * MoZ - p;
+                float tau_1 = z_near * MoZ + p;
+                if (tau_0 < 0.0f) {
+                    tau_0 *= z_far / z_near;
                 }
-                if (m1 > 0.0f) {
-                    m1 *= f / n;
+                if (tau_1 > 0.0f) {
+                    tau_1 *= z_far / z_near;
                 }
 
-                if (obb_min > m1 || obb_max < m0) {
+                if (obb_min > tau_1 || obb_max < tau_0) {
                     culling_counters[CullingCounter::R_CROSS_A]++;
                     return false;
                 }
@@ -235,9 +228,9 @@ namespace zec
         {
             for (size_t m = 0; m < ARRAY_SIZE(obb.axes); m++) {
                 const vec3 M = { obb.axes[m].z, 0.0f, -obb.axes[m].x };
-                float MoR = fabsf(M.x);
-                float MoU = 0.0f;
-                float MoD = M.z;
+                float MoX = fabsf(M.x);
+                float MoY = 0.0f;
+                float MoZ = M.z;
                 float MoC = M.x * obb.center.x + M.z * obb.center.z;
 
                 float obb_radius = 0.0f;
@@ -249,17 +242,17 @@ namespace zec
                 float obb_max = MoC + obb_radius;
 
                 // Frustum projection
-                float p = r * MoR + t * MoU;
-                float m0 = n * MoD - p;
-                float m1 = n * MoD + p;
-                if (m0 < 0.0f) {
-                    m0 *= f / n;
+                float p = x_near * MoX + y_near * MoY;
+                float tau_0 = z_near * MoZ - p;
+                float tau_1 = z_near * MoZ + p;
+                if (tau_0 < 0.0f) {
+                    tau_0 *= z_far / z_near;
                 }
-                if (m1 > 0.0f) {
-                    m1 *= f / n;
+                if (tau_1 > 0.0f) {
+                    tau_1 *= z_far / z_near;
                 }
 
-                if (obb_min > m1 || obb_max < m0) {
+                if (obb_min > tau_1 || obb_max < tau_0) {
                     culling_counters[CullingCounter::U_CROSS_A]++;
                     return false;
                 }
@@ -270,19 +263,19 @@ namespace zec
         {
             for (size_t obb_edge_idx = 0; obb_edge_idx < ARRAY_SIZE(obb.axes); obb_edge_idx++) {
                 const vec3 M[] = {
-                    cross({-r, 0.0f, n}, obb.axes[obb_edge_idx]), // Left Plane
-                    cross({ r, 0.0f, n }, obb.axes[obb_edge_idx]), // Right plane
-                    cross({ 0.0f, t, n }, obb.axes[obb_edge_idx]), // Top plane
-                    cross({ 0.0, -t, n }, obb.axes[obb_edge_idx]) // Bottom plane
+                    cross({-x_near, 0.0f, z_near}, obb.axes[obb_edge_idx]), // Left Plane
+                    cross({ x_near, 0.0f, z_near }, obb.axes[obb_edge_idx]), // Right plane
+                    cross({ 0.0f, y_near, z_near }, obb.axes[obb_edge_idx]), // Top plane
+                    cross({ 0.0, -y_near, z_near }, obb.axes[obb_edge_idx]) // Bottom plane
                 };
 
                 for (size_t m = 0; m < ARRAY_SIZE(M); m++) {
-                    float MoR = fabsf(M[m].x);
-                    float MoU = fabsf(M[m].y);
-                    float MoD = M[m].z;
+                    float MoX = fabsf(M[m].x);
+                    float MoY = fabsf(M[m].y);
+                    float MoZ = M[m].z;
 
                     constexpr float epsilon = 1e-4;
-                    if (MoR < epsilon && MoU < epsilon && fabsf(MoD) < epsilon) continue;
+                    if (MoX < epsilon && MoY < epsilon && fabsf(MoZ) < epsilon) continue;
 
                     float MoC = dot(M[m], obb.center);
 
@@ -295,17 +288,17 @@ namespace zec
                     float obb_max = MoC + obb_radius;
 
                     // Frustum projection
-                    float p = r * MoR + t * MoU;
-                    float m0 = n * MoD - p;
-                    float m1 = n * MoD + p;
-                    if (m0 < 0.0f) {
-                        m0 *= f / n;
+                    float p = x_near * MoX + y_near * MoY;
+                    float tau_0 = z_near * MoZ - p;
+                    float tau_1 = z_near * MoZ + p;
+                    if (tau_0 < 0.0f) {
+                        tau_0 *= z_far / z_near;
                     }
-                    if (m1 > 0.0f) {
-                        m1 *= f / n;
+                    if (tau_1 > 0.0f) {
+                        tau_1 *= z_far / z_near;
                     }
 
-                    if (obb_min > m1 || obb_max < m0) {
+                    if (obb_min > tau_1 || obb_max < tau_0) {
                         culling_counters[CullingCounter::FRUSTUM_EDGE_CROSS_A]++;
                         return false;
                     }

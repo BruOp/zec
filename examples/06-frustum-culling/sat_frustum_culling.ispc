@@ -80,11 +80,11 @@ bool is_visible(
 )
 {
     // Near, far
-    const uniform float n = frustum.near_plane;
-    const uniform float f = frustum.far_plane;
+    const uniform float z_near = frustum.near_plane;
+    const uniform float z_far = frustum.far_plane;
     // half width, half height
-    const uniform float r = frustum.near_right;
-    const uniform float t = frustum.near_top;
+    const uniform float x_near = frustum.near_right;
+    const uniform float y_near = frustum.near_top;
 
     // So first thing we need to do is obtain the normal directions of our OBB by transforming 4 of our AABB vertices
     const vec3 corners[] = {
@@ -114,11 +114,11 @@ bool is_visible(
 
     const uniform uint32 NUM_AXES = 3;
 
-    // M = (0, 0, 1)
+    // M = (0, 0, -1)
     {
-        float MoR = 0.0f;
-        float MoU = 0.0f;
-        float MoD = 1.0f;
+        float MoX = 0.0f;
+        float MoY = 0.0f;
+        float MoZ = -1.0f;
         float MoC = obb.center.z;
         // Projected size of OBB
         float radius = 0.0f;
@@ -129,8 +129,8 @@ bool is_visible(
         float obb_min = MoC - radius;
         float obb_max = MoC + radius;
 
-        float m0 = f; // Since z is negative, far is smaller than near
-        float m1 = n;
+        float m0 = z_far; // Since z is negative, far is smaller than near
+        float m1 = z_near;
 
         if (obb_min > m1 || obb_max < m0) {
             return false;
@@ -139,15 +139,15 @@ bool is_visible(
 
     {
         uniform const vec3 M[] = {
-            { n, 0.0f, r }, // Left Plane
-            { -n, 0.0f, r }, // Right plane
-            { 0.0, -n, t }, // Top plane
-            { 0.0, n, t }, // Bottom plane
+            { z_near, 0.0f, x_near }, // Left Plane
+            { -z_near, 0.0f, x_near }, // Right plane
+            { 0.0, -z_near, y_near }, // Top plane
+            { 0.0, z_near, y_near }, // Bottom plane
         };
         for (uniform size_t m = 0; m < 4; m++) {
-            float MoR = abs(M[m].x);
-            float MoU = abs(M[m].y);
-            float MoD = M[m].z;
+            float MoX = abs(M[m].x);
+            float MoY = abs(M[m].y);
+            float MoZ = M[m].z;
             float MoC = dot(M[m], obb.center);
 
             float obb_radius = 0.0f;
@@ -157,16 +157,16 @@ bool is_visible(
             float obb_min = MoC - obb_radius;
             float obb_max = MoC + obb_radius;
 
-            float p = r * MoR + t * MoU;
+            float p = x_near * MoX + y_near * MoY;
 
-            float m0 = n * MoD - p;
-            float m1 = n * MoD + p;
+            float m0 = z_near * MoZ - p;
+            float m1 = z_near * MoZ + p;
 
             if (m0 < 0.0f) {
-                m0 *= f / n;
+                m0 *= z_far / z_near;
             }
             if (m1 > 0.0f) {
-                m1 *= f / n;
+                m1 *= z_far / z_near;
             }
 
             if (obb_min > m1 || obb_max < m0) {
@@ -179,9 +179,9 @@ bool is_visible(
     {
         for (uniform size_t m = 0; m < NUM_AXES; m++) {
             const vec3& M = obb.axes[m];
-            float MoR = abs(M.x);
-            float MoU = abs(M.y);
-            float MoD = M.z;
+            float MoX = abs(M.x);
+            float MoY = abs(M.y);
+            float MoZ = M.z;
             float MoC = dot(M, obb.center);
 
             float obb_radius = obb.extents[m];
@@ -190,14 +190,14 @@ bool is_visible(
             float obb_max = MoC + obb_radius;
 
             // Frustum projection
-            float p = r * MoR + t * MoU;
-            float m0 = n * MoD - p;
-            float m1 = n * MoD + p;
+            float p = x_near * MoX + y_near * MoY;
+            float m0 = z_near * MoZ - p;
+            float m1 = z_near * MoZ + p;
             if (m0 < 0.0f) {
-                m0 *= f / n;
+                m0 *= z_far / z_near;
             }
             if (m1 > 0.0f) {
-                m1 *= f / n;
+                m1 *= z_far / z_near;
             }
 
             if (obb_min > m1 || obb_max < m0) {
@@ -211,11 +211,11 @@ bool is_visible(
     {
         for (uniform size_t m = 0; m < NUM_AXES; m++) {
             const vec3 M = { 0.0f, -obb.axes[m].z, obb.axes[m].y };
-            float MoR = 0.0f;
-            float MoU = abs(M.y);
-            float MoD = M.z;
+            float MoX = 0.0f;
+            float MoY = abs(M.y);
+            float MoZ = M.z;
 
-            if (MoU < EPSILON && abs(MoD) < EPSILON) continue;
+            if (MoY < EPSILON && abs(MoZ) < EPSILON) continue;
 
             float MoC = M.y * obb.center.y + M.z * obb.center.z;
 
@@ -229,14 +229,14 @@ bool is_visible(
             float obb_max = MoC + obb_radius;
 
             // Frustum projection
-            float p = r * MoR + t * MoU;
-            float m0 = n * MoD - p;
-            float m1 = n * MoD + p;
+            float p = x_near * MoX + y_near * MoY;
+            float m0 = z_near * MoZ - p;
+            float m1 = z_near * MoZ + p;
             if (m0 < 0.0f) {
-                m0 *= f / n;
+                m0 *= z_far / z_near;
             }
             if (m1 > 0.0f) {
-                m1 *= f / n;
+                m1 *= z_far / z_near;
             }
 
             if (obb_min > m1 || obb_max < m0) {
@@ -249,10 +249,10 @@ bool is_visible(
     {
         for (uniform size_t m = 0; m < NUM_AXES; m++) {
             const vec3 M = { obb.axes[m].z, 0.0f, -obb.axes[m].x };
-            float MoR = abs(M.x);
-            float MoU = 0.0f;
-            float MoD = M.z;
-            if (MoR < EPSILON && abs(MoD) < EPSILON) continue;
+            float MoX = abs(M.x);
+            float MoY = 0.0f;
+            float MoZ = M.z;
+            if (MoX < EPSILON && abs(MoZ) < EPSILON) continue;
 
             float MoC = M.x * obb.center.x + M.z * obb.center.z;
 
@@ -265,14 +265,14 @@ bool is_visible(
             float obb_max = MoC + obb_radius;
 
             // Frustum projection
-            float p = r * MoR + t * MoU;
-            float m0 = n * MoD - p;
-            float m1 = n * MoD + p;
+            float p = x_near * MoX + y_near * MoY;
+            float m0 = z_near * MoZ - p;
+            float m1 = z_near * MoZ + p;
             if (m0 < 0.0f) {
-                m0 *= f / n;
+                m0 *= z_far / z_near;
             }
             if (m1 > 0.0f) {
-                m1 *= f / n;
+                m1 *= z_far / z_near;
             }
 
             if (obb_min > m1 || obb_max < m0) {
@@ -285,19 +285,19 @@ bool is_visible(
     {
         for (uniform size_t i = 0; i < NUM_AXES; i++) {
             const vec3 planes[] = {
-                {-r, 0.0f, n},  // Left Plane
-                { r, 0.0f, n }, // Right plane
-                { 0.0f, t, n }, // Top plane
-                { 0.0, -t, n }, // Bottom plane
+                {-x_near, 0.0f, z_near},  // Left Plane
+                { x_near, 0.0f, z_near }, // Right plane
+                { 0.0f, y_near, z_near }, // Top plane
+                { 0.0, -y_near, z_near }, // Bottom plane
             };
 
             for (uniform size_t m = 0; m < 4; m++) {
                 vec3 M = cross(planes[m], obb.axes[i]);
 
-                float MoR = abs(M.x);
-                float MoU = abs(M.y);
-                float MoD = M.z;
-                if (MoR < EPSILON && MoU < EPSILON && abs(MoD) < EPSILON) continue;
+                float MoX = abs(M.x);
+                float MoY = abs(M.y);
+                float MoZ = M.z;
+                if (MoX < EPSILON && MoY < EPSILON && abs(MoZ) < EPSILON) continue;
 
                 float MoC = dot(M, obb.center);
 
@@ -310,14 +310,14 @@ bool is_visible(
                 float obb_max = MoC + obb_radius;
 
                 // Frustum projection
-                float p = r * MoR + t * MoU;
-                float m0 = n * MoD - p;
-                float m1 = n * MoD + p;
+                float p = x_near * MoX + y_near * MoY;
+                float m0 = z_near * MoZ - p;
+                float m1 = z_near * MoZ + p;
                 if (m0 < 0.0f) {
-                    m0 *= f / n;
+                    m0 *= z_far / z_near;
                 }
                 if (m1 > 0.0f) {
-                    m1 *= f / n;
+                    m1 *= z_far / z_near;
                 }
 
                 if (obb_min > m1 || obb_max < m0) {
