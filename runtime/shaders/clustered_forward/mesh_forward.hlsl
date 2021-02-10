@@ -3,9 +3,21 @@
 struct VSConstants
 {
     float4x4 model;
-    uint vertex_positions_idx;
-    uint vertex_uvs_idx;
-    float padding[46];
+    row_major float3x4 normal;
+};
+
+struct MaterialData
+{
+    float4 base_color_factor;
+    float3 emissive_factor;
+    float metallic_factor;
+    float roughness_factor;
+    uint base_color_texture_idx;
+    uint metallic_roughness_texture_idx;
+    uint normal_texture_idx;
+    uint occlusion_texture_idx;
+    uint emissive_texture_idx;
+    float padding[50];
 };
 
 // Two constants
@@ -30,32 +42,36 @@ cbuffer view_constants_buffer : register(b2)
     float time;
 };
 
+SamplerState default_sampler : register(s0);
+
 ByteAddressBuffer buffers_table[4096] : register(t0, space1);
+Texture2D tex2D_table[4096] : register(t0, space2);
+TextureCube tex_cube_table[4096] : register(t0, space3);
 
 struct PSInput
 {
     float4 position_cs : SV_POSITION;
     float4 position_ws : POSITIONWS;
+    float3 normal : NORMAL;
     float2 uv : TEXCOORD;
 };
 
-PSInput VSMain(uint vert_id : SV_VertexID)
+PSInput VSMain(float3 position : POSITION0, float3 normal : NORMAL0, float2 uv : TEXCOORD0)
 {
     VSConstants vs_cb = buffers_table[vs_cb_descriptor_idx].Load<VSConstants>(renderable_idx * sizeof(VSConstants));
-    float4 vert_position = float4(
-        buffers_table[vs_cb.vertex_positions_idx].Load<float3>(vert_id * sizeof(float3)),
-        1.0f);
-    float2 uv = buffers_table[vs_cb.vertex_uvs_idx].Load<float2>(vert_id * sizeof(float2));
-
+    
     PSInput res;
-    res.position_ws = mul(vs_cb.model, vert_position);
+    res.position_ws = mul(vs_cb.model, float4(position, 1.0));
     res.position_cs = mul(VP, res.position_ws);
     res.uv = uv;
+    // This sucks!
+    float3x3 normal_transform = float3x3(vs_cb.normal._11_12_13, vs_cb.normal._21_22_23, vs_cb.normal._31_32_33);
+    res.normal = mul(normal_transform, normal).xyz;
     return res;
 };
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    float4 color = float4(input.uv, 0.0, 1.0);
+    float4 color = float4(input.normal, 1.0);
     return color;
 };

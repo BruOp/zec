@@ -8,6 +8,13 @@ namespace zec
 {
     namespace gltf
     {
+        enum LoaderFlags : u32
+        {
+            GLTF_LOADING_FLAG_NONE = 0,
+            // We're loading a glb
+            GLTF_LOADING_BINARY_FORMAT = (1 << 0),
+        };
+
         struct MaterialData
         {
             vec4 base_color_factor = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -54,6 +61,6 @@ namespace zec
             Array<DrawCall> draw_calls = {};
         };
 
-        void load_gltf_file(const std::string& gltf_file, CommandContextHandle cmd_ctx, Context& context, bool is_binary = false);
+        void load_gltf_file(const std::string& gltf_file, CommandContextHandle cmd_ctx, Context& context, const LoaderFlags flags);
     };
 }

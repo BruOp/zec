@@ -153,7 +153,7 @@ namespace zec
 
         }
 
-        void process_primitives(const tinygltf::Model& model, CommandContextHandle cmd_ctx, Array<MeshArrayView>& mesh_to_mesh_mapping, Context& out_context)
+        void process_primitives(const tinygltf::Model& model, CommandContextHandle cmd_ctx, Array<MeshArrayView>& mesh_to_mesh_mapping, Context& out_context, const LoaderFlags flags)
         {
 
             for (size_t their_mesh_idx = 0; their_mesh_idx < model.meshes.size(); ++their_mesh_idx) {
@@ -341,7 +341,7 @@ namespace zec
             }
         }
 
-        void load_gltf_file(const std::string& gltf_file, CommandContextHandle cmd_ctx, Context& out_context, bool is_binary)
+        void load_gltf_file(const std::string& gltf_file, CommandContextHandle cmd_ctx, Context& out_context, const LoaderFlags flags = GLTF_LOADING_FLAG_NONE)
         {
             tinygltf::TinyGLTF loader;
             loader.SetImageLoader(loadImageDataCallback, nullptr);
@@ -350,7 +350,7 @@ namespace zec
             tinygltf::Model model;
 
             bool res = false;
-            if (is_binary) {
+            if (flags & GLTF_LOADING_BINARY_FORMAT) {
                 res = loader.LoadBinaryFromFile(&model, &err, &warn, gltf_file);
             }
             else {
