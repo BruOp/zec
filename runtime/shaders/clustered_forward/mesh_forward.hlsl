@@ -4,6 +4,7 @@ static const uint INVALID_TEXTURE_IDX = 0xffffffff;
 static const float DIELECTRIC_SPECULAR = 0.04;
 static const float MIN_ROUGHNESS = 0.045;
 static const float PI = 3.141592653589793;
+static const float INV_PI = 0.318309886;
 
 
 //=================================================================================================
@@ -30,6 +31,16 @@ struct MaterialData
     float padding[18];
 };
 
+struct SpotLight
+{
+    float3 position;
+    float radius;
+    float3 direction;
+    float umbra_angle;
+    float penumbra_angle;
+    float3 color;
+};
+
 // Two constants
 cbuffer draw_call_constants0 : register(b0)
 {
@@ -53,6 +64,13 @@ cbuffer view_constants_buffer : register(b2)
     uint brdf_lut_idx;
     float num_env_levels;
     float time;
+};
+
+
+cbuffer scene_constants_buffer : register(b3)
+{
+    uint num_spot_lights;
+    uint spot_light_buffer_idx;
 };
 
 SamplerState default_sampler : register(s0);
@@ -180,11 +198,7 @@ PSInput VSMain(float3 position : POSITION0, float3 normal : NORMAL0, float2 uv :
 float4 PSMain(PSInput input) : SV_TARGET
 {
     float3 view_dir = normalize(camera_pos - input.position_ws.xyz);
-
-    const float3 light_pos = float3(10.0 * sin(time), 10.0, 10.0 * cos(time));
-    const float light_intensity = 100.0f;
-    const float3 light_color = float3_splat(1.0);
-
+    
     MaterialData mat = buffers_table[material_buffer_descriptor_idx].Load<MaterialData>(material_idx * sizeof(MaterialData));
     
     float4 base_color = mat.base_color_factor;
@@ -230,17 +244,34 @@ float4 PSMain(PSInput input) : SV_TARGET
         emissive *= emissive_texture.Sample(default_sampler, input.uv).rgb;
     }
 
-    float3 light_dir = light_pos - input.position_ws.xyz;
-    float light_dist = length(light_dir);
-    light_dir = light_dir / light_dist;
-
-    float attenuation = light_intensity / (light_dist * light_dist);
-    float3 light_in = attenuation * light_color * clamp_dot(normal, light_dir);
-    
+    float3 brdf_diffuse = calc_diffuse(base_color.xyz, metallic);
     float3 f0 = lerp(float3_splat(DIELECTRIC_SPECULAR), base_color.rgb, metallic);
-    float3 diffuse = calc_diffuse(base_color.xyz, metallic);
-    float3 specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
-    float3 light_out = emissive + occlusion * light_in * (diffuse + PI * specular);
+    
+    float3 light_out = float3(0.0, 0.0, 0.0);
+    ByteAddressBuffer spot_lights_buffer = buffers_table[spot_light_buffer_idx];
+    for (uint i =0; i < num_spot_lights; ++i) {
+        SpotLight spot_light = spot_lights_buffer.Load<SpotLight>(i * sizeof(SpotLight));
+        float3 light_dir = spot_light.position - input.position_ws.xyz;
+        float light_dist = length(light_dir);
+        light_dir = light_dir / light_dist;
+        
+        float cos_umbra = cos(spot_light.umbra_angle);
+        // Taken from RTR v4 p115
+        float t = saturate((dot(light_dir, -spot_light.direction) - cos_umbra) / (cos(spot_light.penumbra_angle) - cos_umbra));
+        float directonal_attenuation = t * t;
+        
+        // Taken from KARIS 2013
+        float distance_attenuation = 1.0 / (light_dist * light_dist + 0.01);
+        //float distance_attenuation = pow(saturate(1.0 - pow(light_dist / spot_light.radius, 4)), 2) / (light_dist * light_dist + 0.01)
+        
+        float attenuation = directonal_attenuation  * distance_attenuation;
+        float3 light_in = attenuation * spot_light.color * clamp_dot(normal, light_dir);
+    
+        float3 brdf_specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
+        
+        light_out += light_in * (INV_PI *  brdf_diffuse + brdf_specular);
+    }
+    //light_out = emissive + occlusion * light_out * PI;
 
     return float4(light_out, 1.0);
 }

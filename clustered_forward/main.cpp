@@ -23,11 +23,23 @@ namespace clustered
         PER_INSTANCE_CONSTANTS_SLOT = 0,
         BUFFERS_DESCRIPTORS_SLOT,
         VIEW_CONSTANT_BUFFER_SLOT,
+        SCENE_CONSTANT_BUFFER_SLOT,
         RAW_BUFFERS_TABLE,
         TEXTURE_2D_TABLE,
         TEXTURE_CUBE_TABLE,
     };
 
+    struct SpotLight
+    {
+        static constexpr size_t MAX_SPOT_LIGHTS = 1024;
+
+        vec3 position;
+        float radius;
+        vec3 direction;
+        float umbra_angle;
+        float penumbra_angle;
+        vec3 color;
+    };
 
     struct ResourceIdentifier
     {
@@ -40,6 +52,13 @@ namespace clustered
         constexpr ResourceIdentifier DEPTH_TARGET = PASS_RESOURCE_IDENTIFIER("depth");
         constexpr ResourceIdentifier SDR_TARGET = PASS_RESOURCE_IDENTIFIER("sdr");
     }
+
+
+    struct SceneConstantData
+    {
+        u32 num_spot_lights = 0;
+        u32 spot_light_buffer_idx = UINT32_MAX;
+    };
 
     struct ViewConstantData
     {
@@ -73,6 +92,12 @@ namespace clustered
 
     static_assert(sizeof(MaterialData) == 128);
 
+    struct SceneBuffers
+    {
+        BufferHandle scene_constants = {};
+        BufferHandle spot_lights_buffer = {};
+    };
+
     class Renderables
     {
     public:
@@ -97,6 +122,8 @@ namespace clustered
                 .stride = 4,
             };
             vs_buffer = gfx::buffers::create(vs_buffer_desc);
+            gfx::set_debug_name(vs_buffer, L"Vertex Shader Constants Buffer");
+
         }
 
         void push_renderable(const u32 material_idx, const MeshHandle mesh_handle, const VertexShaderData& vs_data)
@@ -114,7 +141,7 @@ namespace clustered
         struct Settings
         {
             Renderables* scene_renderables = nullptr;
-            BufferHandle scene_constants_buffer = {};
+            SceneBuffers* scene_buffers = nullptr;
             BufferHandle view_cb_handle = {};
         };
 
@@ -135,8 +162,9 @@ namespace clustered
                 .num_constants = 2,
                 .constant_buffers = {
                     { ShaderVisibility::ALL },
+                    { ShaderVisibility::PIXEL },
                 },
-                .num_constant_buffers = 1,
+                .num_constant_buffers = 2,
                 .tables = {
                     {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
                     {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
@@ -207,6 +235,7 @@ namespace clustered
 
             const BufferHandle view_cb_handle = pass_context->view_cb_handle;
             gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_context->view_cb_handle, ForwardPassBindingSlots::VIEW_CONSTANT_BUFFER_SLOT);
+            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_context->scene_buffers->scene_constants, ForwardPassBindingSlots::SCENE_CONSTANT_BUFFER_SLOT);
 
             const auto* scene_data = pass_context->scene_renderables;
             gfx::cmd::graphics::bind_resource_table(cmd_ctx, ForwardPassBindingSlots::RAW_BUFFERS_TABLE);
@@ -280,20 +309,19 @@ namespace clustered
         PerspectiveCamera camera;
         PerspectiveCamera debug_camera;
 
-        Renderables scene_renderables = {};
+        // Scene data
         Array<MaterialData> material_instances;
+        Array<SpotLight> spot_lights;
+        
+        // Rendering Data
+        Renderables scene_renderables = {};
+        SceneBuffers scene_buffers = {};
+        BufferHandle view_cb_handle = {};
+        // GPU side copy of the material instances data
+        BufferHandle materials_buffer = {};
 
         ForwardPass::Settings forward_pass_context = {};
         render_pass_system::RenderPassList render_list;
-
-        // Are handles necessary for something like this?
-        size_t active_camera_idx;
-
-        BufferHandle view_cb_handle = {};
-        BufferHandle scene_constants_buffer = {};
-        BufferHandle vs_constants_buffers = {};
-        // GPU side copy of the material instances data
-        BufferHandle materials_buffer = {};
 
 
     protected:
@@ -309,19 +337,35 @@ namespace clustered
             camera_controller.init();
             camera_controller.set_camera(&camera);
 
-            constexpr float fullscreen_positions[] = {
-                 1.0f,  3.0f, 1.0f,
-                 1.0f, -1.0f, 1.0f,
-                -3.0f, -1.0f, 1.0f,
-            };
+            // Create lights
+            {
+                constexpr vec3 light_colors[] = {
+                    {1.0f, 0.0f, 0.0f },
+                    {0.0f, 1.0f, 0.0f },
+                    {0.0f, 0.0f, 1.0f },
+                    {1.0f, 1.0f, 0.0f },
+                    {1.0f, 0.0f, 1.0f },
+                    {0.0f, 1.0f, 1.0f },
+                    {1.0f, 1.0f, 1.0f },
+                    {0.5f, 0.3f, 1.0f },
+                };
 
-            constexpr float fullscreen_uvs[] = {
-                 1.0f,  -1.0f,
-                 1.0f,   1.0f,
-                -1.0f,   1.0f,
-            };
-
-            constexpr u16 fullscreen_indices[] = { 0, 1, 2 };
+                constexpr size_t num_lights = 8;
+                for (size_t i = 0; i < num_lights; i++) {
+                    // place the lights in a ring around the origin
+                    float ring_radius = 3.0f;
+                    vec3 position = vec3{ cosf(k_2_pi * float(i) / num_lights), 1.0f, sinf(k_2_pi * float(i) / num_lights) };
+                    position = ring_radius * position;
+                    spot_lights.push_back({
+                        .position = position,
+                        .radius = 15.0f,
+                        .direction = normalize(-1.0f * position),
+                        .umbra_angle = k_half_pi * 0.5f,
+                        .penumbra_angle = k_half_pi * 0.4f,
+                        .color = light_colors[i] * 5.0f,
+                    });
+                }
+            }
 
             view_cb_handle = gfx::buffers::create({
                 .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
@@ -330,29 +374,22 @@ namespace clustered
                 .stride = 0 });
             gfx::set_debug_name(view_cb_handle, L"View Constant Buffer");
 
-            /*MeshDesc fullscreen_desc{};
-            fullscreen_desc.index_buffer_desc.usage = RESOURCE_USAGE_INDEX;
-            fullscreen_desc.index_buffer_desc.type = BufferType::DEFAULT;
-            fullscreen_desc.index_buffer_desc.byte_size = sizeof(fullscreen_indices);
-            fullscreen_desc.index_buffer_desc.stride = sizeof(fullscreen_indices[0]);
-            fullscreen_desc.index_buffer_data = fullscreen_indices;*/
+            // Scene buffers
+            {
+                scene_buffers.scene_constants = gfx::buffers::create({
+                    .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
+                    .type = BufferType::DEFAULT,
+                    .byte_size = sizeof(SceneConstantData), // will get bumped up to 256
+                    .stride = 0 });
+                gfx::set_debug_name(scene_buffers.scene_constants, L"Scene Constants Buffers");
 
-
-            /*fullscreen_desc.vertex_buffer_descs[0] = {
-                .usage = RESOURCE_USAGE_VERTEX,
-                .type = BufferType::DEFAULT,
-                .byte_size = sizeof(fullscreen_positions),
-                .stride = 3 * sizeof(fullscreen_positions[0]) };
-            fullscreen_desc.vertex_buffer_data[0] = fullscreen_positions;
-
-
-            fullscreen_desc.vertex_buffer_descs[1] = {
-               .usage = RESOURCE_USAGE_VERTEX,
-               .type = BufferType::DEFAULT,
-               .byte_size = sizeof(fullscreen_uvs),
-               .stride = 2 * sizeof(fullscreen_uvs[0])
-            };
-            fullscreen_desc.vertex_buffer_data[1] = fullscreen_uvs;*/
+                scene_buffers.spot_lights_buffer = gfx::buffers::create({
+                    .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
+                    .type = BufferType::RAW,
+                    .byte_size = sizeof(SpotLight) * SpotLight::MAX_SPOT_LIGHTS,
+                    .stride = 4 });
+                gfx::set_debug_name(scene_buffers.spot_lights_buffer, L"Spot Lights Buffer");
+            }
 
             CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
             //fullscreen_mesh = gfx::meshes::create(copy_ctx, fullscreen_desc);
@@ -382,6 +419,7 @@ namespace clustered
                 .type = BufferType::RAW,
                 .byte_size = u32(material_instances.get_byte_size()),
                 .stride = 4 });
+            gfx::set_debug_name(materials_buffer, L"Materials Buffer");
             gfx::buffers::set_data(materials_buffer, material_instances.data, material_instances.get_byte_size());
 
             for (size_t i = 0; i < gltf_context.draw_calls.size; i++) {
@@ -399,6 +437,7 @@ namespace clustered
 
             forward_pass_context.view_cb_handle = view_cb_handle;
             forward_pass_context.scene_renderables = &scene_renderables;
+            forward_pass_context.scene_buffers= &scene_buffers;
 
             render_pass_system::RenderPassDesc render_pass_descs[] = {
                 clustered::ForwardPass::generate_desc(&forward_pass_context),
@@ -435,6 +474,20 @@ namespace clustered
             };
             gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
 
+            SceneConstantData scene_constant_data{
+                .num_spot_lights = u32(spot_lights.size),
+                .spot_light_buffer_idx = gfx::buffers::get_shader_readable_index(scene_buffers.spot_lights_buffer),
+            };
+            gfx::buffers::update(
+                scene_buffers.scene_constants,
+                &scene_constant_data,
+                sizeof(scene_constant_data));
+
+            gfx::buffers::update(
+                scene_buffers.spot_lights_buffer,
+                spot_lights.data,
+                spot_lights.size * sizeof(SpotLight));
+
             gfx::buffers::update(
                 scene_renderables.vs_buffer,
                 scene_renderables.vertex_shader_data.data,
@@ -459,6 +512,7 @@ namespace clustered
 
 int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
+#ifdef DEBUG
     int res = 0;
     _CrtMemState s1, s2, s3;
     _CrtMemCheckpoint(&s1);
@@ -473,4 +527,8 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
         _CrtMemDumpStatistics(&s3);
     _CrtDumpMemoryLeaks();
     return res;
+#else
+    clustered::ClusteredForward  app{};
+    return app.run();
+#endif // DEBUG
 }
