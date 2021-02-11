@@ -61,6 +61,6 @@ namespace zec
             Array<DrawCall> draw_calls = {};
         };
 
-        void load_gltf_file(const std::string& gltf_file, CommandContextHandle cmd_ctx, Context& context, const LoaderFlags flags);
+        void load_gltf_file(const std::string& gltf_file, CommandContextHandle cmd_ctx, Context& context, const LoaderFlags flags = GLTF_LOADING_FLAG_NONE);
     };
 }

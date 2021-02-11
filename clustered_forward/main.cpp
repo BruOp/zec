@@ -1,3 +1,4 @@
+
 #include "app.h"
 #include "core/zec_math.h"
 #include "utils/crc_hash.h"
@@ -19,10 +20,12 @@ namespace clustered
 {
     enum ForwardPassBindingSlots : u32
     {
-        RENDERABLE_IDX_SLOT = 0,
-        VS_DATA_IDX_SLOT,
+        PER_INSTANCE_CONSTANTS_SLOT = 0,
+        BUFFERS_DESCRIPTORS_SLOT,
         VIEW_CONSTANT_BUFFER_SLOT,
-        RAW_BUFFERS_TABLE
+        RAW_BUFFERS_TABLE,
+        TEXTURE_2D_TABLE,
+        TEXTURE_CUBE_TABLE,
     };
 
 
@@ -65,54 +68,41 @@ namespace clustered
         u32 normal_texture_idx;
         u32 occlusion_texture_idx;
         u32 emissive_texture_idx;
-        float padding[2];
+        float padding[18];
     };
 
-    static_assert(sizeof(MaterialData) % 16 == 0);
-
-
-    struct PerEntityDataBuffers
-    {
-        static constexpr size_t MATERIAL_DATA_BYTE_SIZE = sizeof(MaterialData);
-        static constexpr size_t INSTANCE_BUFFER_DATA_SIZE = MAX_NUM_OBJECTS * MATERIAL_DATA_BYTE_SIZE; // Since each object gets 256 bytes worth of material data
-        BufferHandle vs_buffer = {};
-        BufferHandle material_data_buffer = {};
-    };
-
-    void create_per_entity_data_buffers(PerEntityDataBuffers& per_entity_data_buffers)
-    {
-        ASSERT(!is_valid(per_entity_data_buffers.vs_buffer));
-        ASSERT(!is_valid(per_entity_data_buffers.material_data_buffer));
-
-        BufferDesc vs_buffer_desc{
-            .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
-            .type = BufferType::RAW,
-            .byte_size = sizeof(VertexShaderData) * MAX_NUM_OBJECTS,
-            .stride = 4,
-        };
-        per_entity_data_buffers.vs_buffer = gfx::buffers::create(vs_buffer_desc);
-
-        BufferDesc material_data_buffer_desc{
-            .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
-            .type = BufferType::RAW,
-            .byte_size = PerEntityDataBuffers::INSTANCE_BUFFER_DATA_SIZE,
-            .stride = 4,
-        };
-        per_entity_data_buffers.material_data_buffer = gfx::buffers::create(material_data_buffer_desc);
-    }
+    static_assert(sizeof(MaterialData) == 128);
 
     class Renderables
     {
     public:
+
+        // Owning
         size_t num_entities;
+        Array<u32> material_indices;
         Array<MeshHandle> meshes;
         Array<VertexShaderData> vertex_shader_data;
-        Array<MaterialData> material_data;
-        PerEntityDataBuffers per_entity_data_buffers;
 
-        void push_back(const MeshHandle mesh_handle, const VertexShaderData& vs_data)
+        u32 material_buffer_idx;
+        BufferHandle vs_buffer = {};
+
+        void init(const BufferHandle materials_buffer, const u32 max_num_entities)
+        {
+            material_buffer_idx = gfx::buffers::get_shader_readable_index(materials_buffer);
+
+            BufferDesc vs_buffer_desc{
+                .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
+                .type = BufferType::RAW,
+                .byte_size = sizeof(VertexShaderData) * max_num_entities,
+                .stride = 4,
+            };
+            vs_buffer = gfx::buffers::create(vs_buffer_desc);
+        }
+
+        void push_renderable(const u32 material_idx, const MeshHandle mesh_handle, const VertexShaderData& vs_data)
         {
             num_entities++;
+            material_indices.push_back(material_idx);
             meshes.push_back(mesh_handle);
             vertex_shader_data.push_back(vs_data);
             ASSERT(meshes.size == vertex_shader_data.size && meshes.size == num_entities);
@@ -124,6 +114,7 @@ namespace clustered
         struct Settings
         {
             Renderables* scene_renderables = nullptr;
+            BufferHandle scene_constants_buffer = {};
             BufferHandle view_cb_handle = {};
         };
 
@@ -138,8 +129,8 @@ namespace clustered
             InternalState* internal_state = new InternalState{};
             ResourceLayoutDesc layout_desc{
                 .constants = {
-                    {.visibility = ShaderVisibility::ALL, .num_constants = 1 },
-                    {.visibility = ShaderVisibility::ALL, .num_constants = 1 },
+                    {.visibility = ShaderVisibility::ALL, .num_constants = 2 },
+                    {.visibility = ShaderVisibility::ALL, .num_constants = 2 },
                 },
                 .num_constants = 2,
                 .constant_buffers = {
@@ -160,7 +151,7 @@ namespace clustered
                         .binding_slot = 0,
                     },
                 },
-                .num_static_samplers = 0,
+                .num_static_samplers = 1,
             };
 
             ResourceLayoutHandle resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
@@ -219,12 +210,21 @@ namespace clustered
 
             const auto* scene_data = pass_context->scene_renderables;
             gfx::cmd::graphics::bind_resource_table(cmd_ctx, ForwardPassBindingSlots::RAW_BUFFERS_TABLE);
+            gfx::cmd::graphics::bind_resource_table(cmd_ctx, ForwardPassBindingSlots::TEXTURE_2D_TABLE);
+            gfx::cmd::graphics::bind_resource_table(cmd_ctx, ForwardPassBindingSlots::TEXTURE_CUBE_TABLE);
 
-            u32 vs_cb_idx = gfx::buffers::get_shader_readable_index(scene_data->per_entity_data_buffers.vs_buffer);
-            gfx::cmd::graphics::bind_constants(cmd_ctx, &vs_cb_idx, 1, ForwardPassBindingSlots::VS_DATA_IDX_SLOT);
+            u32 buffer_descriptors[2] = {
+                gfx::buffers::get_shader_readable_index(scene_data->vs_buffer),
+                scene_data->material_buffer_idx,
+            };
+            gfx::cmd::graphics::bind_constants(cmd_ctx, &buffer_descriptors, 2, ForwardPassBindingSlots::BUFFERS_DESCRIPTORS_SLOT);
 
             for (u32 i = 0; i < scene_data->num_entities; i++) {
-                gfx::cmd::graphics::bind_constants(cmd_ctx, &i, 1, ForwardPassBindingSlots::RENDERABLE_IDX_SLOT);
+                u32 per_draw_indices[] = {
+                    i,
+                    scene_data->material_indices[i]
+                };
+                gfx::cmd::graphics::bind_constants(cmd_ctx, &per_draw_indices, 2, ForwardPassBindingSlots::PER_INSTANCE_CONSTANTS_SLOT);
                 gfx::cmd::graphics::draw_mesh(cmd_ctx, scene_data->meshes[i]);
             }
         };
@@ -281,6 +281,7 @@ namespace clustered
         PerspectiveCamera debug_camera;
 
         Renderables scene_renderables = {};
+        Array<MaterialData> material_instances;
 
         ForwardPass::Settings forward_pass_context = {};
         render_pass_system::RenderPassList render_list;
@@ -291,6 +292,9 @@ namespace clustered
         BufferHandle view_cb_handle = {};
         BufferHandle scene_constants_buffer = {};
         BufferHandle vs_constants_buffers = {};
+        // GPU side copy of the material instances data
+        BufferHandle materials_buffer = {};
+
 
     protected:
         void init() override final
@@ -357,17 +361,41 @@ namespace clustered
             gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", copy_ctx, gltf_context, gltf::GLTF_LOADING_FLAG_NONE);
             CmdReceipt upload_receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
 
+            // Materials buffer
+            material_instances.reserve(gltf_context.materials.size);
+            for (const auto& material : gltf_context.materials) {
+                material_instances.push_back({
+                    .base_color_factor = material.base_color_factor,
+                    .emissive_factor = material.emissive_factor,
+                    .metallic_factor = material.metallic_factor,
+                    .roughness_factor = material.roughness_factor,
+                    .base_color_texture_idx = material.base_color_texture_idx,
+                    .metallic_roughness_texture_idx = material.metallic_roughness_texture_idx,
+                    .normal_texture_idx = material.normal_texture_idx,
+                    .occlusion_texture_idx = material.occlusion_texture_idx,
+                    .emissive_texture_idx = material.emissive_texture_idx,
+                    });
+            }
+
+            materials_buffer = gfx::buffers::create({
+                .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
+                .type = BufferType::RAW,
+                .byte_size = u32(material_instances.get_byte_size()),
+                .stride = 4 });
+            gfx::buffers::set_data(materials_buffer, material_instances.data, material_instances.get_byte_size());
+
             for (size_t i = 0; i < gltf_context.draw_calls.size; i++) {
                 const auto& draw_call = gltf_context.draw_calls[i];
-                scene_renderables.push_back(
+                scene_renderables.push_renderable(
+                    draw_call.material_index,
                     draw_call.mesh,
                     {
                         .model_transform = gltf_context.scene_graph.global_transforms[draw_call.scene_node_idx],
                         .normal_transform = gltf_context.scene_graph.normal_transforms[draw_call.scene_node_idx],
                     });
-                // TODO: Materials
             }
-            create_per_entity_data_buffers(scene_renderables.per_entity_data_buffers);
+
+            scene_renderables.init(materials_buffer, scene_renderables.num_entities);
 
             forward_pass_context.view_cb_handle = view_cb_handle;
             forward_pass_context.scene_renderables = &scene_renderables;
@@ -407,9 +435,8 @@ namespace clustered
             };
             gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
 
-
             gfx::buffers::update(
-                scene_renderables.per_entity_data_buffers.vs_buffer,
+                scene_renderables.vs_buffer,
                 scene_renderables.vertex_shader_data.data,
                 scene_renderables.vertex_shader_data.size * sizeof(VertexShaderData));
 

@@ -87,6 +87,11 @@ namespace zec
             }
             return UINT64_MAX;
         }
+
+        size_t get_byte_size() const
+        {
+            return sizeof(T) * size;
+        }
     };
 
     template <typename T>
@@ -214,6 +219,11 @@ namespace zec
                 }
             }
             return UINT64_MAX;
+        }
+
+        size_t get_byte_size() const
+        {
+            return sizeof(T) * size;
         }
     };
 
@@ -354,6 +364,11 @@ namespace zec
                 }
             }
             return UINT64_MAX;
+        }
+
+        size_t get_byte_size() const
+        {
+            return sizeof(T) * size;
         }
     };
 

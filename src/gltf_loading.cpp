@@ -341,7 +341,7 @@ namespace zec
             }
         }
 
-        void load_gltf_file(const std::string& gltf_file, CommandContextHandle cmd_ctx, Context& out_context, const LoaderFlags flags = GLTF_LOADING_FLAG_NONE)
+        void load_gltf_file(const std::string& gltf_file, CommandContextHandle cmd_ctx, Context& out_context, const LoaderFlags flags)
         {
             tinygltf::TinyGLTF loader;
             loader.SetImageLoader(loadImageDataCallback, nullptr);
@@ -386,7 +386,7 @@ namespace zec
 
             // Process Primitives
             Array<MeshArrayView> mesh_to_mesh_mapping = {};
-            process_primitives(model, cmd_ctx, mesh_to_mesh_mapping, out_context);
+            process_primitives(model, cmd_ctx, mesh_to_mesh_mapping, out_context, flags);
 
             // Process Materials
             process_materials(model, node_processing_list, out_context);
