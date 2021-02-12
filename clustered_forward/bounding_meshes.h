@@ -52,8 +52,19 @@ namespace zec::geometry
         7, 6, 5
     };
 
-    void generate_frustum_data(Array<vec3>& in_positions, const float near_plane, const float far_plane, const float vertical_fov, const float aspect_ratio);
+    extern constexpr u16 k_fullscreen_indices[] = { 0, 1, 2 };
 
-    const u16* get_cube_indices();
-    const float* get_unit_cube_positions();
+    extern constexpr float k_fullscreen_positions[] = {
+         1.0f,  3.0f, 1.0f,
+         1.0f, -1.0f, 1.0f,
+        -3.0f, -1.0f, 1.0f,
+    };
+
+    extern constexpr float k_fullscreen_uvs[] = {
+         1.0f,  -1.0f,
+         1.0f,   1.0f,
+        -1.0f,   1.0f,
+    };
+
+    void generate_frustum_data(Array<vec3>& in_positions, const float near_plane, const float far_plane, const float vertical_fov, const float aspect_ratio);
 }

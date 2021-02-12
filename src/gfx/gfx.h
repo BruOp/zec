@@ -102,6 +102,8 @@ namespace zec::gfx
             //--------- Resource Binding ----------
             void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
 
+            void set_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle);
+
             void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
 
             void bind_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot);

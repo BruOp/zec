@@ -76,7 +76,11 @@ namespace zec::gfx::dx12
         Fence fence = {};
         u64 last_used_fence_value = 0;
 
+        CommandQueue() = default;
         ~CommandQueue();
+
+        UNCOPIABLE(CommandQueue);
+        UNMOVABLE(CommandQueue);
 
         void initialize(CommandQueueType type, ID3D12Device* device);
         void destroy();

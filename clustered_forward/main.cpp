@@ -18,17 +18,6 @@ static constexpr size_t MAX_NUM_OBJECTS = 16384;
 
 namespace clustered
 {
-    enum ForwardPassBindingSlots : u32
-    {
-        PER_INSTANCE_CONSTANTS_SLOT = 0,
-        BUFFERS_DESCRIPTORS_SLOT,
-        VIEW_CONSTANT_BUFFER_SLOT,
-        SCENE_CONSTANT_BUFFER_SLOT,
-        RAW_BUFFERS_TABLE,
-        TEXTURE_2D_TABLE,
-        TEXTURE_CUBE_TABLE,
-    };
-
     struct SpotLight
     {
         static constexpr size_t MAX_SPOT_LIGHTS = 1024;
@@ -47,15 +36,33 @@ namespace clustered
         const char* name;
     };
 
+    struct TonemapPassConstants
+    {
+        u32 src_texture;
+        float exposure;
+    };
+
+    struct IrradiancePassConstants
+    {
+        u32 src_texture_idx = UINT32_MAX;
+        u32 out_texture_idx = UINT32_MAX;
+        u32 src_img_width = 0;
+    };
+
+
     namespace PassResources
     {
         constexpr ResourceIdentifier DEPTH_TARGET = PASS_RESOURCE_IDENTIFIER("depth");
+        constexpr ResourceIdentifier HDR_TARGET = PASS_RESOURCE_IDENTIFIER("hdr");
         constexpr ResourceIdentifier SDR_TARGET = PASS_RESOURCE_IDENTIFIER("sdr");
     }
 
-
     struct SceneConstantData
     {
+        float time = 0.0f;
+        u32 radiance_map_idx = UINT32_MAX;
+        u32 irradiance_map_idx = UINT32_MAX;
+        u32 brdf_lut_idx = UINT32_MAX;
         u32 num_spot_lights = 0;
         u32 spot_light_buffer_idx = UINT32_MAX;
     };
@@ -138,6 +145,17 @@ namespace clustered
 
     namespace ForwardPass
     {
+        enum ForwardPassBindingSlots : u32
+        {
+            PER_INSTANCE_CONSTANTS_SLOT = 0,
+            BUFFERS_DESCRIPTORS_SLOT,
+            VIEW_CONSTANT_BUFFER_SLOT,
+            SCENE_CONSTANT_BUFFER_SLOT,
+            RAW_BUFFERS_TABLE,
+            TEXTURE_2D_TABLE,
+            TEXTURE_CUBE_TABLE,
+        };
+
         struct Settings
         {
             Renderables* scene_renderables = nullptr;
@@ -296,11 +314,426 @@ namespace clustered
         }
     }
 
+
+    namespace BackgroundPass
+    {
+        enum BindingSlots : u8
+        {
+            MIP_LEVEL_SLOT = 0,
+            VIEW_CONSTANT_BUFFER_SLOT,
+            SCENE_CONSTANTS_BUFFER_SLIT,
+            RESOURCE_TABLE_SLOT
+        };
+
+        struct Settings
+        {
+            BufferHandle view_cb_handle = {};
+            SceneBuffers scene_buffers = {};
+            float mip_level = 1.0f;
+        };
+
+        struct InternalState
+        {
+            MeshHandle fullscreen_mesh = {};
+            ResourceLayoutHandle resource_layout = {};
+            PipelineStateHandle pso_handle = {};
+        };
+
+        void* setup(void* settings)
+        {
+            Settings* pass_settings = reinterpret_cast<Settings*>(settings);
+            InternalState* state = new InternalState();
+
+            // Create fullscreen quad
+            MeshDesc fullscreen_desc{
+                .index_buffer_desc = {
+                    .usage = RESOURCE_USAGE_INDEX,
+                    .type = BufferType::DEFAULT,
+                    .byte_size = sizeof(geometry::k_fullscreen_indices),
+                    .stride = sizeof(geometry::k_fullscreen_indices[0]),
+                },
+                .vertex_buffer_descs = {
+                    {
+                        .usage = RESOURCE_USAGE_VERTEX,
+                        .type = BufferType::DEFAULT,
+                        .byte_size = sizeof(geometry::k_fullscreen_positions),
+                        .stride = 3 * sizeof(geometry::k_fullscreen_positions[0]),
+                    },
+                    {
+                        .usage = RESOURCE_USAGE_VERTEX,
+                        .type = BufferType::DEFAULT,
+                        .byte_size = sizeof(geometry::k_fullscreen_uvs),
+                        .stride = 2 * sizeof(geometry::k_fullscreen_uvs[0]),
+                    },
+                },
+                .index_buffer_data = geometry::k_fullscreen_indices,
+                .vertex_buffer_data = {
+                    geometry::k_fullscreen_positions,
+                    geometry::k_fullscreen_uvs
+                }
+            };
+            CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
+            state->fullscreen_mesh = gfx::meshes::create(copy_ctx, fullscreen_desc);
+            gfx::cmd::cpu_wait(gfx::cmd::return_and_execute(&copy_ctx, 1));
+
+            // What do we need to set up before we can do the forward pass?
+            // Well for one, PSOs
+            ResourceLayoutDesc layout_desc{
+                .constants = {
+                    {.visibility = ShaderVisibility::PIXEL, .num_constants = 1 },
+                 },
+                .num_constants = 1,
+                .constant_buffers = {
+                    { ShaderVisibility::PIXEL },
+                    { ShaderVisibility::PIXEL },
+                },
+                .num_constant_buffers = 2,
+                .tables = {
+                    {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
+                },
+                .num_resource_tables = 1,
+                .static_samplers = {
+                    {
+                        .filtering = SamplerFilterType::MIN_LINEAR_MAG_LINEAR_MIP_LINEAR,
+                        .wrap_u = SamplerWrapMode::WRAP,
+                        .wrap_v = SamplerWrapMode::WRAP,
+                        .binding_slot = 0,
+                    },
+                },
+                .num_static_samplers = 1,
+            };
+
+            state->resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
+
+            // Create the Pipeline State Object
+            PipelineStateObjectDesc pipeline_desc = {};
+            pipeline_desc.input_assembly_desc = { {
+                { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
+                { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::FLOAT_2, 1 },
+            } };
+            pipeline_desc.shader_file_path = L"shaders/clustered_forward/background_pass.hlsl";
+            pipeline_desc.rtv_formats[0] = BufferFormat::R16G16B16A16_FLOAT;
+            pipeline_desc.depth_buffer_format = BufferFormat::D32;
+            pipeline_desc.resource_layout = state->resource_layout;
+            pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
+            pipeline_desc.raster_state_desc.flags |= DEPTH_CLIP_ENABLED;
+            pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::LESS_OR_EQUAL;
+            pipeline_desc.depth_stencil_state.depth_write = FALSE;
+            pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
+
+            state->pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+            return state;
+        }
+
+        void copy()
+        {
+
+        }
+
+        void record(render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx, void* context, void* state)
+        {
+            Settings* pass_settings = static_cast<Settings*>(context);
+            InternalState* pass_state = static_cast<InternalState*>(state);
+
+            TextureHandle depth_target = resource_map.get_texture_resource(PassResources::DEPTH_TARGET.id);
+            TextureHandle hdr_buffer = resource_map.get_texture_resource(PassResources::HDR_TARGET.id);
+            const TextureInfo& texture_info = gfx::textures::get_texture_info(hdr_buffer);
+            Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
+            Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
+
+            gfx::cmd::graphics::set_active_resource_layout(cmd_ctx, pass_state->resource_layout);
+            gfx::cmd::graphics::set_pipeline_state(cmd_ctx, pass_state->pso_handle);
+            gfx::cmd::set_render_targets(cmd_ctx, &hdr_buffer, 1, depth_target);
+            gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
+            gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
+
+            gfx::cmd::graphics::bind_constants(cmd_ctx, &pass_settings->mip_level, 1, MIP_LEVEL_SLOT);
+            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_settings->view_cb_handle, VIEW_CONSTANT_BUFFER_SLOT);
+            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, pass_settings->scene_buffers.scene_constants, VIEW_CONSTANT_BUFFER_SLOT);
+            gfx::cmd::graphics::bind_resource_table(cmd_ctx, RESOURCE_TABLE_SLOT);
+
+            gfx::cmd::graphics::draw_mesh(cmd_ctx, pass_state->fullscreen_mesh);
+        };
+
+        void* destroy(void* context, void* state)
+        {
+            InternalState* pass_state = static_cast<InternalState*>(state);
+            delete pass_state;
+            return nullptr;
+        }
+    }
+
+    namespace ToneMapping
+    {
+        struct Settings
+        {
+            // Non-owning
+            float exposure = 1.0f;
+        };
+
+        struct InternalState {
+            // Owning
+            MeshHandle fullscreen_mesh;
+            ResourceLayoutHandle resource_layout = {};
+            PipelineStateHandle pso = {};
+        };
+
+        void* setup(void* context)
+        {
+            Settings* tonemapping_context = reinterpret_cast<Settings*>(context);
+            InternalState* state = new InternalState();
+
+            // Create fullscreen quad
+            MeshDesc fullscreen_desc {
+                .index_buffer_desc = {
+                    .usage = RESOURCE_USAGE_INDEX,
+                    .type = BufferType::DEFAULT,
+                    .byte_size = sizeof(geometry::k_fullscreen_indices),
+                    .stride = sizeof(geometry::k_fullscreen_indices[0]),
+                },
+                .vertex_buffer_descs = {
+                    {
+                        .usage = RESOURCE_USAGE_VERTEX,
+                        .type = BufferType::DEFAULT,
+                        .byte_size = sizeof(geometry::k_fullscreen_positions),
+                        .stride = 3 * sizeof(geometry::k_fullscreen_positions[0]),
+                    },
+                    {
+                        .usage = RESOURCE_USAGE_VERTEX,
+                        .type = BufferType::DEFAULT,
+                        .byte_size = sizeof(geometry::k_fullscreen_uvs),
+                        .stride = 2 * sizeof(geometry::k_fullscreen_uvs[0]),
+                    },
+                },
+                .index_buffer_data = geometry::k_fullscreen_indices,
+                .vertex_buffer_data = {
+                    geometry::k_fullscreen_positions,
+                    geometry::k_fullscreen_uvs
+                }
+            };
+            CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
+            state->fullscreen_mesh = gfx::meshes::create(copy_ctx, fullscreen_desc);
+            gfx::cmd::cpu_wait(gfx::cmd::return_and_execute(&copy_ctx, 1));
+
+            ResourceLayoutDesc tonemapping_layout_desc{
+                .constants = {{
+                    .visibility = ShaderVisibility::PIXEL,
+                    .num_constants = 2
+                 }},
+                .num_constants = 1,
+                .num_constant_buffers = 0,
+                .tables = {
+                    {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
+                },
+                .num_resource_tables = 1,
+                .static_samplers = {
+                    {
+                        .filtering = SamplerFilterType::MIN_POINT_MAG_POINT_MIP_POINT,
+                        .wrap_u = SamplerWrapMode::CLAMP,
+                        .wrap_v = SamplerWrapMode::CLAMP,
+                        .binding_slot = 0,
+                    },
+                },
+                .num_static_samplers = 1,
+            };
+
+            state->resource_layout = gfx::pipelines::create_resource_layout(tonemapping_layout_desc);
+            PipelineStateObjectDesc pipeline_desc = {
+                 .resource_layout = state->resource_layout,
+                .input_assembly_desc = {{
+                    { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
+                    { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::FLOAT_2, 1 },
+                 } },
+                 .rtv_formats = {{ BufferFormat::R8G8B8A8_UNORM_SRGB }},
+                 .shader_file_path = L"shaders/clustered_forward/basic_tone_map.hlsl",
+            };
+            pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::OFF;
+            pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
+            pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
+
+            state->pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+
+            return state;
+        }
+
+        void record(render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx, void* settings, void* state)
+        {
+            Settings* pass_settings = static_cast<Settings*>(settings);
+            InternalState* pass_state = static_cast<InternalState*>(state);
+
+            TextureHandle hdr_buffer = resource_map.get_texture_resource(PassResources::HDR_TARGET.id);
+            TextureHandle sdr_buffer = resource_map.get_texture_resource(PassResources::SDR_TARGET.id);
+
+            gfx::cmd::set_render_targets(cmd_ctx, &sdr_buffer, 1);
+
+            const TextureInfo& texture_info = gfx::textures::get_texture_info(sdr_buffer);
+            Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
+            Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
+
+            gfx::cmd::graphics::set_active_resource_layout(cmd_ctx, pass_state->resource_layout);
+            gfx::cmd::graphics::set_pipeline_state(cmd_ctx, pass_state->pso);
+            gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
+            gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
+
+            TonemapPassConstants tonemapping_constants = {
+                .src_texture = gfx::textures::get_shader_readable_index(hdr_buffer),
+                .exposure = pass_settings->exposure
+            };
+            gfx::cmd::graphics::bind_constants(cmd_ctx, &tonemapping_constants, 2, 0);
+            gfx::cmd::graphics::bind_resource_table(cmd_ctx, 1);
+
+            gfx::cmd::graphics::draw_mesh(cmd_ctx, pass_state->fullscreen_mesh);
+        };
+
+        void* destroy(void* context, void* state)
+        {
+            InternalState* pass_state = static_cast<InternalState*>(state);
+            delete pass_state;
+            return nullptr;
+        }
+    }
+
+    class BRDFLutCreator
+    {
+    public:
+        struct Settings
+        {
+            TextureHandle out_texture = {};
+        };
+
+        ResourceLayoutHandle resource_layout = {};
+        PipelineStateHandle pso_handle = {};
+
+        void init()
+        {
+            ASSERT(!is_valid(resource_layout));
+            ASSERT(!is_valid(pso_handle));
+
+            // What do we need to set up before we can do the forward pass?
+            // Well for one, PSOs
+            ResourceLayoutDesc layout_desc{
+                .constants = {
+                    {.visibility = ShaderVisibility::COMPUTE, .num_constants = 1 },
+                 },
+                .num_constants = 1,
+                .num_constant_buffers = 0,
+                .tables = {
+                    {.usage = ResourceAccess::WRITE, .count = DESCRIPTOR_TABLE_SIZE },
+                },
+                .num_resource_tables = 1,
+                .num_static_samplers = 0,
+            };
+
+            resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
+
+            // Create the Pipeline State Object
+            PipelineStateObjectDesc pipeline_desc = {
+                .resource_layout = resource_layout,
+                .used_stages = PIPELINE_STAGE_COMPUTE,
+                .shader_file_path = L"shaders/clustered_forward/brdf_lut_creator.hlsl",
+            };
+            pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+        }
+
+        void record(CommandContextHandle cmd_ctx, const Settings& settings)
+        {
+            ASSERT(is_valid(resource_layout));
+            ASSERT(is_valid(resource_layout));
+
+            gfx::cmd::compute::set_active_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::compute::set_pipeline_state(cmd_ctx, pso_handle);
+
+            u32 out_texture_id = gfx::textures::get_shader_writable_index(settings.out_texture);
+            gfx::cmd::compute::bind_constants(cmd_ctx, &out_texture_id, 1, 0);
+            gfx::cmd::compute::bind_resource_table(cmd_ctx, 1);
+
+            const u32 lut_width = gfx::textures::get_texture_info(settings.out_texture).width;
+
+            const u32 dispatch_size = lut_width / 8u;
+            gfx::cmd::compute::dispatch(cmd_ctx, dispatch_size, dispatch_size, 1);
+        }
+    };
+
+    class IrradianceMapCreator
+    {
+    public:
+        struct Settings
+        {
+            TextureHandle src_texture = {};
+            TextureHandle out_texture = {};
+        };
+
+        ResourceLayoutHandle resource_layout = {};
+        PipelineStateHandle pso_handle = {};
+
+        void init()
+        {
+            ASSERT(!is_valid(resource_layout));
+            ASSERT(!is_valid(resource_layout));
+            // What do we need to set up before we can do the forward pass?
+            // Well for one, PSOs
+            ResourceLayoutDesc layout_desc{
+                .constants = {
+                    {.visibility = ShaderVisibility::COMPUTE, .num_constants = sizeof(IrradiancePassConstants) / 4u}
+                },
+                .num_constants = 1,
+                .num_constant_buffers = 0,
+                .tables = {
+                    {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
+                    {.usage = ResourceAccess::WRITE, .count = DESCRIPTOR_TABLE_SIZE },
+                },
+                .num_resource_tables = 2,
+                .static_samplers = {
+                    {
+                        .filtering = SamplerFilterType::MIN_LINEAR_MAG_LINEAR_MIP_LINEAR,
+                        .wrap_u = SamplerWrapMode::WRAP,
+                        .wrap_v = SamplerWrapMode::WRAP,
+                        .binding_slot = 0,
+                    },
+                },
+                .num_static_samplers = 1,
+            };
+
+            resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
+
+            // Create the Pipeline State Object
+            PipelineStateObjectDesc pipeline_desc = {
+                .resource_layout = resource_layout,
+                .used_stages = PIPELINE_STAGE_COMPUTE,
+                .shader_file_path = L"shaders/clustered_forward/env_map_irradiance.hlsl",
+            };
+            pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+        }
+
+        void record(CommandContextHandle cmd_ctx, const Settings& settings)
+        {
+            ASSERT(is_valid(resource_layout));
+            ASSERT(is_valid(resource_layout));
+
+            gfx::cmd::compute::set_active_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::compute::set_pipeline_state(cmd_ctx, pso_handle);
+
+            gfx::cmd::compute::bind_resource_table(cmd_ctx, 1);
+            gfx::cmd::compute::bind_resource_table(cmd_ctx, 2);
+            TextureInfo src_texture_info = gfx::textures::get_texture_info(settings.src_texture);
+            TextureInfo out_texture_info = gfx::textures::get_texture_info(settings.out_texture);
+
+            IrradiancePassConstants constants = {
+                .src_texture_idx = gfx::textures::get_shader_readable_index(settings.src_texture),
+                .out_texture_idx = gfx::textures::get_shader_writable_index(settings.out_texture),
+                .src_img_width = src_texture_info.width,
+            };
+            gfx::cmd::compute::bind_constants(cmd_ctx, &constants, 3, 0);
+
+            const u32 dispatch_size = max(1u, out_texture_info.width / 8u);
+            gfx::cmd::compute::dispatch(cmd_ctx, dispatch_size, dispatch_size, 6);
+        }
+    };
+
     class ClusteredForward : public zec::App
     {
     public:
         ClusteredForward() : App{ L"Clustered Forward Rendering" } { }
-        float frame_times[120] = { 0.0f };
 
         FPSCameraController camera_controller = {};
 
@@ -312,10 +745,12 @@ namespace clustered
         // Scene data
         Array<MaterialData> material_instances;
         Array<SpotLight> spot_lights;
-        
+
         // Rendering Data
         Renderables scene_renderables = {};
         SceneBuffers scene_buffers = {};
+        SceneConstantData scene_constant_data = {};
+
         BufferHandle view_cb_handle = {};
         // GPU side copy of the material instances data
         BufferHandle materials_buffer = {};
@@ -363,7 +798,7 @@ namespace clustered
                         .umbra_angle = k_half_pi * 0.5f,
                         .penumbra_angle = k_half_pi * 0.4f,
                         .color = light_colors[i] * 5.0f,
-                    });
+                        });
                 }
             }
 
@@ -392,11 +827,78 @@ namespace clustered
             }
 
             CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
-            //fullscreen_mesh = gfx::meshes::create(copy_ctx, fullscreen_desc);
+
+            TextureDesc brdf_lut_desc{
+                .width = 256,
+                .height = 256,
+                .depth = 1,
+                .num_mips = 1,
+                .array_size = 1,
+                .is_cubemap = 0,
+                .is_3d = 0,
+                .format = BufferFormat::FLOAT_2,
+                .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_COMPUTE_WRITABLE,
+                .initial_state = RESOURCE_USAGE_COMPUTE_WRITABLE
+            };
+            TextureHandle brdf_lut_map = gfx::textures::create(brdf_lut_desc);
+            scene_constant_data.brdf_lut_idx = gfx::textures::get_shader_readable_index(brdf_lut_map);
+            gfx::set_debug_name(brdf_lut_map, L"BRDF LUT");
+
+            TextureDesc irradiance_desc{
+                .width = 16,
+                .height = 16,
+                .depth = 1,
+                .num_mips = 1,
+                .array_size = 6,
+                .is_cubemap = 1,
+                .is_3d = 0,
+                .format = BufferFormat::R16G16B16A16_FLOAT,
+                .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_COMPUTE_WRITABLE,
+                .initial_state = RESOURCE_USAGE_COMPUTE_WRITABLE
+            };
+            TextureHandle irradiance_map = gfx::textures::create(irradiance_desc);
+            gfx::set_debug_name(irradiance_map, L"Irradiance Map");
+
+            TextureHandle radiance_map = gfx::textures::create_from_file(copy_ctx, "textures/prefiltered_paper_mill.dds");
+            scene_constant_data.irradiance_map_idx = gfx::textures::get_shader_readable_index(irradiance_map);
+            scene_constant_data.radiance_map_idx = gfx::textures::get_shader_readable_index(radiance_map);
 
             gltf::Context gltf_context{};
             gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", copy_ctx, gltf_context, gltf::GLTF_LOADING_FLAG_NONE);
-            CmdReceipt upload_receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
+            CmdReceipt receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
+
+            gfx::cmd::gpu_wait(CommandQueueType::GRAPHICS, receipt);
+
+            CommandContextHandle graphics_ctx = gfx::cmd::provision(CommandQueueType::GRAPHICS);
+
+            // Compute BRDF and Irraadiance maps
+            {
+                BRDFLutCreator brdf_lut_creator{};
+                brdf_lut_creator.init();
+                brdf_lut_creator.record(graphics_ctx, { .out_texture = brdf_lut_map });
+
+                IrradianceMapCreator irradiance_map_creator{};
+                irradiance_map_creator.init();
+                irradiance_map_creator.record(graphics_ctx, { .src_texture = radiance_map, .out_texture = irradiance_map });
+
+                ResourceTransitionDesc transition_descs[] = {
+                    {
+                        .type = ResourceTransitionType::TEXTURE,
+                        .texture = irradiance_map,
+                        .before = RESOURCE_USAGE_COMPUTE_WRITABLE,
+                        .after = RESOURCE_USAGE_SHADER_READABLE,
+                    },
+                    {
+                        .type = ResourceTransitionType::TEXTURE,
+                        .texture = brdf_lut_map,
+                        .before = RESOURCE_USAGE_COMPUTE_WRITABLE,
+                        .after = RESOURCE_USAGE_SHADER_READABLE,
+                    },
+                };
+                gfx::cmd::transition_resources(graphics_ctx, transition_descs, ARRAY_SIZE(transition_descs));
+            }
+
+            receipt = gfx::cmd::return_and_execute(&graphics_ctx, 1);
 
             // Materials buffer
             material_instances.reserve(gltf_context.materials.size);
@@ -437,7 +939,7 @@ namespace clustered
 
             forward_pass_context.view_cb_handle = view_cb_handle;
             forward_pass_context.scene_renderables = &scene_renderables;
-            forward_pass_context.scene_buffers= &scene_buffers;
+            forward_pass_context.scene_buffers = &scene_buffers;
 
             render_pass_system::RenderPassDesc render_pass_descs[] = {
                 clustered::ForwardPass::generate_desc(&forward_pass_context),
@@ -451,7 +953,7 @@ namespace clustered
             render_pass_system::compile_render_list(render_list, render_list_desc);
             render_pass_system::setup(render_list);
 
-            gfx::cmd::cpu_wait(upload_receipt);
+            gfx::cmd::cpu_wait(receipt);
 
         }
 
@@ -474,10 +976,9 @@ namespace clustered
             };
             gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
 
-            SceneConstantData scene_constant_data{
-                .num_spot_lights = u32(spot_lights.size),
-                .spot_light_buffer_idx = gfx::buffers::get_shader_readable_index(scene_buffers.spot_lights_buffer),
-            };
+            scene_constant_data.num_spot_lights = u32(spot_lights.size);
+            scene_constant_data.spot_light_buffer_idx = gfx::buffers::get_shader_readable_index(scene_buffers.spot_lights_buffer);
+
             gfx::buffers::update(
                 scene_buffers.scene_constants,
                 &scene_constant_data,
@@ -531,4 +1032,4 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     clustered::ClusteredForward  app{};
     return app.run();
 #endif // DEBUG
-}
+        }

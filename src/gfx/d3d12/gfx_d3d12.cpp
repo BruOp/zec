@@ -1307,9 +1307,9 @@ namespace zec::gfx
                 .initial_state = RESOURCE_USAGE_SHADER_READABLE,
             };
             TextureHandle texture_handle = textures::create(texture_desc);
+            set_debug_name(texture_handle, path.c_str());
 
             ID3D12Resource* resource = g_context.textures.resources[texture_handle];
-
             bool is_3d = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
             const D3D12_RESOURCE_DESC d3d_desc = {
                 .Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(meta_data.dimension),
@@ -1484,7 +1484,7 @@ namespace zec::gfx
 
         void gpu_wait(const CommandQueueType queue_to_insert_wait, const CmdReceipt receipt_to_wait_on)
         {
-            CommandQueue queue_to_wait_on = g_context.command_queues[receipt_to_wait_on.queue_type];
+            CommandQueue& queue_to_wait_on = g_context.command_queues[receipt_to_wait_on.queue_type];
             g_context.command_queues[queue_to_insert_wait].insert_wait_on_queue(queue_to_wait_on, receipt_to_wait_on.fence_value);
         };
 
@@ -1571,6 +1571,13 @@ namespace zec::gfx
                 CommandQueueType queue_type = cmd_utils::get_command_queue_type(ctx);
 
                 cmd_list->SetComputeRootSignature(root_signature);
+            };
+            
+            void set_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle)
+            {
+                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+                ID3D12PipelineState* pso = g_context.pipelines[pso_handle];
+                cmd_list->SetPipelineState(pso);
             };
 
             void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
