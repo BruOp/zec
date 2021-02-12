@@ -329,6 +329,7 @@ namespace zec
         u16 is_3d = 0;
         BufferFormat format;
         u16 usage = 0;
+        // Unused maps to common -- TODO: make this more explicit?
         ResourceUsage initial_state = RESOURCE_USAGE_UNUSED;
         // TODO: Optimized clear values?
     };
@@ -533,6 +534,11 @@ namespace zec
         CommandQueueType queue_type = CommandQueueType::GRAPHICS;
         u64 fence_value = INVALID_FENCE_VALUE;
     };
+
+    inline bool is_valid(const CmdReceipt receipt)
+    {
+        return receipt.fence_value != CmdReceipt::INVALID_FENCE_VALUE;
+    }
 
     struct RenderConfigState
     {

@@ -1130,17 +1130,10 @@ namespace zec::gfx
                 .HeapType = D3D12_HEAP_TYPE_DEFAULT
             };
 
-            D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_COMMON;
-            switch (desc.usage) {
-            case RESOURCE_USAGE_RENDER_TARGET:
-                initial_state = D3D12_RESOURCE_STATE_RENDER_TARGET;
-                break;
-            case RESOURCE_USAGE_DEPTH_STENCIL:
-                initial_state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
-                break;
-            }
-
-
+            D3D12_RESOURCE_STATES initial_state = desc.initial_state == RESOURCE_USAGE_UNUSED
+                ? D3D12_RESOURCE_STATE_COMMON
+                : to_d3d_resource_state(desc.initial_state);
+            
             const bool depth_or_rt = bool(desc.usage & (RESOURCE_USAGE_DEPTH_STENCIL | RESOURCE_USAGE_RENDER_TARGET));
             DXCall(g_context.allocator->CreateResource(
                 &alloc_desc,
@@ -1304,7 +1297,6 @@ namespace zec::gfx
                 .is_cubemap = u16(meta_data.IsCubemap()),
                 .format = from_d3d_format(meta_data.format),
                 .usage = RESOURCE_USAGE_SHADER_READABLE,
-                .initial_state = RESOURCE_USAGE_SHADER_READABLE,
             };
             TextureHandle texture_handle = textures::create(texture_desc);
             set_debug_name(texture_handle, path.c_str());

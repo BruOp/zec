@@ -66,8 +66,6 @@ namespace zec::render_pass_system
         ResourceUsage usage = RESOURCE_USAGE_UNUSED;
     };
 
-    struct RenderPassList;
-
     struct ResourceState
     {
         PassResourceType type = PassResourceType::INVALID;
@@ -100,47 +98,37 @@ namespace zec::render_pass_system
         std::unordered_map<u64, ResourceState> internal_map;
     };
 
-    // SetupFn returns pointer to internal state for us to store
-    typedef void* (*SetupFn)(void* settings);
-    typedef void(*CopyFn)(void* settings, void* internal_state);
-    typedef void(*ExecuteFn)(const ResourceMap& resource_map, CommandContextHandle cmd_context, void* settings, void* internal_state);
-    typedef void* (*DestroyFn)(void* settings, void* internal_state);
-
-    struct RenderPassDesc
+    class IRenderPass
     {
-        char name[64] = "";
-        CommandQueueType queue_type = CommandQueueType::GRAPHICS;
-        PassInputDesc inputs[8] = {};
-        PassOutputDesc outputs[8] = {};
+    public:
+        struct InputList
+        {
+            PassInputDesc const* ptr;
+            u32 count;
+        };
 
-        void* settings = nullptr;
-        SetupFn setup = nullptr;
-        CopyFn copy = nullptr;
-        ExecuteFn execute = nullptr;
-        DestroyFn destroy = nullptr;
+        struct OutputList
+        {
+            PassOutputDesc const* ptr;
+            u32 count;
+        };
+
+        virtual void setup() = 0;
+        virtual void copy() = 0;
+        virtual void record(const ResourceMap& resource_map, CommandContextHandle cmd_context) = 0;
+        virtual void shutdown() = 0;
+
+        virtual const char* get_name() const = 0;
+        virtual const CommandQueueType get_queue_type() const = 0;
+        virtual const InputList get_input_list() const = 0;
+        virtual const OutputList get_output_list() const = 0;
     };
 
     struct RenderPassListDesc
     {
-        RenderPassDesc* render_pass_descs;
+        IRenderPass** render_passes;
         u32 num_render_passes;
         u64 resource_to_use_as_backbuffer;
-    };
-
-    struct RenderPass
-    {
-        char name[64] = "";
-        CommandQueueType queue_type = CommandQueueType::GRAPHICS;
-        ArrayView resource_transitions_view = {};
-        u32 receipt_idx_to_wait_on = UINT32_MAX; // Index into the graph's fence list
-        bool requires_flush = false;
-
-        void* settings = nullptr;
-        void* internal_state = nullptr; // Created during setup
-        SetupFn setup = nullptr;
-        CopyFn copy = nullptr;
-        ExecuteFn execute = nullptr;
-        DestroyFn destroy = nullptr;
     };
 
     struct PassResourceTransitionDesc
@@ -150,23 +138,34 @@ namespace zec::render_pass_system
         ResourceUsage usage = RESOURCE_USAGE_UNUSED;
     };
 
-    struct RenderPassList
+    class RenderPassList
     {
+        struct PerPassSubmissionInfo
+        {
+            ArrayView resource_transitions_view = {};
+            u32 receipt_idx_to_wait_on = UINT32_MAX; // Index into the graph's fence list
+            bool requires_flush = false;
+        };
+    public:
+        void compile(RenderPassListDesc& render_list_desc);
+
+        void setup();
+        void copy();
+        void execute();
+        void shutdown();
+
+    private:
         u64 backbuffer_resource_id;
 
         ResourceMap resource_map;
 
         // Do I need two seperate lists? Probably not?
-        Array<RenderPass> render_passes = {};
+        Array<IRenderPass*> render_passes = {};
+        Array<PerPassSubmissionInfo> per_pass_submission_info = {};
         Array<PassResourceTransitionDesc> resource_transition_descs = {};
         Array<CmdReceipt> receipts = {};
-        Array<CommandContextHandle> cmd_contexts{ };
+        Array<CommandContextHandle> cmd_contexts{};
     };
 
-    void compile_render_list(RenderPassList& in_render_list, const RenderPassListDesc& render_list_desc);
-    void setup(RenderPassList& render_list);
-    void copy(RenderPassList& render_list);
-    void execute(RenderPassList& render_list);
-    void destroy(RenderPassList& render_list);
 
 }

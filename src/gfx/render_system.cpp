@@ -17,129 +17,131 @@ namespace zec::render_pass_system
 
     constexpr size_t GRAPH_DEPTH_LIMIT = 16; //totally arbitrary
 
-    boolean validate_render_List(const RenderPassListDesc& render_list_desc, std::vector<std::string>& out_errors)
+    //boolean validate_render_List(const RenderPassListDesc& render_list_desc, std::vector<std::string>& out_errors)
+    //{
+    //    const u32 num_render_passes = render_list_desc.num_render_passes;
+    //    if (num_render_passes == 0) {
+    //        out_errors.push_back("You cannot create a render list with zero passes");
+    //    };
+
+    //    const u64 backbuffer_resource_id = render_list_desc.resource_to_use_as_backbuffer;
+
+    //    bool backbuffer_is_written_to = false;
+    //    std::unordered_map<u64, PassOutputDesc> output_descs = {};
+
+    //    for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
+
+    //        // Create RenderPass instance
+    //        const auto& render_pass_desc = render_list_desc.render_pass_descs[pass_idx];
+
+    //        // Validate inputs
+    //        for (const auto& input : render_pass_desc.inputs) {
+    //            if (input.type == PassResourceType::INVALID || input.usage == RESOURCE_USAGE_UNUSED) {
+    //                break;
+    //            }
+
+    //            // Check if resource exists and matches description
+    //            u64 input_id = { input.id };
+    //            if (output_descs.contains(input_id)) {
+    //                const auto& output_desc = output_descs[input_id];
+    //                if (output_desc.type != input.type) {
+    //                    out_errors.push_back(make_string("The type of input %u for pass %s does not match between output and input. Output uses format %u while input uses %u.", input_id, render_pass_desc.name, input.type, output_desc.type));
+    //                };
+    //            }
+    //            else {
+    //                out_errors.push_back(make_string("Input %u is not output by a pass before being consumed by %s", input_id, render_pass_desc.name));
+    //            }
+    //        }
+
+    //        // Validate outputs and process descriptions
+    //        for (const auto& output : render_pass_desc.outputs) {
+    //            if (output.type == PassResourceType::INVALID || output.usage == RESOURCE_USAGE_UNUSED) {
+    //                break;
+    //            }
+
+    //            u64 output_id = output.id;
+
+    //            if (!output_descs.contains(output_id)) {
+    //                // Add it to our list
+    //                output_descs[output_id] = output;
+    //            }
+
+    //            if (output_id == backbuffer_resource_id) {
+    //                const bool is_valid = output.type == PassResourceType::TEXTURE
+    //                    && output.texture_desc.size_class == SizeClass::RELATIVE_TO_SWAP_CHAIN
+    //                    && output.texture_desc.width == 1.0f
+    //                    && output.texture_desc.height == 1.0f
+    //                    && output.texture_desc.num_mips == 1
+    //                    && output.texture_desc.depth == 1
+    //                    && output.texture_desc.is_3d == false
+    //                    && output.texture_desc.is_cubemap == false
+    //                    && output.usage == RESOURCE_USAGE_RENDER_TARGET;
+    //                if (!is_valid) {
+    //                    out_errors.push_back(make_string("Passes that write to the backbuffer must have a sepcific set of outputs!"));
+    //                }
+    //                backbuffer_is_written_to = true;
+    //            }
+    //        }
+    //    }
+
+    //    if (!backbuffer_is_written_to) {
+    //        out_errors.push_back(make_string("None of the passes seem to output to the resource %u which is marked as the backbuffer", backbuffer_resource_id));
+    //    }
+
+    //    return out_errors.size() == 0;
+    //};
+
+    void RenderPassList::compile(RenderPassListDesc& render_list_desc)
     {
+        //#if _DEBUG
+        //    std::vector<std::string> errors{};
+        //    bool is_valid = validate_render_List(render_list_desc, errors);
+        //    if (!is_valid) {
+        //        for (size_t i = 0; i < errors.size(); i++) {
+        //            write_log(errors[i].c_str());
+        //        }
+        //        throw std::runtime_error("Cannot compile invalid render list! Consider calling validate separately");
+        //    }
+        //#endif // _DEBUG
+
+        IRenderPass** in_render_passes = render_list_desc.render_passes;
         const u32 num_render_passes = render_list_desc.num_render_passes;
-        if (num_render_passes == 0) {
-            out_errors.push_back("You cannot create a render list with zero passes");
-        };
-
-        const u64 backbuffer_resource_id = render_list_desc.resource_to_use_as_backbuffer;
-
-        bool backbuffer_is_written_to = false;
-        std::unordered_map<u64, PassOutputDesc> output_descs = {};
-
-        for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
-
-            // Create RenderPass instance
-            const auto& render_pass_desc = render_list_desc.render_pass_descs[pass_idx];
-
-            // Validate inputs
-            for (const auto& input : render_pass_desc.inputs) {
-                if (input.type == PassResourceType::INVALID || input.usage == RESOURCE_USAGE_UNUSED) {
-                    break;
-                }
-
-                // Check if resource exists and matches description
-                u64 input_id = { input.id };
-                if (output_descs.contains(input_id)) {
-                    const auto& output_desc = output_descs[input_id];
-                    if (output_desc.type != input.type) {
-                        out_errors.push_back(make_string("The type of input %u for pass %s does not match between output and input. Output uses format %u while input uses %u.", input_id, render_pass_desc.name, input.type, output_desc.type));
-                    };
-                }
-                else {
-                    out_errors.push_back(make_string("Input %u is not output by a pass before being consumed by %s", input_id, render_pass_desc.name));
-                }
-            }
-
-            // Validate outputs and process descriptions
-            for (const auto& output : render_pass_desc.outputs) {
-                if (output.type == PassResourceType::INVALID || output.usage == RESOURCE_USAGE_UNUSED) {
-                    break;
-                }
-
-                u64 output_id = output.id;
-
-                if (!output_descs.contains(output_id)) {
-                    // Add it to our list
-                    output_descs[output_id] = output;
-                }
-
-                if (output_id == backbuffer_resource_id) {
-                    const bool is_valid = output.type == PassResourceType::TEXTURE
-                        && output.texture_desc.size_class == SizeClass::RELATIVE_TO_SWAP_CHAIN
-                        && output.texture_desc.width == 1.0f
-                        && output.texture_desc.height == 1.0f
-                        && output.texture_desc.num_mips == 1
-                        && output.texture_desc.depth == 1
-                        && output.texture_desc.is_3d == false
-                        && output.texture_desc.is_cubemap == false
-                        && output.usage == RESOURCE_USAGE_RENDER_TARGET;
-                    if (!is_valid) {
-                        out_errors.push_back(make_string("Passes that write to the backbuffer must have a sepcific set of outputs!"));
-                    }
-                    backbuffer_is_written_to = true;
-                }
-            }
-        }
-
-        if (!backbuffer_is_written_to) {
-            out_errors.push_back(make_string("None of the passes seem to output to the resource %u which is marked as the backbuffer", backbuffer_resource_id));
-        }
-
-        return out_errors.size() == 0;
-    };
-
-    void compile_render_list(RenderPassList& in_render_list, const RenderPassListDesc& render_list_desc)
-    {
-    #if _DEBUG
-        std::vector<std::string> errors{};
-        bool is_valid = validate_render_List(render_list_desc, errors);
-        if (!is_valid) {
-            for (size_t i = 0; i < errors.size(); i++) {
-                write_log(errors[i].c_str());
-            }
-            throw std::runtime_error("Cannot compile invalid render list! Consider calling validate separately");
-        }
-    #endif // _DEBUG
-
-        const RenderPassDesc* render_pass_descs = render_list_desc.render_pass_descs;
-        const u32 num_render_passes = render_list_desc.num_render_passes;
-        const u64 backbuffer_resource_id = render_list_desc.resource_to_use_as_backbuffer;
-
-        in_render_list.backbuffer_resource_id = backbuffer_resource_id;
+        backbuffer_resource_id = render_list_desc.resource_to_use_as_backbuffer;
 
         // So in the new system we're going to:
         // Validate our input/outputs as before
         // Store the "latest" dependency as part of which fence to wait on -- only necessary for cross queue execution. Otherwise, we'll insert resource barriers.
         // The dependencies will need to be marked as "flushes" so that we know we should submit the work done so far before continuing
 
-        ASSERT(in_render_list.render_passes.size == 0);
+        ASSERT(render_passes.size == 0);
         std::unordered_map<u64, PassOutput> output_descs = {};
 
-        in_render_list.render_passes.grow(num_render_passes);
-        in_render_list.receipts.grow(num_render_passes);
-        in_render_list.cmd_contexts.grow(num_render_passes);
+        render_passes.grow(num_render_passes);
+        per_pass_submission_info.grow(num_render_passes);
+        receipts.grow(num_render_passes);
+        cmd_contexts.grow(num_render_passes);
 
         // Process passes
         for (size_t pass_idx = 0; pass_idx < num_render_passes; pass_idx++) {
 
             // Create RenderPass instance
-            const auto& render_pass_desc = render_pass_descs[pass_idx];
-            auto& render_pass = in_render_list.render_passes[pass_idx];
+            render_passes[pass_idx] = in_render_passes[pass_idx];
+            IRenderPass* render_pass = render_passes[pass_idx];
 
-            strcpy(render_pass.name, render_pass_desc.name);
-            render_pass.queue_type = render_pass_desc.queue_type;
-            // Store function pointers
-            render_pass.settings = render_pass_desc.settings;
-            render_pass.setup = render_pass_desc.setup;
-            render_pass.execute = render_pass_desc.execute;
-            render_pass.destroy = render_pass_desc.destroy;
-            render_pass.resource_transitions_view.offset = in_render_list.resource_transition_descs.size;
+            PerPassSubmissionInfo& pass_submission_info = per_pass_submission_info[pass_idx];
+            pass_submission_info = {
+                .resource_transitions_view = {
+                    .offset = u32(resource_transition_descs.size),
+                    .size = 0,
+                },
+                .receipt_idx_to_wait_on = UINT32_MAX,
+                .requires_flush = false,
+            };
 
             // Validate inputs
-            for (const auto& input : render_pass_desc.inputs) {
+            IRenderPass::InputList inputs = render_pass->get_input_list();
+            for (size_t i = 0; i < inputs.count; ++i) {
+                const PassInputDesc& input = inputs.ptr[i];
                 if (input.type == PassResourceType::INVALID || input.usage == RESOURCE_USAGE_UNUSED) {
                     break;
                 }
@@ -148,20 +150,23 @@ namespace zec::render_pass_system
                 u64 input_id = input.id;
                 if (output_descs.contains(input_id)) {
                     ASSERT(output_descs[input_id].desc.type == input.type);
+                    ResourceUsage previous_usage = output_descs[input_id].desc.usage;
                     output_descs[input_id].desc.usage = ResourceUsage(output_descs[input_id].desc.usage | input.usage);
 
                     u32 parent_pass_idx = output_descs[input_id].last_written_to_by_pass_idx;
                     ASSERT(parent_pass_idx < pass_idx);
 
-                    auto& parent_pass = in_render_list.render_passes[parent_pass_idx];
-                    // Since this is a hard dependency, the command has to be submitted like we expect
-                    parent_pass.requires_flush = true;
+                    auto& parent_pass = render_passes[parent_pass_idx];
+                    auto& parent_pass_submission_info = per_pass_submission_info[parent_pass_idx];
 
-                    if (render_pass_descs[parent_pass_idx].queue_type != render_pass_desc.queue_type) {
-                        render_pass.receipt_idx_to_wait_on = parent_pass_idx;
+                    // Since this is a hard dependency, the command has to be submitted like we expect
+                    parent_pass_submission_info.requires_flush = true;
+
+                    if (render_passes[parent_pass_idx]->get_queue_type() != render_pass->get_queue_type()) {
+                        pass_submission_info.receipt_idx_to_wait_on = parent_pass_idx;
                     }
 
-                    size_t transition_idx = in_render_list.resource_transition_descs.push_back({
+                    size_t transition_idx = resource_transition_descs.push_back({
                         .resource_id = input_id,
                         .type = ResourceTransitionType(input.type),
                         .usage = input.usage });
@@ -173,7 +178,9 @@ namespace zec::render_pass_system
 
             // Validate outputs and process descriptions
             bool writes_to_backbuffer_resource = false;
-            for (const auto& output : render_pass_desc.outputs) {
+            const IRenderPass::OutputList outputs = render_pass->get_output_list();
+            for (size_t i = 0; i < outputs.count; ++i) {
+                const auto& output = outputs.ptr[i];
                 if (output.type == PassResourceType::INVALID || output.usage == RESOURCE_USAGE_UNUSED) {
                     break;
                 }
@@ -182,8 +189,9 @@ namespace zec::render_pass_system
 
                 if (output_descs.contains(output_id)) {
                     u32 previously_written_by = output_descs[output_id].last_written_to_by_pass_idx;
-                    auto& previous_pass = in_render_list.render_passes[previously_written_by];
-                    previous_pass.requires_flush = true;
+
+                    auto& previous_pass_submission_info = per_pass_submission_info[previously_written_by];
+                    previous_pass_submission_info.requires_flush = true;
 
                     output_descs[output_id].last_written_to_by_pass_idx = pass_idx;
                 }
@@ -196,10 +204,10 @@ namespace zec::render_pass_system
 
                 if (output_id == backbuffer_resource_id) {
                     writes_to_backbuffer_resource = true;
-                    render_pass.requires_flush = true;
+                    pass_submission_info.requires_flush = true;
                 }
 
-                size_t transition_idx = in_render_list.resource_transition_descs.push_back({
+                size_t transition_idx = resource_transition_descs.push_back({
                     .resource_id = output_id,
                     .type = ResourceTransitionType(output.type),
                     .usage = output.usage });
@@ -209,7 +217,7 @@ namespace zec::render_pass_system
             // Assert that the last pass writes to the backbuffer resource
             ASSERT(pass_idx != num_render_passes - 1 || writes_to_backbuffer_resource);
 
-            render_pass.resource_transitions_view.size = in_render_list.resource_transition_descs.size - render_pass.resource_transitions_view.offset;
+            pass_submission_info.resource_transitions_view.size = resource_transition_descs.size - pass_submission_info.resource_transitions_view.offset;
 
         }
 
@@ -245,7 +253,7 @@ namespace zec::render_pass_system
                     set_debug_name(resource_state.buffers[j], debug_name.c_str());
 
                 }
-                in_render_list.resource_map[name] = resource_state;
+                resource_map[name] = resource_state;
             }
             else {
                 u32 width, height;
@@ -280,33 +288,31 @@ namespace zec::render_pass_system
                     std::wstring debug_name = ansi_to_wstring(resource_desc.name) + to_string(j);
                     set_debug_name(resource_state.textures[j], debug_name.c_str());
                 }
-                in_render_list.resource_map[name] = resource_state;
+                resource_map[name] = resource_state;
             }
         }
     }
 
-    void setup(RenderPassList& render_list)
+    void RenderPassList::setup()
     {
-        for (auto& render_pass : render_list.render_passes) {
-            render_pass.internal_state = render_pass.setup(render_pass.settings);
+        for (auto& render_pass : render_passes) {
+            render_pass->setup();
         }
     }
 
-    void copy(RenderPassList& render_list)
+    void RenderPassList::copy()
     {
-        for (auto& render_pass : render_list.render_passes) {
-            if (render_pass.copy) {
-                render_pass.copy(render_pass.settings, render_pass.internal_state);
-            }
+        for (auto& render_pass : render_passes) {
+            render_pass->copy();
         }
     }
 
-    void execute(RenderPassList& render_list)
+    void RenderPassList::execute()
     {
 
         TextureHandle backbuffer = get_current_back_buffer_handle();
         // Alias the backbuffer as the resource;
-        render_list.resource_map[render_list.backbuffer_resource_id] = {
+        resource_map[backbuffer_resource_id] = {
             .type = PassResourceType::TEXTURE,
             .last_usages = { RESOURCE_USAGE_PRESENT, RESOURCE_USAGE_PRESENT },
             .textures = { backbuffer, backbuffer }, // Bit of a hack
@@ -318,25 +324,26 @@ namespace zec::render_pass_system
         // Each render_pass gets a command context
 
         // Can be parallelized!
-        for (size_t pass_idx = 0; pass_idx < render_list.render_passes.size; ++pass_idx) {
-            const auto& render_pass = render_list.render_passes[pass_idx];
+        for (size_t pass_idx = 0; pass_idx < render_passes.size; ++pass_idx) {
+            IRenderPass* render_pass = render_passes[pass_idx];
+            const PerPassSubmissionInfo pass_submission_info = per_pass_submission_info[pass_idx];
 
-            CommandContextHandle& cmd_ctx = render_list.cmd_contexts[pass_idx];
-            cmd_ctx = gfx::cmd::provision(render_pass.queue_type);
+            CommandContextHandle& cmd_ctx = cmd_contexts[pass_idx];
+            cmd_ctx = gfx::cmd::provision(render_pass->get_queue_type());
 
-            PROFILE_GPU_EVENT(render_pass.name, cmd_ctx);
+            PROFILE_GPU_EVENT(render_pass->get_name(), cmd_ctx);
             // Transition Resources
             {
-                const size_t offset = render_pass.resource_transitions_view.offset;
-                const size_t size = render_pass.resource_transitions_view.size;
+                const size_t offset = pass_submission_info.resource_transitions_view.offset;
+                const size_t size = pass_submission_info.resource_transitions_view.size;
                 size_t num_recorded_transitions = 0;
                 ASSERT(size < 15);
                 ResourceTransitionDesc transition_descs[16] = {};
                 // Submit any resource barriers
                 for (size_t transition_idx = 0; transition_idx < size; transition_idx++) {
-                    PassResourceTransitionDesc& transition_desc = render_list.resource_transition_descs[transition_idx + offset];
+                    PassResourceTransitionDesc& transition_desc = resource_transition_descs[transition_idx + offset];
                     u64 current_frame_idx = get_current_frame_idx();
-                    ResourceState& resource_state = render_list.resource_map.at(transition_desc.resource_id);
+                    ResourceState& resource_state = resource_map.at(transition_desc.resource_id);
 
                     if (transition_desc.usage == resource_state.last_usages[current_frame_idx]) continue;
 
@@ -364,11 +371,10 @@ namespace zec::render_pass_system
                 }
             }
 
-            // Run our "execute" function for the pass
-            render_pass.execute(render_list.resource_map, cmd_ctx, render_pass.settings, render_pass.internal_state);
+            render_pass->record(resource_map, cmd_ctx);
 
             // Transition backbuffer
-            if (pass_idx == render_list.render_passes.size - 1) {
+            if (pass_idx == render_passes.size - 1) {
                 ResourceTransitionDesc transition_desc{
                     .type = ResourceTransitionType::TEXTURE,
                     .texture = backbuffer,
@@ -393,18 +399,20 @@ namespace zec::render_pass_system
             CommandStream async_compute_stream{};
 
             // Loop through all but the last command context
-            for (size_t pass_idx = 0; pass_idx < render_list.render_passes.size; pass_idx++) {
-                const auto& render_pass = render_list.render_passes[pass_idx];
+            for (size_t pass_idx = 0; pass_idx < render_passes.size; pass_idx++) {
+                const IRenderPass* render_pass = render_passes[pass_idx];
+                const PerPassSubmissionInfo pass_submission_info = per_pass_submission_info[pass_idx];
 
-                if (render_pass.receipt_idx_to_wait_on) {
-                    ASSERT(render_pass.receipt_idx_to_wait_on < pass_idx);
-                    const CmdReceipt& cmd_receipt = render_list.receipts[render_pass.receipt_idx_to_wait_on];
-                    ASSERT(render_pass.receipt_idx_to_wait_on != CmdReceipt::INVALID_FENCE_VALUE);
-                    gfx::cmd::gpu_wait(render_pass.queue_type, cmd_receipt);
+
+                if (pass_submission_info.receipt_idx_to_wait_on != UINT32_MAX) {
+                    ASSERT(pass_submission_info.receipt_idx_to_wait_on < pass_idx);
+                    const CmdReceipt& cmd_receipt = receipts[pass_submission_info.receipt_idx_to_wait_on];
+                    ASSERT(is_valid(cmd_receipt));
+                    gfx::cmd::gpu_wait(render_pass->get_queue_type(), cmd_receipt);
                 }
 
-                CommandStream& stream = render_pass.queue_type == CommandQueueType::ASYNC_COMPUTE ? async_compute_stream : gfx_stream;
-                stream.contexts_to_submit[stream.pending_count++] = render_list.cmd_contexts[pass_idx];
+                CommandStream& stream = render_pass->get_queue_type() == CommandQueueType::ASYNC_COMPUTE ? async_compute_stream : gfx_stream;
+                stream.contexts_to_submit[stream.pending_count++] = cmd_contexts[pass_idx];
 
                 // If we've reached the max or need to flush at this pass (for synchronization 
                 // purposes), we submit our command contexts and store the receipt
@@ -413,8 +421,8 @@ namespace zec::render_pass_system
                     gfx::cmd::return_and_execute(stream.contexts_to_submit, stream.pending_count);
                     stream.pending_count = 0;
                 }
-                else if (render_pass.requires_flush) {
-                    render_list.receipts[pass_idx] = gfx::cmd::return_and_execute(stream.contexts_to_submit, stream.pending_count);
+                else if (pass_submission_info.requires_flush) {
+                    receipts[pass_idx] = gfx::cmd::return_and_execute(stream.contexts_to_submit, stream.pending_count);
                     stream.pending_count = 0;
                 }
 
@@ -433,11 +441,10 @@ namespace zec::render_pass_system
     }
 
 
-    void destroy(RenderPassList& render_list)
+    void RenderPassList::shutdown()
     {
-        for (auto& render_pass : render_list.render_passes) {
-            render_pass.internal_state = render_pass.destroy(render_pass.settings, render_pass.internal_state);
-            ASSERT(render_pass.internal_state == nullptr);
+        for (auto& render_pass : render_passes) {
+            render_pass->shutdown();
         }
 
         // TODO: Free resources
