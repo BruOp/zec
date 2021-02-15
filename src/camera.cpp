@@ -4,7 +4,7 @@
 
 namespace zec
 {
-    PerspectiveCamera create_camera(const float aspect_ratio, const float vertical_fov, const float near_plane, const float far_plane)
+    PerspectiveCamera create_camera(const float aspect_ratio, const float vertical_fov, const float near_plane, const float far_plane, const CameraCreationFlags flags)
     {
         PerspectiveCamera camera{
             .aspect_ratio = aspect_ratio,
@@ -12,12 +12,23 @@ namespace zec
             .near_plane = near_plane,
             .far_plane = far_plane,
         };
-        camera.projection = perspective_projection(
-            camera.aspect_ratio,
-            camera.vertical_fov,
-            camera.near_plane,
-            camera.far_plane
-        );
+
+        if (flags & CAMERA_CREATION_FLAG_REVERSE_Z) {
+            camera.projection = perspective_projection(
+                camera.aspect_ratio,
+                camera.vertical_fov,
+                camera.far_plane,
+                camera.near_plane
+            );
+        }
+        else {
+            camera.projection = perspective_projection(
+                camera.aspect_ratio,
+                camera.vertical_fov,
+                camera.near_plane,
+                camera.far_plane
+            );
+        }
         return camera;
     }
 

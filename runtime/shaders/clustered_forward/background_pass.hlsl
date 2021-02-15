@@ -1,13 +1,3 @@
-//*********************************************************
-//
-// Copyright (c) Microsoft. All rights reserved.
-// This code is licensed under the MIT License (MIT).
-// THIS CODE IS PROVIDED *AS IS* WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY
-// IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR
-// PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
-//
-//*********************************************************
 #pragma pack_matrix( row_major )
 
 cbuffer background_constants : register(b0)
@@ -48,7 +38,7 @@ PSInput VSMain(float3 position : POSITION, float2 uv : TEXCOORD)
 {
     PSInput result;
 
-    result.position_cs = float4(position.x, position.y, 1.0, 1.0);
+    result.position_cs = float4(position.x, position.y, 0.0, 1.0);
 
     result.direction_ws = mul(invVP, result.position_cs);
     result.direction_ws /= result.direction_ws.w;

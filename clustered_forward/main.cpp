@@ -196,7 +196,7 @@ namespace clustered
             pipeline_desc.resource_layout = resource_layout;
             pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CCW;
             pipeline_desc.raster_state_desc.flags |= DEPTH_CLIP_ENABLED;
-            pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::LESS;
+            pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::GREATER;
             pipeline_desc.depth_stencil_state.depth_write = TRUE;
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
@@ -225,7 +225,7 @@ namespace clustered
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
             gfx::cmd::clear_render_target(cmd_ctx, render_target, clear_color);
-            gfx::cmd::clear_depth_target(cmd_ctx, depth_target, 1.0f, 0);
+            gfx::cmd::clear_depth_target(cmd_ctx, depth_target, 0.0f, 0);
             gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1, depth_target);
 
             gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
@@ -399,7 +399,7 @@ namespace clustered
             pipeline_desc.resource_layout = resource_layout;
             pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
             pipeline_desc.raster_state_desc.flags |= DEPTH_CLIP_ENABLED;
-            pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::LESS_OR_EQUAL;
+            pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::GREATER_OR_EQUAL;
             pipeline_desc.depth_stencil_state.depth_write = FALSE;
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
@@ -838,7 +838,7 @@ namespace clustered
             float camera_near = 0.1f;
             float camera_far = 100.0f;
 
-            camera = create_camera(float(width) / float(height), vertical_fov, camera_near, camera_far);
+            camera = create_camera(float(width) / float(height), vertical_fov, camera_near, camera_far, CAMERA_CREATION_FLAG_REVERSE_Z);
             camera.position = vec3{ 0.0f, 0.0f, -2.0f };
 
             camera_controller.init();

@@ -5,6 +5,12 @@
 
 namespace zec
 {
+    enum CameraCreationFlags : u8
+    {
+        CAMERA_CREATION_FLAG_NONE = 0,
+        CAMERA_CREATION_FLAG_REVERSE_Z = 1 << 0,
+    };
+
     struct PerspectiveCamera
     {
         float aspect_ratio = 1.0f;
@@ -17,7 +23,7 @@ namespace zec
         vec3 position = {};
     };
 
-    PerspectiveCamera create_camera(const float aspect_ratio, const float vertical_fov, const float near_plane, const float far_plane);
+    PerspectiveCamera create_camera(const float aspect_ratio, const float vertical_fov, const float near_plane, const float far_plane, const CameraCreationFlags flags = CAMERA_CREATION_FLAG_NONE);
 
     void set_camera_view(PerspectiveCamera& camera, const mat4& view);
 
