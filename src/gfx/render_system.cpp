@@ -279,6 +279,16 @@ namespace zec::render_pass_system
                     .initial_state = pair.second.initial_state,
                 };
 
+                if (texture_desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
+                    texture_desc.clear_depth = resource_desc.texture_desc.clear_depth;
+                    texture_desc.clear_stencil = resource_desc.texture_desc.clear_stencil;
+                }
+                else if (texture_desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
+                    for (size_t i = 0; i < 4; i++) {
+                        texture_desc.clear_color[i] = resource_desc.texture_desc.clear_color[i];
+                    }
+                }
+
                 ResourceState resource_state = {
                     .type = PassResourceType::TEXTURE,
                     .last_usages = { pair.second.initial_state, pair.second.initial_state }

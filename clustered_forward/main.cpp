@@ -298,7 +298,11 @@ namespace clustered
                 .name = PassResources::DEPTH_TARGET.name,
                 .type = render_pass_system::PassResourceType::TEXTURE,
                 .usage = RESOURCE_USAGE_DEPTH_STENCIL,
-                .texture_desc = {.format = BufferFormat::D32 }
+                .texture_desc = {
+                    .format = BufferFormat::D32, 
+                    .clear_depth = 0.0f,
+                    .clear_stencil = 0
+                }
             }
         };
 

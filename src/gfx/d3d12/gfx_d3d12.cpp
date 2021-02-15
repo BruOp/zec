@@ -1089,16 +1089,16 @@ namespace zec::gfx
             if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
                 flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
                 optimized_clear_value.Format = d3d_format;
-                optimized_clear_value.DepthStencil = { 1.0f, 0 };
+                optimized_clear_value.DepthStencil = { desc.clear_depth, desc.clear_stencil };
             }
 
             if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
                 flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
                 optimized_clear_value.Format = d3d_format;
-                optimized_clear_value.Color[0] = 0.0f;
-                optimized_clear_value.Color[1] = 0.0f;
-                optimized_clear_value.Color[2] = 0.0f;
-                optimized_clear_value.Color[3] = 1.0f;
+                optimized_clear_value.Color[0] = desc.clear_color[0];
+                optimized_clear_value.Color[1] = desc.clear_color[1];
+                optimized_clear_value.Color[2] = desc.clear_color[2];
+                optimized_clear_value.Color[3] = desc.clear_color[3];
             }
 
             u16 depth_or_array_size = u16(desc.array_size);

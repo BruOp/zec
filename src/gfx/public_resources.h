@@ -329,9 +329,23 @@ namespace zec
         u16 is_3d = 0;
         BufferFormat format;
         u16 usage = 0;
+
+        // Make sure you set your optimized clear_color or clear_depth
+        // if using as RENDER_TARGET or DEPTH_STENCIL
         // Unused maps to common -- TODO: make this more explicit?
         ResourceUsage initial_state = RESOURCE_USAGE_UNUSED;
-        // TODO: Optimized clear values?
+        
+        union
+        {
+            // Used as optimized clear values when creating for render targets
+            float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+            struct
+            {
+                // Used as the optimized clear alue when creating a depth stencil target
+                float clear_depth;
+                u8 clear_stencil;
+            };
+        };
     };
 
     struct SamplerDesc
