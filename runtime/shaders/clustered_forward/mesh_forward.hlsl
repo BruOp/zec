@@ -41,7 +41,6 @@ struct SpotLight
     float3 color;
 };
 
-// Two constants
 cbuffer draw_call_constants0 : register(b0)
 {
     uint renderable_idx;
@@ -58,6 +57,7 @@ cbuffer view_constants_buffer : register(b2)
 {
     float4x4 VP;
     float4x4 invVP;
+    float4x4 view;
     float3 camera_pos;
 };
 
@@ -194,6 +194,10 @@ PSInput VSMain(float3 position : POSITION0, float3 normal : NORMAL0, float2 uv :
     return res;
 };
 
+//=================================================================================================
+// Pixel Shader
+//=================================================================================================
+
 float4 PSMain(PSInput input) : SV_TARGET
 {
     float3 view_dir = normalize(camera_pos - input.position_ws.xyz);
@@ -248,34 +252,34 @@ float4 PSMain(PSInput input) : SV_TARGET
     
     float3 color = float3(0.0, 0.0, 0.0);
     
-    if (irradiance_map_idx != INVALID_TEXTURE_IDX && radiance_map_idx != INVALID_TEXTURE_IDX)
-    {
-        Texture2D brdf_lut = tex2D_table[brdf_lut_idx];
-        TextureCube radiance_map = tex_cube_table[radiance_map_idx];
-        TextureCube irradiance_map = tex_cube_table[irradiance_map_idx];
+    // if (irradiance_map_idx != INVALID_TEXTURE_IDX && radiance_map_idx != INVALID_TEXTURE_IDX)
+    // {
+    //     Texture2D brdf_lut = tex2D_table[brdf_lut_idx];
+    //     TextureCube radiance_map = tex_cube_table[radiance_map_idx];
+    //     TextureCube irradiance_map = tex_cube_table[irradiance_map_idx];
 
-        float NoV = clamp(dot(normal, view_dir), 0.00005, 1.0);
-        float2 f_ab = brdf_lut.Sample(default_sampler, float2(NoV, roughness)).rg;
-        float3 sample_dir = reflect(-view_dir, normal);
-        float num_env_levels, width, height;
-        radiance_map.GetDimensions(0, width, height, num_env_levels);
-        float3 radiance = radiance_map.SampleLevel(default_sampler, sample_dir, roughness * num_env_levels).rgb;
-        float3 irradiance = irradiance_map.Sample(default_sampler, sample_dir).rgb;
+    //     float NoV = clamp(dot(normal, view_dir), 0.00005, 1.0);
+    //     float2 f_ab = brdf_lut.Sample(default_sampler, float2(NoV, roughness)).rg;
+    //     float3 sample_dir = reflect(-view_dir, normal);
+    //     float num_env_levels, width, height;
+    //     radiance_map.GetDimensions(0, width, height, num_env_levels);
+    //     float3 radiance = radiance_map.SampleLevel(default_sampler, sample_dir, roughness * num_env_levels).rgb;
+    //     float3 irradiance = irradiance_map.Sample(default_sampler, sample_dir).rgb;
 
-        // Multiple scattering, from Fdez-Aguera
-        // See https://bruop.github.io/ibl/ for additional explanation
-        //float3 Fr = max(float3_splat(1.0 - roughness), f0) - f0;
-        //float3 k_S = f0 + Fr * pow(1.0 - NoV, 5.0);
-        //float3 FssEss = k_S * f_ab.x + f_ab.y;
-        // Typically, simply:
-        float3 FssEss = f0 * f_ab.x + f_ab.y;
-        float Ems = (1.0 - (f_ab.x + f_ab.y));
-        float3 f_avg = f0 + (1.0 - f0) / 21.0;
-        float3 FmsEms = Ems * FssEss * f_avg / (1.0 - f_avg * Ems);
-        float3 k_D = base_color.rgb * (1.0 - FssEss - FmsEms);
+    //     // Multiple scattering, from Fdez-Aguera
+    //     // See https://bruop.github.io/ibl/ for additional explanation
+    //     //float3 Fr = max(float3_splat(1.0 - roughness), f0) - f0;
+    //     //float3 k_S = f0 + Fr * pow(1.0 - NoV, 5.0);
+    //     //float3 FssEss = k_S * f_ab.x + f_ab.y;
+    //     // Typically, simply:
+    //     float3 FssEss = f0 * f_ab.x + f_ab.y;
+    //     float Ems = (1.0 - (f_ab.x + f_ab.y));
+    //     float3 f_avg = f0 + (1.0 - f0) / 21.0;
+    //     float3 FmsEms = Ems * FssEss * f_avg / (1.0 - f_avg * Ems);
+    //     float3 k_D = base_color.rgb * (1.0 - FssEss - FmsEms);
 
-        color += occlusion * (FssEss * radiance + base_color.rgb * irradiance);
-    }
+    //     color += occlusion * (FssEss * radiance + base_color.rgb * irradiance);
+    // }
     
     float3 light_out = float3(0.0, 0.0, 0.0);
     ByteAddressBuffer spot_lights_buffer = buffers_table[spot_light_buffer_idx];

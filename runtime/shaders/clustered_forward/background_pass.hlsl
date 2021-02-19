@@ -10,6 +10,7 @@ cbuffer view_constants_buffer : register(b1)
 {
     float4x4 VP;
     float4x4 invVP;
+    float4x4 view;
     float3 camera_pos;
 };
 

@@ -49,12 +49,29 @@ namespace clustered
         u32 src_img_width = 0;
     };
 
+    struct ClusterGridSetup
+    {
+        u32 width = 1;
+        u32 height = 1;
+        u32 depth = 1;
+        u32 max_lights_per_bin = 1;
+    };
+
+    const static ClusterGridSetup CLUSTER_SETUP = {
+        .width = 16,
+        .height = 8,
+        .depth = u32(ceilf(log10f(100.0f / 0.1f) / log10f(1.0f + 2.0f * tanf(0.5f * deg_to_rad(65.0f)) / 8))),
+        .max_lights_per_bin = 16,
+    };
 
     namespace PassResources
     {
         constexpr ResourceIdentifier DEPTH_TARGET = PASS_RESOURCE_IDENTIFIER("depth");
         constexpr ResourceIdentifier HDR_TARGET = PASS_RESOURCE_IDENTIFIER("hdr");
         constexpr ResourceIdentifier SDR_TARGET = PASS_RESOURCE_IDENTIFIER("sdr");
+        constexpr ResourceIdentifier LIGHT_INDICES = PASS_RESOURCE_IDENTIFIER("light_indices");
+        constexpr ResourceIdentifier CLUSTER_OFFSETS = PASS_RESOURCE_IDENTIFIER("cluster_indices");
+        constexpr ResourceIdentifier COUNT_BUFFER = PASS_RESOURCE_IDENTIFIER("global count buffer");
     }
 
     struct SceneConstantData
@@ -71,9 +88,12 @@ namespace clustered
     {
         mat4 VP;
         mat4 invVP;
+        mat4 view;
         vec3 camera_position;
-        float padding;
+        float padding[13];
     };
+
+    static_assert(sizeof(ViewConstantData) == 256);
 
     struct VertexShaderData
     {
@@ -143,6 +163,147 @@ namespace clustered
         }
     };
 
+    class DepthOnly : public render_pass_system::IRenderPass
+    {
+    public:
+        Renderables* scene_renderables = nullptr;
+        BufferHandle view_cb_handle = {};
+
+        virtual void setup() final
+        {
+            ResourceLayoutDesc layout_desc{
+                .constants = {
+                    {.visibility = ShaderVisibility::ALL, .num_constants = 1 },
+                    {.visibility = ShaderVisibility::ALL, .num_constants = 1 },
+                },
+                .num_constants = 2,
+                .constant_buffers = {
+                    { ShaderVisibility::ALL },
+                },
+                .num_constant_buffers = 1,
+                .tables = {
+                    {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
+                },
+                .num_resource_tables = 1,
+                .num_static_samplers = 0,
+            };
+
+            resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
+            gfx::set_debug_name(resource_layout, L"Forward Pass Layout");
+
+            // Create the Pipeline State Object
+            PipelineStateObjectDesc pipeline_desc = {};
+            pipeline_desc.input_assembly_desc = { {
+                { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
+            } };
+            pipeline_desc.shader_file_path = L"shaders/clustered_forward/depth_pass.hlsl";
+            //pipeline_desc.rtv_formats[0] = BufferFormat::R16G16B16A16_FLOAT;
+            pipeline_desc.depth_buffer_format = BufferFormat::D32;
+            pipeline_desc.resource_layout = resource_layout;
+            pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CCW;
+            pipeline_desc.raster_state_desc.flags |= DEPTH_CLIP_ENABLED;
+            pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::GREATER;
+            pipeline_desc.depth_stencil_state.depth_write = TRUE;
+            pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX;
+
+            pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+            gfx::set_debug_name(pso, L"Depth Pass Pipeline");
+        };
+
+        void copy() override final
+        {
+            // Shrug
+        };
+
+        void record(const render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx) override final
+        {
+            TextureHandle depth_target = resource_map.get_texture_resource(PassResources::DEPTH_TARGET.id);
+            const TextureInfo& texture_info = gfx::textures::get_texture_info(depth_target);
+            Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
+            Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
+
+            gfx::cmd::graphics::set_active_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::graphics::set_pipeline_state(cmd_ctx, pso);
+            gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
+            gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
+
+            gfx::cmd::clear_depth_target(cmd_ctx, depth_target, 0.0f, 0);
+            gfx::cmd::set_render_targets(cmd_ctx, nullptr, 0, depth_target);
+
+            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
+
+            const auto* scene_data = scene_renderables;
+            gfx::cmd::graphics::bind_resource_table(cmd_ctx, u32(BindingSlots::RAW_BUFFERS_TABLE));
+
+            u32 buffer_descriptor = gfx::buffers::get_shader_readable_index(scene_data->vs_buffer);
+            gfx::cmd::graphics::bind_constants(cmd_ctx, &buffer_descriptor, 1, u32(BindingSlots::BUFFERS_DESCRIPTORS));
+
+            for (u32 i = 0; i < scene_data->num_entities; i++) {
+                gfx::cmd::graphics::bind_constants(cmd_ctx, &i, 1, u32(BindingSlots::PER_INSTANCE_CONSTANTS));
+                gfx::cmd::graphics::draw_mesh(cmd_ctx, scene_data->meshes[i]);
+            }
+        };
+
+        void shutdown() override final
+        {
+            // TODO: Free pipeline and resource layouts
+        };
+
+        const char* get_name() const override final
+        {
+            return pass_name;
+        }
+
+        const InputList get_input_list() const override final
+        {
+            return {
+                .ptr = nullptr,
+                .count = 0
+            };
+        };
+
+        const OutputList get_output_list() const override final
+        {
+            return {
+                .ptr = pass_outputs,
+                .count = ARRAY_SIZE(pass_outputs),
+            };
+        }
+
+        const CommandQueueType get_queue_type() const override final
+        {
+            return command_queue_type;
+        }
+
+        static constexpr CommandQueueType command_queue_type = CommandQueueType::GRAPHICS;
+        static constexpr char pass_name[] = "Depth Prepass";
+        static constexpr render_pass_system::PassOutputDesc pass_outputs[] = {
+            {
+                .id = PassResources::DEPTH_TARGET.id,
+                .name = PassResources::DEPTH_TARGET.name,
+                .type = render_pass_system::PassResourceType::TEXTURE,
+                .usage = RESOURCE_USAGE_DEPTH_STENCIL,
+                .texture_desc = {
+                    .format = BufferFormat::D32,
+                    .clear_depth = 0.0f,
+                    .clear_stencil = 0
+                }
+            }
+        };
+
+    private:
+        ResourceLayoutHandle resource_layout = {};
+        PipelineStateHandle pso = {};
+
+        enum struct BindingSlots : u32
+        {
+            PER_INSTANCE_CONSTANTS = 0,
+            BUFFERS_DESCRIPTORS,
+            VIEW_CONSTANT_BUFFER,
+            RAW_BUFFERS_TABLE,
+        };
+    };
+
     class ForwardPass : public render_pass_system::IRenderPass
     {
     public:
@@ -196,7 +357,7 @@ namespace clustered
             pipeline_desc.resource_layout = resource_layout;
             pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CCW;
             pipeline_desc.raster_state_desc.flags |= DEPTH_CLIP_ENABLED;
-            pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::GREATER;
+            pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::EQUAL;
             pipeline_desc.depth_stencil_state.depth_write = TRUE;
             pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
@@ -225,7 +386,6 @@ namespace clustered
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
             gfx::cmd::clear_render_target(cmd_ctx, render_target, clear_color);
-            gfx::cmd::clear_depth_target(cmd_ctx, depth_target, 0.0f, 0);
             gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1, depth_target);
 
             gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
@@ -265,8 +425,8 @@ namespace clustered
         const InputList get_input_list() const override final
         {
             return {
-                .ptr = nullptr,
-                .count = 0
+                .ptr = pass_inputs,
+                .count = std::size(pass_inputs)
             };
         };
 
@@ -274,7 +434,7 @@ namespace clustered
         {
             return {
                 .ptr = pass_outputs,
-                .count = ARRAY_SIZE(pass_outputs),
+                .count = std::size(pass_outputs),
             };
         }
 
@@ -285,6 +445,13 @@ namespace clustered
 
         static constexpr CommandQueueType command_queue_type = CommandQueueType::GRAPHICS;
         static constexpr char pass_name[] = "ForwardPass";
+        static constexpr render_pass_system::PassInputDesc pass_inputs[] = {
+            {
+                .id = PassResources::DEPTH_TARGET.id,
+                .type = render_pass_system::PassResourceType::TEXTURE,
+                .usage = RESOURCE_USAGE_DEPTH_STENCIL,
+            }
+        };
         static constexpr render_pass_system::PassOutputDesc pass_outputs[] = {
             {
                 .id = PassResources::HDR_TARGET.id,
@@ -292,17 +459,6 @@ namespace clustered
                 .type = render_pass_system::PassResourceType::TEXTURE,
                 .usage = RESOURCE_USAGE_RENDER_TARGET,
                 .texture_desc = {.format = BufferFormat::R16G16B16A16_FLOAT}
-            },
-            {
-                .id = PassResources::DEPTH_TARGET.id,
-                .name = PassResources::DEPTH_TARGET.name,
-                .type = render_pass_system::PassResourceType::TEXTURE,
-                .usage = RESOURCE_USAGE_DEPTH_STENCIL,
-                .texture_desc = {
-                    .format = BufferFormat::D32, 
-                    .clear_depth = 0.0f,
-                    .clear_stencil = 0
-                }
             }
         };
 
@@ -321,7 +477,6 @@ namespace clustered
             TEXTURE_CUBE_TABLE,
         };
     };
-
 
     class BackgroundPass : public render_pass_system::IRenderPass
     {
@@ -439,7 +594,8 @@ namespace clustered
             // TODO
         };
 
-        const char* get_name() const override final { 
+        const char* get_name() const override final
+        {
             return pass_name;
         }
 
@@ -637,7 +793,7 @@ namespace clustered
 
 
     private:
-        
+
         MeshHandle fullscreen_mesh;
         ResourceLayoutHandle resource_layout = {};
         PipelineStateHandle pso = {};
@@ -660,6 +816,207 @@ namespace clustered
                 .texture_desc = {.format = BufferFormat::R8G8B8A8_UNORM_SRGB}
             },
         };
+    };
+
+    class LightBinningPass : public render_pass_system::IRenderPass
+    {
+    public:
+
+        // Settings
+        PerspectiveCamera* camera = nullptr;
+        SceneBuffers scene_buffers = {};
+        BufferHandle view_cb_handle = {};
+
+        void setup() override final
+        {
+            ResourceLayoutDesc resource_layout_desc{
+                .num_constants = 0,
+                .constant_buffers = {
+                    {.visibility = ShaderVisibility::COMPUTE },
+                    {.visibility = ShaderVisibility::COMPUTE },
+                    {.visibility = ShaderVisibility::COMPUTE },
+                },
+                .num_constant_buffers = 3,
+                .tables = {
+                    {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
+                    {.usage = ResourceAccess::WRITE, .count = DESCRIPTOR_TABLE_SIZE },
+                    {.usage = ResourceAccess::WRITE, .count = DESCRIPTOR_TABLE_SIZE },
+                },
+                .num_resource_tables = 3,
+                .num_static_samplers = 0,
+            };
+
+            resource_layout = gfx::pipelines::create_resource_layout(resource_layout_desc);
+            PipelineStateObjectDesc pipeline_desc = {
+                .resource_layout = resource_layout,
+                .used_stages = PipelineStage::PIPELINE_STAGE_COMPUTE,
+                .shader_file_path = L"shaders/clustered_forward/light_assignment.hlsl",
+            };
+
+            pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+
+            binning_cb = gfx::buffers::create({
+                .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
+                .type = BufferType::DEFAULT,
+                .byte_size = sizeof(BinningConstants),
+                .stride = 0 });
+        }
+
+        void copy() override final
+        {
+
+        };
+
+        void record(const render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx) override final
+        {
+            const BufferHandle indices_buffer = resource_map.get_buffer_resource(PassResources::LIGHT_INDICES.id);
+            const BufferHandle count_buffer = resource_map.get_buffer_resource(PassResources::COUNT_BUFFER.id);
+            const TextureHandle cluster_offsets = resource_map.get_texture_resource(PassResources::CLUSTER_OFFSETS.id);
+
+            // Hmmm, shouldn't this be in copy?
+            BinningConstants binning_constants{
+                .grid_bins_x = CLUSTER_SETUP.width,
+                .grid_bins_y = CLUSTER_SETUP.height,
+                .grid_bins_z = CLUSTER_SETUP.depth,
+                .x_near = camera->aspect_ratio * tanf(0.5f * camera->vertical_fov) * camera->near_plane,
+                .y_near = tanf(0.5f * camera->vertical_fov) * camera->near_plane,
+                .z_near = -camera->near_plane,
+                .z_far = -camera->far_plane,
+                .indices_list_idx = gfx::buffers::get_shader_writable_index(indices_buffer),
+                .cluster_offsets_idx = gfx::textures::get_shader_writable_index(cluster_offsets),
+                .global_count_idx = gfx::buffers::get_shader_writable_index(count_buffer),
+            };
+            gfx::buffers::update(binning_cb, &binning_constants, sizeof(binning_constants));
+
+            gfx::cmd::compute::set_active_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::compute::set_pipeline_state(cmd_ctx, pso);
+
+            gfx::cmd::compute::bind_constant_buffer(cmd_ctx, binning_cb, u32(Slots::LIGHT_GRID_CONSTANTS));
+            gfx::cmd::compute::bind_constant_buffer(cmd_ctx, view_cb_handle, u32(Slots::VIEW_CONSTANTS));
+            gfx::cmd::compute::bind_constant_buffer(cmd_ctx, scene_buffers.scene_constants, u32(Slots::SCENE_CONSTANTS));
+
+            gfx::cmd::compute::bind_resource_table(cmd_ctx, u32(Slots::READ_BUFFERS_TABLE));
+            gfx::cmd::compute::bind_resource_table(cmd_ctx, u32(Slots::WRITE_BUFFERS_TABLE));
+            gfx::cmd::compute::bind_resource_table(cmd_ctx, u32(Slots::WRITE_3D_TEXTURES_TABLE));
+
+            u32 group_size = 8;
+            u32 group_count_x = (CLUSTER_SETUP.width + (group_size - 1)) / group_size;
+            u32 group_count_y = (CLUSTER_SETUP.height + (group_size - 1)) / group_size;
+            u32 group_count_z = CLUSTER_SETUP.depth;
+
+            gfx::cmd::compute::dispatch(cmd_ctx, group_count_x, group_count_y, group_count_z);
+        };
+
+        // TODO!
+        void shutdown() override final { }
+
+
+        const char* get_name() const override final
+        {
+            return pass_name;
+        }
+
+        const CommandQueueType get_queue_type() const override final
+        {
+            return command_queue_type;
+        }
+
+        const InputList get_input_list() const override final
+        {
+            return {
+                .ptr = nullptr,
+                .count = 0
+            };
+        };
+
+        const OutputList get_output_list() const override final
+        {
+            return {
+                .ptr = pass_outputs,
+                .count = std::size(pass_outputs),
+            };
+        }
+
+
+    private:
+
+        ResourceLayoutHandle resource_layout = {};
+        PipelineStateHandle pso = {};
+        BufferHandle binning_cb = {};
+
+        enum struct Slots : u32
+        {
+            LIGHT_GRID_CONSTANTS = 0,
+            VIEW_CONSTANTS,
+            SCENE_CONSTANTS,
+            READ_BUFFERS_TABLE,
+            WRITE_BUFFERS_TABLE,
+            WRITE_3D_TEXTURES_TABLE,
+        };
+        struct BinningConstants
+        {
+            u32 grid_bins_x = CLUSTER_SETUP.width;
+            u32 grid_bins_y = CLUSTER_SETUP.height;
+            u32 grid_bins_z = CLUSTER_SETUP.depth;
+
+            // Top right corner of the near plane
+            float x_near = 0.0f;
+            float y_near = 0.0f;
+            float z_near = 0.0f;
+            // The z-value for the far plane
+            float z_far = 0.0f;
+
+            u32 indices_list_idx;
+            u32 cluster_offsets_idx;
+            u32 global_count_idx;
+        };
+
+        static constexpr CommandQueueType command_queue_type = CommandQueueType::ASYNC_COMPUTE;
+        static constexpr char pass_name[] = "Light Binning Pass";
+        //static constexpr render_pass_system::PassInputDesc pass_inputs[] = {};
+        static const render_pass_system::PassOutputDesc pass_outputs[3];
+    };
+
+    const render_pass_system::PassOutputDesc LightBinningPass::pass_outputs[] = {
+        {
+            .id = PassResources::COUNT_BUFFER.id,
+                .name = PassResources::COUNT_BUFFER.name,
+                .type = render_pass_system::PassResourceType::BUFFER,
+                .usage = RESOURCE_USAGE_COMPUTE_WRITABLE,
+                .buffer_desc = {
+                    .type = BufferType::RAW,
+                    .byte_size = 4,
+                    .stride = 4,
+            }
+        },
+        {
+            .id = PassResources::LIGHT_INDICES.id,
+            .name = PassResources::LIGHT_INDICES.name,
+            .type = render_pass_system::PassResourceType::BUFFER,
+            .usage = RESOURCE_USAGE_COMPUTE_WRITABLE,
+            .buffer_desc = {
+                .type = BufferType::RAW,
+                .byte_size = SpotLight::MAX_SPOT_LIGHTS * sizeof(u32) * CLUSTER_SETUP.max_lights_per_bin,
+                .stride = 4,
+                }
+        },
+        {
+            .id = PassResources::CLUSTER_OFFSETS.id,
+            .name = PassResources::CLUSTER_OFFSETS.name,
+            .type = render_pass_system::PassResourceType::TEXTURE,
+            .usage = RESOURCE_USAGE_COMPUTE_WRITABLE,
+            .texture_desc = {
+                .size_class = render_pass_system::SizeClass::ABSOLUTE,
+                .format = BufferFormat::UINT32_2,
+                .width = float(CLUSTER_SETUP.width),
+                .height = float(CLUSTER_SETUP.height),
+                .depth = CLUSTER_SETUP.depth,
+                .num_mips = 1,
+                .array_size = 1,
+                .is_cubemap = false,
+                .is_3d = true,
+            },
+        },
     };
 
     class BRDFLutCreator
@@ -804,6 +1161,8 @@ namespace clustered
         struct Passes
         {
         public:
+            LightBinningPass light_binning_pass = {};
+            DepthOnly depth_prepass = {};
             ForwardPass forward = {};
             BackgroundPass background = {};
             ToneMappingPass tone_mapping = {};
@@ -839,11 +1198,11 @@ namespace clustered
         void init() override final
         {
             float vertical_fov = deg_to_rad(65.0f);
-            float camera_near = 0.1f;
-            float camera_far = 100.0f;
+            constexpr float camera_near = 0.1f;
+            constexpr float camera_far = 100.0f;
 
             camera = create_camera(float(width) / float(height), vertical_fov, camera_near, camera_far, CAMERA_CREATION_FLAG_REVERSE_Z);
-            camera.position = vec3{ 0.0f, 0.0f, -2.0f };
+            camera.position = vec3{ 0.0f, 0.0f, -10.0f };
 
             camera_controller.init();
             camera_controller.set_camera(&camera);
@@ -861,19 +1220,18 @@ namespace clustered
                     {0.5f, 0.3f, 1.0f },
                 };
 
-                constexpr size_t num_lights = 8;
+                constexpr size_t num_lights = 3;
                 for (size_t i = 0; i < num_lights; i++) {
                     // place the lights in a ring around the origin
-                    float ring_radius = 3.0f;
-                    vec3 position = vec3{ cosf(k_2_pi * float(i) / num_lights), 1.0f, sinf(k_2_pi * float(i) / num_lights) };
-                    position = ring_radius * position;
+                    float ring_radius = 20.0f;
+                    vec3 position = vec3{ ring_radius * (-0.5f + float(i) / float(num_lights - 1)), 3.0f, 0.0f };
                     spot_lights.push_back({
                         .position = position,
-                        .radius = 15.0f,
-                        .direction = normalize(-1.0f * position),
+                        .radius = 30.0f,
+                        .direction = vec3{0.0f, -1.0f, 0.0f},
                         .umbra_angle = k_half_pi * 0.5f,
                         .penumbra_angle = k_half_pi * 0.4f,
-                        .color = light_colors[i] * 5.0f,
+                        .color = light_colors[i] * 10.0f,
                         });
                 }
             }
@@ -1013,6 +1371,14 @@ namespace clustered
 
             scene_renderables.init(materials_buffer, scene_renderables.num_entities);
 
+            
+            render_passes.light_binning_pass.view_cb_handle = view_cb_handle;
+            render_passes.light_binning_pass.scene_buffers = scene_buffers;
+            render_passes.light_binning_pass.camera = &camera;
+
+            render_passes.depth_prepass.view_cb_handle = view_cb_handle;
+            render_passes.depth_prepass.scene_renderables = &scene_renderables;
+
             render_passes.forward.view_cb_handle = view_cb_handle;
             render_passes.forward.scene_renderables = &scene_renderables;
             render_passes.forward.scene_buffers = &scene_buffers;
@@ -1021,13 +1387,15 @@ namespace clustered
             render_passes.background.scene_buffers = scene_buffers;
 
             render_pass_system::IRenderPass* pass_ptrs[] = {
+                &render_passes.light_binning_pass,
+                &render_passes.depth_prepass,
                 &render_passes.forward,
                 &render_passes.background,
                 &render_passes.tone_mapping,
             };
             render_pass_system::RenderPassListDesc render_list_desc = {
                 .render_passes = pass_ptrs,
-                .num_render_passes = ARRAY_SIZE(pass_ptrs),
+                .num_render_passes = std::size(pass_ptrs),
                 .resource_to_use_as_backbuffer = PassResources::SDR_TARGET.id,
             };
 
@@ -1053,6 +1421,7 @@ namespace clustered
             ViewConstantData view_constant_data{
                 .VP = camera.projection * camera.view,
                 .invVP = invert(camera.projection * mat4(to_mat3(camera.view), {})),
+                .view = camera.view,
                 .camera_position = camera.position,
             };
             gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));

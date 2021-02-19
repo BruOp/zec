@@ -86,8 +86,7 @@ namespace zec::gfx::dx12::shader_utils
         // Note that d3dcompiler would return null if no errors or warnings are present.  
         // IDxcCompiler3::Compile will always return an error buffer, but its length will be zero if there are no warnings or errors.
         if (pErrors != nullptr && pErrors->GetStringLength() != 0) {
-            std::wstring error_string = make_string(L"Warnings and Errors:\n%S\n", pErrors->GetStringPointer());
-            debug_print(error_string);
+            print_blob(pErrors.Get());
         }
 
         if (SUCCEEDED(hr))

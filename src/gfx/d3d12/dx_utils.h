@@ -3,8 +3,13 @@
 #include "utils/exceptions.h"
 #include "DXErr.h"
 
+struct IDxcBlobUtf8;
+
 namespace zec::gfx::dx12
 {
+    void print_blob(ID3DBlob* blob);
+    void print_blob(IDxcBlobUtf8* blob);
+
     inline std::wstring GetDXErrorString(HRESULT hr)
     {
         const u32 errStringSize = 1024;

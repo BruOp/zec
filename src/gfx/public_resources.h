@@ -74,6 +74,8 @@ namespace zec
         D32,
         UINT16,
         UINT32,
+        UINT16_2,
+        UINT32_2,
         UNORM8_2,
         UNORM16_2,
         HALF_2,

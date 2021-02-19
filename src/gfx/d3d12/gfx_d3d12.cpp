@@ -231,6 +231,13 @@ namespace zec::gfx
             ));
             g_context.supported_feature_level = feature_levels.MaxSupportedFeatureLevel;
 
+            D3D12_FEATURE_DATA_D3D12_OPTIONS options = {};
+            DXCall(g_context.device->CheckFeatureSupport(
+                D3D12_FEATURE_D3D12_OPTIONS,
+                &options,
+                sizeof(options)
+            ));
+
             D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_11_0;
             if (g_context.supported_feature_level < min_feature_level) {
                 std::wstring majorLevel = to_string<int>(min_feature_level >> 12);
@@ -690,7 +697,7 @@ namespace zec::gfx
                         parameter.ShaderVisibility = to_d3d_visibility(ShaderVisibility::ALL);
                         parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
                         parameter.DescriptorTable = {
-                            .NumDescriptorRanges = uav_count,
+                            .NumDescriptorRanges = 1,
                             .pDescriptorRanges = &uav_ranges[uav_table_idx],
                         };
                         remaining_dwords--;
@@ -925,7 +932,12 @@ namespace zec::gfx
                 initial_resource_state = D3D12_RESOURCE_STATE_GENERIC_READ;
             }
 
-            D3D12_RESOURCE_DESC resource_desc = CD3DX12_RESOURCE_DESC::Buffer(buffer.info.total_size);
+            D3D12_RESOURCE_FLAGS resource_flags = D3D12_RESOURCE_FLAG_NONE;
+            if (desc.usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
+                resource_flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+            }
+
+            D3D12_RESOURCE_DESC resource_desc = CD3DX12_RESOURCE_DESC::Buffer(buffer.info.total_size, resource_flags);
             D3D12MA::ALLOCATION_DESC alloc_desc = {};
             alloc_desc.HeapType = heap_type;
 
@@ -949,7 +961,6 @@ namespace zec::gfx
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
                 buffer.srv = g_context.descriptor_heaps[HeapTypes::SRV].allocate_descriptors(1, &cpu_handle);
 
-                bool is_structered = desc.type == BufferType::STRUCTURED;
                 bool is_raw = desc.type == BufferType::RAW;
 
                 D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
@@ -960,7 +971,7 @@ namespace zec::gfx
                         .FirstElement = 0,
                         .NumElements = desc.byte_size / desc.stride,
                         .StructureByteStride = is_raw ? 0 : desc.stride,
-                        .Flags= is_raw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE
+                        .Flags = is_raw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE
                     },
                 };
 
@@ -968,7 +979,25 @@ namespace zec::gfx
             }
 
             // Create the UAV
-            // TODO: Create the UAV lol
+            if (desc.usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
+                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
+                buffer.uav = g_context.descriptor_heaps[HeapTypes::UAV].allocate_descriptors(1, &cpu_handle);
+
+                bool is_raw = desc.type == BufferType::RAW;
+
+                D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
+                    .Format = is_raw ? DXGI_FORMAT_R32_TYPELESS : DXGI_FORMAT_UNKNOWN,
+                    .ViewDimension = D3D12_UAV_DIMENSION_BUFFER,
+                    .Buffer = {
+                        .FirstElement = 0,
+                        .NumElements = desc.byte_size / desc.stride,
+                        .StructureByteStride = is_raw ? 0 : desc.stride,
+                        .Flags = is_raw ? D3D12_BUFFER_UAV_FLAG_RAW : D3D12_BUFFER_UAV_FLAG_NONE,
+                    },
+                };
+
+                g_context.device->CreateUnorderedAccessView(buffer.resource, nullptr, &uav_desc, cpu_handle);
+            }
 
             // We map the buffer if we're going to be doing CPU writes to it.
             if (buffer.info.cpu_accessible) {
@@ -1133,7 +1162,7 @@ namespace zec::gfx
             D3D12_RESOURCE_STATES initial_state = desc.initial_state == RESOURCE_USAGE_UNUSED
                 ? D3D12_RESOURCE_STATE_COMMON
                 : to_d3d_resource_state(desc.initial_state);
-            
+
             const bool depth_or_rt = bool(desc.usage & (RESOURCE_USAGE_DEPTH_STENCIL | RESOURCE_USAGE_RENDER_TARGET));
             DXCall(g_context.allocator->CreateResource(
                 &alloc_desc,
@@ -1191,8 +1220,8 @@ namespace zec::gfx
                     .allocate_descriptors(texture.info.num_mips, cpu_handles);
                 texture.uav = uav;
 
-                // TODO: 3D texture support
-                ASSERT(!desc.is_3d);
+                // Cannot support 3D texture arrays
+                ASSERT(!desc.is_3d || desc.array_size == 1);
 
                 for (u32 i = 0; i < texture.info.num_mips; i++) {
                     D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
@@ -1200,7 +1229,15 @@ namespace zec::gfx
                         .ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D,
                     };
 
-                    if (desc.is_cubemap || desc.array_size > 1) {
+                    if (desc.is_3d) {
+                        uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
+                        uav_desc.Texture3D = {
+                            .MipSlice = i,
+                            .FirstWSlice = 0,
+                            .WSize = desc.depth,
+                        };
+                    }
+                    else if (desc.is_cubemap || desc.array_size > 1) {
                         uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
                         uav_desc.Texture2DArray = {
                             .MipSlice = i,
@@ -1564,7 +1601,7 @@ namespace zec::gfx
 
                 cmd_list->SetComputeRootSignature(root_signature);
             };
-            
+
             void set_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle)
             {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
@@ -1660,6 +1697,7 @@ namespace zec::gfx
                 dsv = g_context.descriptor_heaps[HeapTypes::DSV].get_cpu_descriptor_handle(descriptor_handle);
                 dsv_ptr = &dsv;
             }
+
             D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
             for (size_t i = 0; i < num_render_targets; i++) {
                 DescriptorRangeHandle descriptor_handle = g_context.textures.rtvs[render_textures[i]];
