@@ -69,7 +69,9 @@ namespace zec::gfx::dx12
 
         void destroy(void (*resource_destruction_callback)(ID3D12Resource*, D3D12MA::Allocation*), void(*descriptor_destruction_callback)(D3D12_DESCRIPTOR_HEAP_TYPE, DescriptorRangeHandle));
 
-        BufferHandle push_back(const Buffer& buffer);
+        BufferHandle store_buffer(const Buffer& buffer);
+
+        void free_buffer(BufferHandle buffer_handle);
 
         // Getters
         size_t size()
@@ -83,6 +85,8 @@ namespace zec::gfx::dx12
         ResourceArray<BufferInfo, BufferHandle> infos = {};
         ResourceArray<DescriptorRangeHandle, BufferHandle> srvs = {};
         ResourceArray<DescriptorRangeHandle, BufferHandle> uavs = {};
+
+        Array<u32> free_handles = {};
     };
 
 }

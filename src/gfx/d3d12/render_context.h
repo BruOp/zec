@@ -5,7 +5,6 @@
 #include "dx_helpers.h"
 #include "wrappers.h"
 #include "descriptor_heap.h"
-#include "buffers.h"
 #include "textures.h"
 #include "upload_manager.h"
 #include "command_context.h"
@@ -34,11 +33,15 @@ namespace zec::gfx::dx12
         const T& operator[](const CommandQueueType queue_type) const { return members[size_t(queue_type)]; };
     };
 
+
     class RenderContext
     {
         typedef DXPtrArray<ID3D12RootSignature, ResourceLayoutHandle> ResourceLayoutStore;
         typedef DXPtrArray<ID3D12PipelineState, PipelineStateHandle> PipelineStateStore;
     public:
+        typedef void (*StartupCallback)(RenderContext* render_context);
+        typedef void (*DestructionCallback)();
+
         RenderConfigState config_state = {};
         u64 current_frame_idx = 0;
         // Total number of CPU frames completed (means that we've recorded and submitted commands for the frame)
@@ -68,9 +71,12 @@ namespace zec::gfx::dx12
 
         ResourceLayoutStore root_signatures = {};
         PipelineStateStore pipelines = {};
-
-        BufferList buffers = {};
+        
         TextureList textures = {};
+        
+        bool is_initialized = false;
+        Array<StartupCallback> statup_callbacks;
+        Array<DestructionCallback> destruction_callbacks;
     };
 
     inline ID3D12GraphicsCommandList* get_command_list(RenderContext& render_context, const CommandContextHandle& handle)
@@ -81,4 +87,8 @@ namespace zec::gfx::dx12
     };
 
     RenderContext& get_render_context();
+
+    void register_startup_callback(RenderContext::StartupCallback callback);
+    void register_destruction_callback(RenderContext::DestructionCallback callback);
+
 }

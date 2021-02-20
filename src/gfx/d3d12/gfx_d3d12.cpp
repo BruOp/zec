@@ -38,6 +38,17 @@ namespace zec::gfx
             return g_context;
         }
 
+        void register_startup_callback(RenderContext::StartupCallback callback)
+        {
+            ASSERT(!g_context.is_initialized);
+            g_context.statup_callbacks.push_back(callback);
+        }
+
+        void register_destruction_callback(RenderContext::DestructionCallback callback)
+        {
+            g_context.destruction_callbacks.push_back(callback);
+        }
+
         static void set_formats(SwapChain& swap_chain, const DXGI_FORMAT format)
         {
             swap_chain.format = format;
@@ -154,6 +165,7 @@ namespace zec::gfx
 
     void init_renderer(const RendererDesc& renderer_desc)
     {
+        ASSERT(!g_context.is_initialized);
         ASSERT(g_context.adapter == nullptr);
         ASSERT(g_context.factory == nullptr);
         ASSERT(g_context.device == nullptr);
@@ -355,7 +367,7 @@ namespace zec::gfx
             ASSERT(g_context.swap_chain.swap_chain == nullptr);
 
             for (size_t i = 0; i < NUM_BACK_BUFFERS; i++) {
-                g_context.swap_chain.back_buffers[i] = g_context.textures.push_back(Texture{});
+                g_context.swap_chain.back_buffers[i] = g_context.textures.store_texture(Texture{});
             }
 
             SwapChainDesc swap_chain_desc{ };
@@ -401,10 +413,19 @@ namespace zec::gfx
             recreate_swap_chain_rtv_descriptors(g_context.swap_chain);
         }
         g_context.frame_fence = create_fence(g_context.device, 0);
+
+        g_context.is_initialized = true;
+        for (auto callback : g_context.statup_callbacks) {
+            callback(&g_context);
+        }
     };
 
     void destroy_renderer()
     {
+        for (auto callback : g_context.destruction_callbacks) {
+            callback();
+        }
+
         // Chain Destruction
         destroy(g_context.swap_chain);
 
@@ -423,18 +444,6 @@ namespace zec::gfx
         // Destroy textures
         {
             g_context.textures.destroy(
-                [](ID3D12Resource* resource, D3D12MA::Allocation* allocation) {
-                    resource->Release();
-                    if (allocation) allocation->Release();
-                },
-                [](D3D12_DESCRIPTOR_HEAP_TYPE heap_type, DescriptorRangeHandle handle) {
-                    g_context.descriptor_heaps[heap_type].free_descriptors(handle);
-                });
-        }
-
-        // Destroy Buffers
-        {
-            g_context.buffers.destroy(
                 [](ID3D12Resource* resource, D3D12MA::Allocation* allocation) {
                     resource->Release();
                     if (allocation) allocation->Release();
@@ -1004,7 +1013,7 @@ namespace zec::gfx
                 buffer.resource->Map(0, nullptr, &buffer.info.cpu_address);
             }
 
-            return g_context.buffers.push_back(buffer);
+            return g_context.buffers.store_buffer(buffer);
         };
 
         u32 get_shader_readable_index(const BufferHandle handle)
@@ -1084,6 +1093,30 @@ namespace zec::gfx
                 data,
                 byte_size
             );
+        }
+        
+        void destroy(BufferHandle handle)
+        {
+            g_context.buffers.destroy_buffer(
+                handle,
+                [](ID3D12Resource* resource, D3D12MA::Allocation* allocation) {
+                    g_context.destruction_queue.enqueue(g_context.current_frame_idx, resource, allocation);
+                },
+                [](D3D12_DESCRIPTOR_HEAP_TYPE heap_type, DescriptorRangeHandle handle) {
+                    g_context.descriptor_heaps[heap_type].free_descriptors(handle);
+                }
+            );
+        };
+
+        void destroy(CmdReceipt cmd_receipt, BufferHandle handle)
+        {
+            ID3D12Resource* resource = g_context.buffers.resources[handle];
+            D3D12MA::Allocation* allocation = g_context.buffers.allocations[handle];
+            g_context.async_destruction_queue.enqueue(cmd_receipt, resource, allocation);
+
+            g_context.descriptor_heaps[HeapTypes::SRV].free_descriptors(g_context.buffers.srvs[handle]);
+            g_context.descriptor_heaps[HeapTypes::UAV].free_descriptors(g_context.buffers.uavs[handle]);
+            g_context.buffers.destroy_buffer(handle);
         };
     }
 

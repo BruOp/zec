@@ -64,7 +64,8 @@ namespace zec::gfx::dx12
             ASSERT(allocations.size == 0);
         }
 
-        TextureHandle push_back(const Texture& texture);
+        TextureHandle store_texture(const Texture& texture);
+        void free_texture(TextureHandle handle);
 
         void destroy(void (*resource_destruction_callback)(ID3D12Resource*, D3D12MA::Allocation*), void(*descriptor_destruction_callback)(D3D12_DESCRIPTOR_HEAP_TYPE, DescriptorRangeHandle));
 

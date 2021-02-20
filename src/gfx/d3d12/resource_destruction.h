@@ -31,9 +31,14 @@ namespace zec::gfx::dx12
         UNCOPIABLE(ResourceDestructionQueue);
         UNMOVABLE(ResourceDestructionQueue);
 
-        Array<ResourceToDelete> internal_queues[RENDER_LATENCY] = {};
-
         void flush();
+
+        inline void enqueue(const u64 current_frame_idx, IUnknown* d3d_ptr, D3D12MA::Allocation* allocation = nullptr)
+        {
+            internal_queues[current_frame_idx].create_back(d3d_ptr, allocation);
+        }
+
+        Array<ResourceToDelete> internal_queues[RENDER_LATENCY] = {};
     };
 
     class AsyncResourceDestructionQueue
@@ -50,16 +55,12 @@ namespace zec::gfx::dx12
 
         void flush();
 
-    };
+        inline void enqueue(const CmdReceipt receipt, IUnknown* d3d_ptr, D3D12MA::Allocation* allocation = nullptr)
+        {
+            internal_queue.create_back(d3d_ptr, allocation, receipt);
+        }
 
-    inline void queue_destruction(ResourceDestructionQueue& queue, const u64 current_frame_idx, IUnknown* d3d_ptr, D3D12MA::Allocation* allocation = nullptr)
-    {
-        queue.internal_queues[current_frame_idx].create_back(d3d_ptr, allocation);
-    }
-    inline void queue_destruction(AsyncResourceDestructionQueue& queue, const CmdReceipt receipt, IUnknown* d3d_ptr, D3D12MA::Allocation* allocation = nullptr)
-    {
-        queue.internal_queue.create_back(d3d_ptr, allocation, receipt);
-    }
+    };
 
     void process_destruction_queue(ResourceDestructionQueue& queue, const u64 current_frame_idx);
 

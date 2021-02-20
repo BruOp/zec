@@ -41,6 +41,12 @@ namespace zec::gfx
         void set_data(CommandContextHandle cmd_ctx, const BufferHandle handle, const void* data, const u64 data_byte_size);
 
         void update(const BufferHandle buffer_id, const void* data, u64 byte_size);
+
+        // This version of destroy assumes that the buffer is not being used for any tasks that cross frame boundaries.
+        // If it might, then you likely want to use the version of this function that takes a CmdReceipt
+        void destroy(BufferHandle handle);
+        // This version of destroy will automatically clean up the buffer only once the fence value used in CmdReceipt is signalled.
+        void destroy(CmdReceipt cmd_receipt, BufferHandle handle);
     }
 
     namespace meshes
@@ -60,6 +66,12 @@ namespace zec::gfx
 
         TextureHandle create_from_file(CommandContextHandle cmd_ctx, const char* file_path);
         /*void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);*/
+
+        // This version of destroy assumes that the buffer is not being used for any tasks that cross frame boundaries.
+        // If it might, then you likely want to use the version of this function that takes a CmdReceipt
+        void destroy(TextureHandle handle);
+        // This version of destroy will automatically clean up the buffer only once the fence value used in CmdReceipt is signalled.
+        void destroy(CmdReceipt cmd_receipt, TextureHandle handle);
     }
 
     namespace cmd
