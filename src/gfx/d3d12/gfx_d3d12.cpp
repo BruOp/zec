@@ -301,7 +301,7 @@ namespace zec::gfx
             constexpr DescriptorHeapDesc descs[] = {
                 {
                 .size = DescriptorHeapDesc::MAX_SIZE,
-                .type = HeapTypes::SRV,
+                .type = HeapTypes::CBV_SRV_UAV,
                 },
                 {
                 .size = 128,
@@ -321,7 +321,7 @@ namespace zec::gfx
                 DescriptorHeap& heap = g_context.descriptor_heaps[u64(desc.type)];
                 heap.num_allocated = 0;
                 heap.capacity = desc.size;
-                heap.is_shader_visible = desc.type == HeapTypes::SRV;
+                heap.is_shader_visible = desc.type == HeapTypes::CBV_SRV_UAV;
                 u32 total_num_descriptors = heap.capacity;
                 D3D12_DESCRIPTOR_HEAP_DESC d3d_desc{ };
                 d3d_desc.NumDescriptors = total_num_descriptors;
@@ -959,7 +959,7 @@ namespace zec::gfx
             // Create the SRV
             if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                buffer.srv = g_context.descriptor_heaps[HeapTypes::SRV].allocate_descriptors(1, &cpu_handle);
+                buffer.srv = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV].allocate_descriptors(1, &cpu_handle);
 
                 bool is_raw = desc.type == BufferType::RAW;
 
@@ -981,7 +981,7 @@ namespace zec::gfx
             // Create the UAV
             if (desc.usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                buffer.uav = g_context.descriptor_heaps[HeapTypes::UAV].allocate_descriptors(1, &cpu_handle);
+                buffer.uav = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV].allocate_descriptors(1, &cpu_handle);
 
                 bool is_raw = desc.type == BufferType::RAW;
 
@@ -1177,7 +1177,7 @@ namespace zec::gfx
             if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
 
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                DescriptorRangeHandle srv = g_context.descriptor_heaps[HeapTypes::SRV].allocate_descriptors(1, &cpu_handle);
+                DescriptorRangeHandle srv = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV].allocate_descriptors(1, &cpu_handle);
                 texture.srv = srv;
 
                 D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
@@ -1216,7 +1216,7 @@ namespace zec::gfx
                 constexpr u32 MAX_NUM_MIPS = 16;
                 D3D12_CPU_DESCRIPTOR_HANDLE cpu_handles[MAX_NUM_MIPS] = {};
                 ASSERT(texture.info.num_mips < MAX_NUM_MIPS);
-                DescriptorRangeHandle uav = g_context.descriptor_heaps[HeapTypes::SRV]
+                DescriptorRangeHandle uav = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV]
                     .allocate_descriptors(texture.info.num_mips, cpu_handles);
                 texture.uav = uav;
 
@@ -1446,7 +1446,7 @@ namespace zec::gfx
             CommandContextHandle cmd_ctx = g_context.command_pools[type].provision();
             if (type != CommandQueueType::COPY) {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(cmd_ctx);
-                auto& heap = g_context.descriptor_heaps[HeapTypes::SRV];
+                auto& heap = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV];
                 cmd_list->SetDescriptorHeaps(1, &heap.heap);
             }
             return cmd_ctx;
@@ -1538,7 +1538,7 @@ namespace zec::gfx
             void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
             {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                const DescriptorHeap& heap = g_context.descriptor_heaps[HeapTypes::SRV];
+                const DescriptorHeap& heap = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV];
                 D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
                 cmd_list->SetGraphicsRootDescriptorTable(resource_layout_entry_idx, handle);
             }
@@ -1612,7 +1612,7 @@ namespace zec::gfx
             void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
             {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                const DescriptorHeap& heap = g_context.descriptor_heaps[HeapTypes::SRV];
+                const DescriptorHeap& heap = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV];
                 D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
 
                 cmd_list->SetComputeRootDescriptorTable(resource_layout_entry_idx, handle);

@@ -12,8 +12,7 @@ namespace zec::gfx::dx12
 
     namespace HeapTypes
     {
-        constexpr D3D12_DESCRIPTOR_HEAP_TYPE SRV = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        constexpr D3D12_DESCRIPTOR_HEAP_TYPE UAV = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        constexpr D3D12_DESCRIPTOR_HEAP_TYPE CBV_SRV_UAV = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         constexpr D3D12_DESCRIPTOR_HEAP_TYPE DSV = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         constexpr D3D12_DESCRIPTOR_HEAP_TYPE RTV = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         constexpr D3D12_DESCRIPTOR_HEAP_TYPE SAMPLER = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
@@ -52,12 +51,6 @@ namespace zec::gfx::dx12
         static constexpr u64 MAX_SIZE = 16384; // arbitrary
         u64 size = 0;
         D3D12_DESCRIPTOR_HEAP_TYPE type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    };
-
-    struct DescriptorDestructionElement
-    {
-        DescriptorRangeHandle handle;
-        u64 frame_index;
     };
 
     // NOTE: Descriptors are immutable, they can only be allocated and destroyed.

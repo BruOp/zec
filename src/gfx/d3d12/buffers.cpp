@@ -17,12 +17,12 @@ namespace zec::gfx::dx12
 
         for (size_t i = 0; i < num_buffers; i++) {
             if (is_valid(srvs[i])) {
-                descriptor_destruction_callback(HeapTypes::SRV, srvs[i]);
+                descriptor_destruction_callback(HeapTypes::CBV_SRV_UAV, srvs[i]);
                 srvs[i] = INVALID_HANDLE;
             }
 
             if (is_valid(uavs[i])) {
-                descriptor_destruction_callback(HeapTypes::UAV, uavs[i]);
+                descriptor_destruction_callback(HeapTypes::CBV_SRV_UAV, uavs[i]);
                 uavs[i] = INVALID_HANDLE;
             }
         }
