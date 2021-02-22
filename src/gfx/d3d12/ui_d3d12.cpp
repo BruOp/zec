@@ -59,7 +59,7 @@ namespace zec::ui
     {
         ASSERT(g_is_ui_initialized);
         RenderContext& render_context = gfx::dx12::get_render_context();
-        render_context.descriptor_heap_manager.free_descriptors(g_ui_state.srv_handle);
+        render_context.descriptor_heap_manager.free_descriptors(render_context.current_frame_idx, g_ui_state.srv_handle);
         ImGui_ImplDX12_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();

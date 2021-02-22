@@ -62,7 +62,7 @@ namespace zec::gfx
                 g_context.textures.resources[texture_handle] = nullptr;
 
                 const auto rtv_handle = g_context.textures.rtvs[texture_handle];
-                g_context.descriptor_heap_manager.free_descriptors(rtv_handle);
+                g_context.descriptor_heap_manager.free_descriptors(g_context.current_frame_idx, rtv_handle);
 
                 DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&resource)));
                 g_context.textures.resources[texture_handle] = resource;
@@ -109,7 +109,7 @@ namespace zec::gfx
                 g_context.textures.resources[texture_handle] = nullptr;
                 // Free descriptors
                 const auto rtv_handle = g_context.textures.rtvs[texture_handle];
-                g_context.descriptor_heap_manager.free_descriptors(rtv_handle);
+                g_context.descriptor_heap_manager.free_descriptors(g_context.current_frame_idx, rtv_handle);
                 g_context.textures.rtvs[texture_handle] = INVALID_HANDLE;
             }
 
@@ -375,7 +375,7 @@ namespace zec::gfx
                     if (allocation) allocation->Release();
                 },
                 [](DescriptorRangeHandle handle) {
-                    g_context.descriptor_heap_manager.free_descriptors(handle);
+                    g_context.descriptor_heap_manager.free_descriptors(0, handle);
                 });
         }
 
@@ -393,10 +393,10 @@ namespace zec::gfx
             }
 
             for (DescriptorRangeHandle descriptor: g_context.buffers.srvs) {
-                g_context.descriptor_heap_manager.free_descriptors(descriptor);
+                g_context.descriptor_heap_manager.free_descriptors(0, descriptor);
             }
             for (DescriptorRangeHandle descriptor: g_context.buffers.uavs) {
-                g_context.descriptor_heap_manager.free_descriptors(descriptor);
+                g_context.descriptor_heap_manager.free_descriptors(0, descriptor);
             }
             g_context.buffers.destroy();
         }
@@ -520,6 +520,8 @@ namespace zec::gfx
         process_destruction_queue(g_context.destruction_queue, g_context.current_frame_idx);
 
         process_destruction_queue(g_context.async_destruction_queue, queue_completed_fence_values);
+
+        g_context.descriptor_heap_manager.process_destruction_queue(g_context.current_frame_idx);
     }
 
     CmdReceipt present_frame()

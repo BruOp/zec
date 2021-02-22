@@ -8,9 +8,6 @@
 
 namespace zec::gfx::dx12
 {
-    class CommandContextPool;
-
-
     class ResourceDestructionQueue
     {
         struct ResourceToDelete

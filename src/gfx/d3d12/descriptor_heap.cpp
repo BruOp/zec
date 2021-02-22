@@ -30,6 +30,9 @@ namespace zec::gfx::dx12
 
     void DescriptorHeapManager::destroy()
     {
+        for (size_t i = 0; i < RENDER_LATENCY; i++) {
+            process_destruction_queue(i);
+        }
         srv_heap.destroy();
         rtv_heap.destroy();
         dsv_heap.destroy();

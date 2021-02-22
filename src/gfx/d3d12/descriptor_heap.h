@@ -136,12 +136,21 @@ namespace zec::gfx::dx12
             return get_heap(type).gpu_start;
         }
 
-        inline void free_descriptors(const DescriptorRangeHandle descriptor)
+        inline void free_descriptors(const size_t current_frame_idx, const DescriptorRangeHandle descriptor)
         {
             if (is_valid(descriptor)) {
-                get_heap(descriptor).free_descriptors(descriptor);
+                descriptors_to_destroy[current_frame_idx].push_back(descriptor);
             }
         };
+
+        void process_destruction_queue(const size_t current_frame_idx)
+        {
+            auto& destruction_queue = descriptors_to_destroy[current_frame_idx];
+            for (size_t i = 0; i < destruction_queue.size; ++i) {
+                get_heap(destruction_queue[i]).free_descriptors(destruction_queue[i]);
+            }
+            destruction_queue.empty();
+        }
 
     private:
         DescriptorHeap& get_heap(const HeapType type)
@@ -187,5 +196,7 @@ namespace zec::gfx::dx12
         DescriptorHeap rtv_heap;
         DescriptorHeap dsv_heap;
         DescriptorHeap sampler_heap;
+
+        Array<DescriptorRangeHandle> descriptors_to_destroy[RENDER_LATENCY] = {};
     };
 }
