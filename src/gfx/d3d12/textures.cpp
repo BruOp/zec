@@ -22,7 +22,7 @@ namespace zec::gfx::dx12
         return handle;
     }
 
-    void TextureList::destroy(void(*resource_destruction_callback)(ID3D12Resource*, D3D12MA::Allocation*), void(*descriptor_destruction_callback)(D3D12_DESCRIPTOR_HEAP_TYPE, DescriptorRangeHandle))
+    void TextureList::destroy(void(*resource_destruction_callback)(ID3D12Resource*, D3D12MA::Allocation*), void(*descriptor_destruction_callback)(DescriptorRangeHandle))
     {
         for (size_t i = 0; i < count; i++) {
             resource_destruction_callback(resources[i], allocations[i]);
@@ -34,17 +34,17 @@ namespace zec::gfx::dx12
 
         for (size_t i = 0; i < count; i++) {
             if (is_valid(srvs[i])) {
-                descriptor_destruction_callback(HeapTypes::CBV_SRV_UAV, srvs[i]);
+                descriptor_destruction_callback(srvs[i]);
                 srvs[i] = INVALID_HANDLE;
             }
 
             if (is_valid(uavs[i])) {
-                descriptor_destruction_callback(HeapTypes::CBV_SRV_UAV, uavs[i]);
+                descriptor_destruction_callback(uavs[i]);
                 uavs[i] = INVALID_HANDLE;
             }
 
             if (is_valid(rtvs[i])) {
-                descriptor_destruction_callback(HeapTypes::RTV, rtvs[i]);
+                descriptor_destruction_callback(rtvs[i]);
                 rtvs[i] = INVALID_HANDLE;
             }
         }
@@ -53,7 +53,7 @@ namespace zec::gfx::dx12
         rtvs.empty();
 
         for (size_t i = 0; i < dsv_infos.data.size; ++i) {
-            descriptor_destruction_callback(HeapTypes::DSV, dsv_infos.data[i].dsv);
+            descriptor_destruction_callback(dsv_infos.data[i].dsv);
         }
         dsv_infos.data.empty();
         count = 0;

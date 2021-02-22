@@ -62,7 +62,7 @@ namespace zec::gfx::dx12
         ResourceDestructionQueue destruction_queue = {};
         AsyncResourceDestructionQueue async_destruction_queue = {};
 
-        DescriptorHeap descriptor_heaps[HeapTypes::NUM_HEAPS] = {};
+        DescriptorHeapManager descriptor_heap_manager = {};
 
         Fence frame_fence = { };
 

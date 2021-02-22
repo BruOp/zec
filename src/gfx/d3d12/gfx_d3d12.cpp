@@ -62,25 +62,22 @@ namespace zec::gfx
                 g_context.textures.resources[texture_handle] = nullptr;
 
                 const auto rtv_handle = g_context.textures.rtvs[texture_handle];
-                auto& descriptor_heap = g_context.descriptor_heaps[HeapTypes::RTV];
-                descriptor_heap.free_descriptors(rtv_handle);
+                g_context.descriptor_heap_manager.free_descriptors(rtv_handle);
 
                 DXCall(swap_chain.swap_chain->GetBuffer(UINT(i), IID_PPV_ARGS(&resource)));
                 g_context.textures.resources[texture_handle] = resource;
+                resource->SetName(make_string(L"Back Buffer %llu", i).c_str());
 
-                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle{};
-                DescriptorRangeHandle rtv = descriptor_heap.allocate_descriptors(1, &cpu_handle);
+                D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = { };
+                rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+                rtv_desc.Format = swap_chain.format;
+                rtv_desc.Texture2D.MipSlice = 0;
+                rtv_desc.Texture2D.PlaneSlice = 0;
+
+                DescriptorRangeHandle rtv = g_context.descriptor_heap_manager.allocate_descriptors(g_context.device, resource, &rtv_desc);
                 g_context.textures.rtvs[texture_handle] = rtv;
 
-                D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = { };
-                rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-                rtvDesc.Format = swap_chain.format;
-                rtvDesc.Texture2D.MipSlice = 0;
-                rtvDesc.Texture2D.PlaneSlice = 0;
-                g_context.device->CreateRenderTargetView(resource, &rtvDesc, cpu_handle);
                 // TODO: Store MSAA info?
-
-                resource->SetName(make_string(L"Back Buffer %llu", i).c_str());
 
                 // Copy properties from swap chain to backbuffer textures, in case we need em
                 TextureInfo texture_info = {
@@ -111,9 +108,8 @@ namespace zec::gfx
                 if (resource != nullptr) resource->Release();
                 g_context.textures.resources[texture_handle] = nullptr;
                 // Free descriptors
-                DescriptorHeap& descriptor_heap = g_context.descriptor_heaps[HeapTypes::RTV];
                 const auto rtv_handle = g_context.textures.rtvs[texture_handle];
-                descriptor_heap.free_descriptors(rtv_handle);
+                g_context.descriptor_heap_manager.free_descriptors(rtv_handle);
                 g_context.textures.rtvs[texture_handle] = INVALID_HANDLE;
             }
 
@@ -296,56 +292,7 @@ namespace zec::gfx
         }
 
         // Initialize descriptor heaps
-        {
-            // Create a heap of a specific type
-            constexpr DescriptorHeapDesc descs[] = {
-                {
-                .size = DescriptorHeapDesc::MAX_SIZE,
-                .type = HeapTypes::CBV_SRV_UAV,
-                },
-                {
-                .size = 128,
-                .type = HeapTypes::RTV,
-                },
-                {
-                .size = 128,
-                .type = HeapTypes::DSV
-                },
-                {
-                .size = 128,
-                .type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER
-                },
-            };
-
-            for (const DescriptorHeapDesc& desc : descs) {
-                DescriptorHeap& heap = g_context.descriptor_heaps[u64(desc.type)];
-                heap.num_allocated = 0;
-                heap.capacity = desc.size;
-                heap.is_shader_visible = desc.type == HeapTypes::CBV_SRV_UAV;
-                u32 total_num_descriptors = heap.capacity;
-                D3D12_DESCRIPTOR_HEAP_DESC d3d_desc{ };
-                d3d_desc.NumDescriptors = total_num_descriptors;
-                d3d_desc.Type = desc.type;
-                d3d_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-                if (heap.is_shader_visible) {
-                    d3d_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-                }
-
-                DXCall(g_context.device->CreateDescriptorHeap(
-                    &d3d_desc, IID_PPV_ARGS(&heap.heap)
-                ));
-
-                heap.cpu_start = heap.heap->GetCPUDescriptorHandleForHeapStart();
-
-                if (heap.is_shader_visible) {
-                    heap.gpu_start = heap.heap->GetGPUDescriptorHandleForHeapStart();
-                }
-
-                heap.descriptor_size = g_context.device->GetDescriptorHandleIncrementSize(desc.type);
-
-            }
-        }
+        g_context.descriptor_heap_manager.initialize(g_context.device);
 
 
         OPTICK_GPU_INIT_D3D12(g_context.device, &g_context.command_queues[CommandQueueType::GRAPHICS].queue, 1);
@@ -427,30 +374,36 @@ namespace zec::gfx
                     resource->Release();
                     if (allocation) allocation->Release();
                 },
-                [](D3D12_DESCRIPTOR_HEAP_TYPE heap_type, DescriptorRangeHandle handle) {
-                    g_context.descriptor_heaps[heap_type].free_descriptors(handle);
+                [](DescriptorRangeHandle handle) {
+                    g_context.descriptor_heap_manager.free_descriptors(handle);
                 });
         }
 
         // Destroy Buffers
         {
-            g_context.buffers.destroy(
-                [](ID3D12Resource* resource, D3D12MA::Allocation* allocation) {
+            for (ID3D12Resource* resource : g_context.buffers.resources) {
+                if (resource != nullptr) {
                     resource->Release();
-                    if (allocation) allocation->Release();
-                },
-                [](D3D12_DESCRIPTOR_HEAP_TYPE heap_type, DescriptorRangeHandle handle) {
-                    g_context.descriptor_heaps[heap_type].free_descriptors(handle);
-                });
+                }
+            }
+            for (D3D12MA::Allocation* allocation: g_context.buffers.allocations) {
+                if (allocation != nullptr) {
+                    allocation->Release();
+                }
+            }
+
+            for (DescriptorRangeHandle descriptor: g_context.buffers.srvs) {
+                g_context.descriptor_heap_manager.free_descriptors(descriptor);
+            }
+            for (DescriptorRangeHandle descriptor: g_context.buffers.uavs) {
+                g_context.descriptor_heap_manager.free_descriptors(descriptor);
+            }
+            g_context.buffers.destroy();
         }
 
         destroy(g_context.destruction_queue, g_context.current_frame_idx, g_context.frame_fence);
 
-        for (auto& heap : g_context.descriptor_heaps) {
-            ASSERT(heap.num_free == heap.num_allocated);
-            heap.heap->Release();
-        }
-
+        g_context.descriptor_heap_manager.destroy();
 
         for (auto& pool : g_context.command_pools) {
             pool.destroy();
@@ -956,13 +909,9 @@ namespace zec::gfx
 
             buffer.info.gpu_address = buffer.resource->GetGPUVirtualAddress();
 
+            bool is_raw = desc.type == BufferType::RAW;
             // Create the SRV
             if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
-                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                buffer.srv = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV].allocate_descriptors(1, &cpu_handle);
-
-                bool is_raw = desc.type == BufferType::RAW;
-
                 D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
                     .Format = is_raw ? DXGI_FORMAT_R32_TYPELESS : DXGI_FORMAT_UNKNOWN,
                     .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
@@ -974,17 +923,11 @@ namespace zec::gfx
                         .Flags = is_raw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE
                     },
                 };
-
-                g_context.device->CreateShaderResourceView(buffer.resource, &srv_desc, cpu_handle);
+                buffer.srv = g_context.descriptor_heap_manager.allocate_descriptors(g_context.device, buffer.resource, &srv_desc);
             }
 
             // Create the UAV
             if (desc.usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
-                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                buffer.uav = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV].allocate_descriptors(1, &cpu_handle);
-
-                bool is_raw = desc.type == BufferType::RAW;
-
                 D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
                     .Format = is_raw ? DXGI_FORMAT_R32_TYPELESS : DXGI_FORMAT_UNKNOWN,
                     .ViewDimension = D3D12_UAV_DIMENSION_BUFFER,
@@ -996,7 +939,7 @@ namespace zec::gfx
                     },
                 };
 
-                g_context.device->CreateUnorderedAccessView(buffer.resource, nullptr, &uav_desc, cpu_handle);
+                buffer.uav = g_context.descriptor_heap_manager.allocate_descriptors(g_context.device, buffer.resource, &uav_desc, 1);
             }
 
             // We map the buffer if we're going to be doing CPU writes to it.
@@ -1010,11 +953,13 @@ namespace zec::gfx
         u32 get_shader_readable_index(const BufferHandle handle)
         {
             DescriptorRangeHandle descriptor = g_context.buffers.srvs[handle];
+            ASSERT(is_valid(descriptor));
             return descriptor.get_offset();
         };
         u32 get_shader_writable_index(const BufferHandle handle)
         {
             DescriptorRangeHandle descriptor = g_context.buffers.uavs[handle];
+            ASSERT(is_valid(descriptor));
             return descriptor.get_offset();
         };
 
@@ -1176,10 +1121,6 @@ namespace zec::gfx
             // Allocate SRV
             if (desc.usage & RESOURCE_USAGE_SHADER_READABLE) {
 
-                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                DescriptorRangeHandle srv = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV].allocate_descriptors(1, &cpu_handle);
-                texture.srv = srv;
-
                 D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {
                     .Format = d3d_desc.Format,
                     .ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
@@ -1204,30 +1145,26 @@ namespace zec::gfx
                 ASSERT(!desc.is_3d);
 
                 if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
-                    g_context.device->CreateShaderResourceView(texture.resource, nullptr, cpu_handle);
+                    texture.srv = g_context.descriptor_heap_manager.allocate_descriptors(g_context.device, texture.resource, static_cast<D3D12_SHADER_RESOURCE_VIEW_DESC*>(nullptr));
                 }
                 else {
-                    g_context.device->CreateShaderResourceView(texture.resource, &srv_desc, cpu_handle);
+                    texture.srv = g_context.descriptor_heap_manager.allocate_descriptors(g_context.device, texture.resource, &srv_desc);
                 }
             }
 
             // Allocate UAV
             if (desc.usage & RESOURCE_USAGE_COMPUTE_WRITABLE) {
-                constexpr u32 MAX_NUM_MIPS = 16;
-                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handles[MAX_NUM_MIPS] = {};
+                constexpr u32 MAX_NUM_MIPS = 16; // Totally ad-hoc
                 ASSERT(texture.info.num_mips < MAX_NUM_MIPS);
-                DescriptorRangeHandle uav = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV]
-                    .allocate_descriptors(texture.info.num_mips, cpu_handles);
-                texture.uav = uav;
-
+                D3D12_UNORDERED_ACCESS_VIEW_DESC uav_descs[MAX_NUM_MIPS] = {};
+                
                 // Cannot support 3D texture arrays
                 ASSERT(!desc.is_3d || desc.array_size == 1);
 
                 for (u32 i = 0; i < texture.info.num_mips; i++) {
-                    D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
-                        .Format = d3d_format,
-                        .ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D,
-                    };
+                    D3D12_UNORDERED_ACCESS_VIEW_DESC& uav_desc = uav_descs[i];
+                    uav_desc.Format = d3d_format;
+                    uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 
                     if (desc.is_3d) {
                         uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
@@ -1253,25 +1190,17 @@ namespace zec::gfx
                             .PlaneSlice = 0
                         };
                     }
-                    g_context.device->CreateUnorderedAccessView(texture.resource, nullptr, &uav_desc, cpu_handles[i]);
                 }
+                texture.uav = g_context.descriptor_heap_manager.allocate_descriptors(g_context.device, texture.resource, uav_descs, texture.info.num_mips);
             }
 
             // Allocate RTV
             if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
-                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                DescriptorRangeHandle rtv = g_context.descriptor_heaps[HeapTypes::RTV].allocate_descriptors(1, &cpu_handle);
-                texture.rtv = rtv;
-
-                g_context.device->CreateRenderTargetView(texture.resource, nullptr, cpu_handle);
+                texture.rtv = g_context.descriptor_heap_manager.allocate_descriptors(g_context.device, texture.resource, static_cast<D3D12_RENDER_TARGET_VIEW_DESC*>(nullptr));
             }
 
             // Allocate DSV
             if (desc.usage & RESOURCE_USAGE_DEPTH_STENCIL) {
-                D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-                DescriptorRangeHandle dsv = g_context.descriptor_heaps[HeapTypes::DSV].allocate_descriptors(texture.info.array_size, &cpu_handle);
-                texture.dsv = dsv;
-
                 D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {
                     .Format = d3d_format,
                     .ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D,
@@ -1280,8 +1209,7 @@ namespace zec::gfx
                         .MipSlice = 0,
                     },
                 };
-
-                g_context.device->CreateDepthStencilView(texture.resource, &dsv_desc, cpu_handle);
+                texture.dsv = g_context.descriptor_heap_manager.allocate_descriptors(g_context.device, texture.resource, &dsv_desc);
             }
 
             return g_context.textures.push_back(texture);
@@ -1290,11 +1218,13 @@ namespace zec::gfx
         u32 get_shader_readable_index(const TextureHandle handle)
         {
             DescriptorRangeHandle descriptor = g_context.textures.srvs[handle];
+            ASSERT(is_valid(descriptor));
             return descriptor.get_offset();
         };
         u32 get_shader_writable_index(const TextureHandle handle)
         {
             DescriptorRangeHandle descriptor = g_context.textures.uavs[handle];
+            ASSERT(is_valid(descriptor));
             return descriptor.get_offset();
         };
 
@@ -1446,8 +1376,8 @@ namespace zec::gfx
             CommandContextHandle cmd_ctx = g_context.command_pools[type].provision();
             if (type != CommandQueueType::COPY) {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(cmd_ctx);
-                auto& heap = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV];
-                cmd_list->SetDescriptorHeaps(1, &heap.heap);
+                auto* heap = g_context.descriptor_heap_manager.get_d3d_heaps(HeapType::CBV_SRV_UAV);
+                cmd_list->SetDescriptorHeaps(1, &heap);
             }
             return cmd_ctx;
         };
@@ -1538,8 +1468,7 @@ namespace zec::gfx
             void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
             {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                const DescriptorHeap& heap = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV];
-                D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
+                D3D12_GPU_DESCRIPTOR_HANDLE handle = g_context.descriptor_heap_manager.get_gpu_start(HeapType::CBV_SRV_UAV);
                 cmd_list->SetGraphicsRootDescriptorTable(resource_layout_entry_idx, handle);
             }
 
@@ -1612,8 +1541,7 @@ namespace zec::gfx
             void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
             {
                 ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                const DescriptorHeap& heap = g_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV];
-                D3D12_GPU_DESCRIPTOR_HANDLE handle = heap.gpu_start;
+                D3D12_GPU_DESCRIPTOR_HANDLE handle = g_context.descriptor_heap_manager.get_gpu_start(HeapType::CBV_SRV_UAV);
 
                 cmd_list->SetComputeRootDescriptorTable(resource_layout_entry_idx, handle);
             }
@@ -1649,7 +1577,7 @@ namespace zec::gfx
             ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
             DescriptorRangeHandle rtv = g_context.textures.rtvs[render_texture];
             // TODO: Descriptors
-            auto cpu_handle = g_context.descriptor_heaps[HeapTypes::RTV].get_cpu_descriptor_handle(rtv);
+            auto cpu_handle = g_context.descriptor_heap_manager.get_cpu_descriptor_handle(rtv);
             cmd_list->ClearRenderTargetView(cpu_handle, clear_color, 0, nullptr);
         };
 
@@ -1658,7 +1586,7 @@ namespace zec::gfx
             ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
             const DescriptorRangeHandle dsv = g_context.textures.dsv_infos[depth_stencil_buffer];
             // TODO: Descriptors
-            auto cpu_handle = g_context.descriptor_heaps[HeapTypes::DSV].get_cpu_descriptor_handle(dsv);
+            auto cpu_handle = g_context.descriptor_heap_manager.get_cpu_descriptor_handle(dsv);
             // I don't actually think this will clear stencil. We should probably change that.
             cmd_list->ClearDepthStencilView(cpu_handle, D3D12_CLEAR_FLAG_DEPTH, depth_value, stencil_value, 0, nullptr);
         };
@@ -1694,14 +1622,14 @@ namespace zec::gfx
             D3D12_CPU_DESCRIPTOR_HANDLE* dsv_ptr = nullptr;
             if (is_valid(depth_target)) {
                 DescriptorRangeHandle descriptor_handle = g_context.textures.dsv_infos[depth_target];
-                dsv = g_context.descriptor_heaps[HeapTypes::DSV].get_cpu_descriptor_handle(descriptor_handle);
+                dsv = g_context.descriptor_heap_manager.get_cpu_descriptor_handle(descriptor_handle);
                 dsv_ptr = &dsv;
             }
 
             D3D12_CPU_DESCRIPTOR_HANDLE rtvs[16] = {};
             for (size_t i = 0; i < num_render_targets; i++) {
                 DescriptorRangeHandle descriptor_handle = g_context.textures.rtvs[render_textures[i]];
-                rtvs[i] = g_context.descriptor_heaps[HeapTypes::RTV].get_cpu_descriptor_handle(descriptor_handle);
+                rtvs[i] = g_context.descriptor_heap_manager.get_cpu_descriptor_handle(descriptor_handle);
             }
             cmd_list->OMSetRenderTargets(num_render_targets, rtvs, FALSE, dsv_ptr);
         };

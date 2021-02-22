@@ -40,15 +40,16 @@ namespace zec::ui
         window.register_message_callback(window_callback, nullptr);
 
         RenderContext& render_context = gfx::dx12::get_render_context();
-        DescriptorHeap& srv_heap = render_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV];
-        D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = {};
-        g_ui_state.srv_handle = srv_heap.allocate_descriptors(1, &cpu_handle);
-        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = srv_heap.get_gpu_descriptor_handle(g_ui_state.srv_handle);
+        ASSERT(!is_valid(g_ui_state.srv_handle));
+        g_ui_state.srv_handle = render_context.descriptor_heap_manager.allocate_descriptors(HeapType::CBV_SRV_UAV, 1);
+        ID3D12DescriptorHeap* heap = render_context.descriptor_heap_manager.get_d3d_heaps(HeapType::CBV_SRV_UAV);
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = render_context.descriptor_heap_manager.get_cpu_descriptor_handle(g_ui_state.srv_handle);
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = render_context.descriptor_heap_manager.get_gpu_descriptor_handle(g_ui_state.srv_handle);
         ImGui_ImplDX12_Init(
             render_context.device,
             RENDER_LATENCY,
             render_context.swap_chain.format,
-            srv_heap.heap,
+            heap,
             cpu_handle,
             gpu_handle);
         g_is_ui_initialized = true;
@@ -58,8 +59,7 @@ namespace zec::ui
     {
         ASSERT(g_is_ui_initialized);
         RenderContext& render_context = gfx::dx12::get_render_context();
-        DescriptorHeap& srv_heap = render_context.descriptor_heaps[HeapTypes::CBV_SRV_UAV];
-        srv_heap.free_descriptors(g_ui_state.srv_handle);
+        render_context.descriptor_heap_manager.free_descriptors(g_ui_state.srv_handle);
         ImGui_ImplDX12_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();

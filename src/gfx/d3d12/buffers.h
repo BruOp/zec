@@ -67,7 +67,8 @@ namespace zec::gfx::dx12
             ASSERT(allocations.size == 0);
         }
 
-        void destroy(void (*resource_destruction_callback)(ID3D12Resource*, D3D12MA::Allocation*), void(*descriptor_destruction_callback)(D3D12_DESCRIPTOR_HEAP_TYPE, DescriptorRangeHandle));
+        // Note: This class doesn't release the resources or free the descriptors, you'll need to do that yourself before calling destroy.
+        void destroy();
 
         BufferHandle push_back(const Buffer& buffer);
 

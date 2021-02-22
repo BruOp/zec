@@ -66,7 +66,7 @@ namespace zec::gfx::dx12
 
         TextureHandle push_back(const Texture& texture);
 
-        void destroy(void (*resource_destruction_callback)(ID3D12Resource*, D3D12MA::Allocation*), void(*descriptor_destruction_callback)(D3D12_DESCRIPTOR_HEAP_TYPE, DescriptorRangeHandle));
+        void destroy(void (*resource_destruction_callback)(ID3D12Resource*, D3D12MA::Allocation*), void(*descriptor_destruction_callback)(DescriptorRangeHandle));
 
         // Getters
         size_t size() const
