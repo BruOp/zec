@@ -77,47 +77,42 @@ namespace zec::gfx
 
         void gpu_wait(const CommandQueueType queue_to_insert_wait, const CmdReceipt receipt_to_wait_on);
 
-        namespace graphics
-        {
-            //--------- Resource Binding ----------
-            void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
+        //--------- Resource Binding ----------
+        void set_graphics_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
 
-            void set_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle);
+        void set_graphics_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle);
 
-            void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
+        void bind_graphics_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
 
-            void bind_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot);
+        void bind_graphics_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot);
 
-            void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
+        void bind_graphics_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
 
-            // Draw
-            void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices);
-            void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id);
-            void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
+        // Draw
+        void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices);
+        void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id);
+        void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
 
-        }
 
-        namespace compute
-        {
-            //--------- Resource Binding ----------
-            void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
 
-            void set_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle);
+        //--------- Resource Binding ----------
+        void set_compute_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
 
-            void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
+        void set_compute_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle);
 
-            void bind_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot);
+        void bind_compute_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
 
-            void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, const u32 binding_slot);
+        void bind_compute_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot);
 
-            // Dispatch
-            void dispatch(
-                const CommandContextHandle ctx,
-                const u32 thread_group_count_x,
-                const u32 thread_group_count_y,
-                const u32 thread_group_count_z
-            );
-        }
+        void bind_compute_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, const u32 binding_slot);
+
+        // Dispatch
+        void dispatch(
+            const CommandContextHandle ctx,
+            const u32 thread_group_count_x,
+            const u32 thread_group_count_y,
+            const u32 thread_group_count_z
+        );
 
         // Misc
         void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const float* clear_color);

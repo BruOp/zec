@@ -98,7 +98,7 @@ namespace zec::gfx::meshes
     }
 }
 
-namespace zec::gfx::cmd::graphics
+namespace zec::gfx::cmd
 {
     void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_handle)
     {

@@ -386,16 +386,16 @@ namespace zec::gfx
                     resource->Release();
                 }
             }
-            for (D3D12MA::Allocation* allocation: g_context.buffers.allocations) {
+            for (D3D12MA::Allocation* allocation : g_context.buffers.allocations) {
                 if (allocation != nullptr) {
                     allocation->Release();
                 }
             }
 
-            for (DescriptorRangeHandle descriptor: g_context.buffers.srvs) {
+            for (DescriptorRangeHandle descriptor : g_context.buffers.srvs) {
                 g_context.descriptor_heap_manager.free_descriptors(0, descriptor);
             }
-            for (DescriptorRangeHandle descriptor: g_context.buffers.uavs) {
+            for (DescriptorRangeHandle descriptor : g_context.buffers.uavs) {
                 g_context.descriptor_heap_manager.free_descriptors(0, descriptor);
             }
             g_context.buffers.destroy();
@@ -1159,7 +1159,7 @@ namespace zec::gfx
                 constexpr u32 MAX_NUM_MIPS = 16; // Totally ad-hoc
                 ASSERT(texture.info.num_mips < MAX_NUM_MIPS);
                 D3D12_UNORDERED_ACCESS_VIEW_DESC uav_descs[MAX_NUM_MIPS] = {};
-                
+
                 // Cannot support 3D texture arrays
                 ASSERT(!desc.is_3d || desc.array_size == 1);
 
@@ -1449,128 +1449,122 @@ namespace zec::gfx
             g_context.command_queues[queue_to_insert_wait].insert_wait_on_queue(queue_to_wait_on, receipt_to_wait_on.fence_value);
         };
 
-        namespace graphics
+        //--------- Resource Binding ----------
+        void set_graphics_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id)
         {
-            //--------- Resource Binding ----------
-            void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                ID3D12RootSignature* root_signature = g_context.root_signatures[resource_layout_id];
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            ID3D12RootSignature* root_signature = g_context.root_signatures[resource_layout_id];
 
-                cmd_list->SetGraphicsRootSignature(root_signature);
-            };
+            cmd_list->SetGraphicsRootSignature(root_signature);
+        };
 
-            void set_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                ID3D12PipelineState* pso = g_context.pipelines[pso_handle];
-                cmd_list->SetPipelineState(pso);
-            };
+        void set_graphics_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle)
+        {
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            ID3D12PipelineState* pso = g_context.pipelines[pso_handle];
+            cmd_list->SetPipelineState(pso);
+        };
 
-            void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                D3D12_GPU_DESCRIPTOR_HANDLE handle = g_context.descriptor_heap_manager.get_gpu_start(HeapType::CBV_SRV_UAV);
-                cmd_list->SetGraphicsRootDescriptorTable(resource_layout_entry_idx, handle);
-            }
-
-            void bind_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                cmd_list->SetGraphicsRoot32BitConstants(binding_slot, num_constants, data, 0);
-            };
-
-            void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, const u32 binding_slot)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                const BufferInfo& buffer_info = g_context.buffers.infos[buffer_handle];
-                cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer_info.get_gpu_address(g_context.current_frame_idx));
-            };
-
-            // Draw / Dispatch
-            void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-
-                const BufferInfo& buffer_info = g_context.buffers.infos[vertices];
-                u32 stride = sizeof(float) * 3;
-                D3D12_VERTEX_BUFFER_VIEW vb_view = {
-                    .BufferLocation = buffer_info.gpu_address,
-                    .SizeInBytes = u32(buffer_info.per_frame_size),
-                    .StrideInBytes = stride,
-                };
-                cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINESTRIP);
-                cmd_list->IASetVertexBuffers(0, 1, &vb_view);
-                cmd_list->DrawInstanced(u32(buffer_info.per_frame_size) / stride, 1, 0, 0);
-            };
-
-            void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                const BufferInfo& buffer_info = g_context.buffers.infos[index_buffer_id];
-
-                D3D12_INDEX_BUFFER_VIEW view{
-                    .BufferLocation = buffer_info.gpu_address,
-                    .SizeInBytes = u32(buffer_info.per_frame_size),
-                    .Format = buffer_info.stride == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT,
-                };
-                cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-                cmd_list->IASetIndexBuffer(&view);
-                cmd_list->DrawIndexedInstanced(u32(buffer_info.per_frame_size / buffer_info.stride), 1, 0, 0, 0);
-            }
+        void bind_graphics_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
+        {
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            D3D12_GPU_DESCRIPTOR_HANDLE handle = g_context.descriptor_heap_manager.get_gpu_start(HeapType::CBV_SRV_UAV);
+            cmd_list->SetGraphicsRootDescriptorTable(resource_layout_entry_idx, handle);
         }
 
-        namespace compute
+        void bind_graphics_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot)
         {
-            //--------- Resource Binding ----------
-            void set_active_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                ID3D12RootSignature* root_signature = g_context.root_signatures[resource_layout_id];
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            cmd_list->SetGraphicsRoot32BitConstants(binding_slot, num_constants, data, 0);
+        };
 
-                CommandQueueType queue_type = cmd_utils::get_command_queue_type(ctx);
+        void bind_graphics_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, const u32 binding_slot)
+        {
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            const BufferInfo& buffer_info = g_context.buffers.infos[buffer_handle];
+            cmd_list->SetGraphicsRootConstantBufferView(binding_slot, buffer_info.get_gpu_address(g_context.current_frame_idx));
+        };
 
-                cmd_list->SetComputeRootSignature(root_signature);
+        // Draw / Dispatch
+        void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices)
+        {
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+
+            const BufferInfo& buffer_info = g_context.buffers.infos[vertices];
+            u32 stride = sizeof(float) * 3;
+            D3D12_VERTEX_BUFFER_VIEW vb_view = {
+                .BufferLocation = buffer_info.gpu_address,
+                .SizeInBytes = u32(buffer_info.per_frame_size),
+                .StrideInBytes = stride,
             };
+            cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINESTRIP);
+            cmd_list->IASetVertexBuffers(0, 1, &vb_view);
+            cmd_list->DrawInstanced(u32(buffer_info.per_frame_size) / stride, 1, 0, 0);
+        };
 
-            void set_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                ID3D12PipelineState* pso = g_context.pipelines[pso_handle];
-                cmd_list->SetPipelineState(pso);
+        void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id)
+        {
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            const BufferInfo& buffer_info = g_context.buffers.infos[index_buffer_id];
+
+            D3D12_INDEX_BUFFER_VIEW view{
+                .BufferLocation = buffer_info.gpu_address,
+                .SizeInBytes = u32(buffer_info.per_frame_size),
+                .Format = buffer_info.stride == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT,
             };
+            cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            cmd_list->IASetIndexBuffer(&view);
+            cmd_list->DrawIndexedInstanced(u32(buffer_info.per_frame_size / buffer_info.stride), 1, 0, 0, 0);
+        }
 
-            void bind_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                D3D12_GPU_DESCRIPTOR_HANDLE handle = g_context.descriptor_heap_manager.get_gpu_start(HeapType::CBV_SRV_UAV);
+        //--------- Resource Binding ----------
+        void set_compute_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id)
+        {
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            ID3D12RootSignature* root_signature = g_context.root_signatures[resource_layout_id];
 
-                cmd_list->SetComputeRootDescriptorTable(resource_layout_entry_idx, handle);
-            }
+            CommandQueueType queue_type = cmd_utils::get_command_queue_type(ctx);
 
-            void bind_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                cmd_list->SetComputeRoot32BitConstants(binding_slot, num_constants, data, 0);
-            };
+            cmd_list->SetComputeRootSignature(root_signature);
+        };
 
-            void bind_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, const u32 binding_slot)
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                const BufferInfo& buffer_info = g_context.buffers.infos[buffer_handle];
-                cmd_list->SetComputeRootConstantBufferView(binding_slot, buffer_info.get_gpu_address(g_context.current_frame_idx));
-            };
+        void set_compute_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle)
+        {
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            ID3D12PipelineState* pso = g_context.pipelines[pso_handle];
+            cmd_list->SetPipelineState(pso);
+        };
 
-            void dispatch(
-                const CommandContextHandle ctx,
-                const u32 thread_group_count_x,
-                const u32 thread_group_count_y,
-                const u32 thread_group_count_z
-            )
-            {
-                ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-                cmd_list->Dispatch(thread_group_count_x, thread_group_count_y, thread_group_count_z);
-            }
+        void bind_compute_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx)
+        {
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            D3D12_GPU_DESCRIPTOR_HANDLE handle = g_context.descriptor_heap_manager.get_gpu_start(HeapType::CBV_SRV_UAV);
+
+            cmd_list->SetComputeRootDescriptorTable(resource_layout_entry_idx, handle);
+        }
+
+        void bind_compute_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot)
+        {
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            cmd_list->SetComputeRoot32BitConstants(binding_slot, num_constants, data, 0);
+        };
+
+        void bind_compute_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, const u32 binding_slot)
+        {
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            const BufferInfo& buffer_info = g_context.buffers.infos[buffer_handle];
+            cmd_list->SetComputeRootConstantBufferView(binding_slot, buffer_info.get_gpu_address(g_context.current_frame_idx));
+        };
+
+        void dispatch(
+            const CommandContextHandle ctx,
+            const u32 thread_group_count_x,
+            const u32 thread_group_count_y,
+            const u32 thread_group_count_z
+        )
+        {
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+            cmd_list->Dispatch(thread_group_count_x, thread_group_count_y, thread_group_count_z);
         }
 
         // Misc

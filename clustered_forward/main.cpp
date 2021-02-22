@@ -222,25 +222,25 @@ namespace clustered
             Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
             Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-            gfx::cmd::graphics::set_active_resource_layout(cmd_ctx, resource_layout);
-            gfx::cmd::graphics::set_pipeline_state(cmd_ctx, pso);
+            gfx::cmd::set_graphics_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::set_graphics_pipeline_state(cmd_ctx, pso);
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
             gfx::cmd::clear_depth_target(cmd_ctx, depth_target, 0.0f, 0);
             gfx::cmd::set_render_targets(cmd_ctx, nullptr, 0, depth_target);
 
-            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
+            gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
 
             const auto* scene_data = scene_renderables;
-            gfx::cmd::graphics::bind_resource_table(cmd_ctx, u32(BindingSlots::RAW_BUFFERS_TABLE));
+            gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::RAW_BUFFERS_TABLE));
 
             u32 buffer_descriptor = gfx::buffers::get_shader_readable_index(scene_data->vs_buffer);
-            gfx::cmd::graphics::bind_constants(cmd_ctx, &buffer_descriptor, 1, u32(BindingSlots::BUFFERS_DESCRIPTORS));
+            gfx::cmd::bind_graphics_constants(cmd_ctx, &buffer_descriptor, 1, u32(BindingSlots::BUFFERS_DESCRIPTORS));
 
             for (u32 i = 0; i < scene_data->num_entities; i++) {
-                gfx::cmd::graphics::bind_constants(cmd_ctx, &i, 1, u32(BindingSlots::PER_INSTANCE_CONSTANTS));
-                gfx::cmd::graphics::draw_mesh(cmd_ctx, scene_data->meshes[i]);
+                gfx::cmd::bind_graphics_constants(cmd_ctx, &i, 1, u32(BindingSlots::PER_INSTANCE_CONSTANTS));
+                gfx::cmd::draw_mesh(cmd_ctx, scene_data->meshes[i]);
             }
         };
 
@@ -380,35 +380,35 @@ namespace clustered
             Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
             Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-            gfx::cmd::graphics::set_active_resource_layout(cmd_ctx, resource_layout);
-            gfx::cmd::graphics::set_pipeline_state(cmd_ctx, pso);
+            gfx::cmd::set_graphics_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::set_graphics_pipeline_state(cmd_ctx, pso);
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
             gfx::cmd::clear_render_target(cmd_ctx, render_target, clear_color);
             gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1, depth_target);
 
-            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
-            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, scene_buffers->scene_constants, u32(BindingSlots::SCENE_CONSTANT_BUFFER));
+            gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
+            gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, scene_buffers->scene_constants, u32(BindingSlots::SCENE_CONSTANT_BUFFER));
 
             const auto* scene_data = scene_renderables;
-            gfx::cmd::graphics::bind_resource_table(cmd_ctx, u32(BindingSlots::RAW_BUFFERS_TABLE));
-            gfx::cmd::graphics::bind_resource_table(cmd_ctx, u32(BindingSlots::TEXTURE_2D_TABLE));
-            gfx::cmd::graphics::bind_resource_table(cmd_ctx, u32(BindingSlots::TEXTURE_CUBE_TABLE));
+            gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::RAW_BUFFERS_TABLE));
+            gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::TEXTURE_2D_TABLE));
+            gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::TEXTURE_CUBE_TABLE));
 
             u32 buffer_descriptors[2] = {
                 gfx::buffers::get_shader_readable_index(scene_data->vs_buffer),
                 scene_data->material_buffer_idx,
             };
-            gfx::cmd::graphics::bind_constants(cmd_ctx, &buffer_descriptors, 2, u32(BindingSlots::BUFFERS_DESCRIPTORS));
+            gfx::cmd::bind_graphics_constants(cmd_ctx, &buffer_descriptors, 2, u32(BindingSlots::BUFFERS_DESCRIPTORS));
 
             for (u32 i = 0; i < scene_data->num_entities; i++) {
                 u32 per_draw_indices[] = {
                     i,
                     scene_data->material_indices[i]
                 };
-                gfx::cmd::graphics::bind_constants(cmd_ctx, &per_draw_indices, 2, u32(BindingSlots::PER_INSTANCE_CONSTANTS));
-                gfx::cmd::graphics::draw_mesh(cmd_ctx, scene_data->meshes[i]);
+                gfx::cmd::bind_graphics_constants(cmd_ctx, &per_draw_indices, 2, u32(BindingSlots::PER_INSTANCE_CONSTANTS));
+                gfx::cmd::draw_mesh(cmd_ctx, scene_data->meshes[i]);
             }
         };
 
@@ -575,18 +575,18 @@ namespace clustered
             Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
             Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-            gfx::cmd::graphics::set_active_resource_layout(cmd_ctx, resource_layout);
-            gfx::cmd::graphics::set_pipeline_state(cmd_ctx, pso_handle);
+            gfx::cmd::set_graphics_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::set_graphics_pipeline_state(cmd_ctx, pso_handle);
             gfx::cmd::set_render_targets(cmd_ctx, &hdr_buffer, 1, depth_target);
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
-            gfx::cmd::graphics::bind_constants(cmd_ctx, &mip_level, 1, u32(BindingSlots::MIP_LEVEL));
-            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
-            gfx::cmd::graphics::bind_constant_buffer(cmd_ctx, scene_buffers.scene_constants, u32(BindingSlots::SCENE_CONSTANTS_BUFFER));
-            gfx::cmd::graphics::bind_resource_table(cmd_ctx, u32(BindingSlots::RESOURCE_TABLE));
+            gfx::cmd::bind_graphics_constants(cmd_ctx, &mip_level, 1, u32(BindingSlots::MIP_LEVEL));
+            gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
+            gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, scene_buffers.scene_constants, u32(BindingSlots::SCENE_CONSTANTS_BUFFER));
+            gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::RESOURCE_TABLE));
 
-            gfx::cmd::graphics::draw_mesh(cmd_ctx, fullscreen_mesh);
+            gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
         };
 
         void shutdown() override final
@@ -746,8 +746,8 @@ namespace clustered
             Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
             Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-            gfx::cmd::graphics::set_active_resource_layout(cmd_ctx, resource_layout);
-            gfx::cmd::graphics::set_pipeline_state(cmd_ctx, pso);
+            gfx::cmd::set_graphics_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::set_graphics_pipeline_state(cmd_ctx, pso);
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
@@ -755,10 +755,10 @@ namespace clustered
                 .src_texture = gfx::textures::get_shader_readable_index(hdr_buffer),
                 .exposure = exposure
             };
-            gfx::cmd::graphics::bind_constants(cmd_ctx, &tonemapping_constants, 2, 0);
-            gfx::cmd::graphics::bind_resource_table(cmd_ctx, 1);
+            gfx::cmd::bind_graphics_constants(cmd_ctx, &tonemapping_constants, 2, 0);
+            gfx::cmd::bind_graphics_resource_table(cmd_ctx, 1);
 
-            gfx::cmd::graphics::draw_mesh(cmd_ctx, fullscreen_mesh);
+            gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
         };
 
         // TODO!
@@ -888,23 +888,23 @@ namespace clustered
             };
             gfx::buffers::update(binning_cb, &binning_constants, sizeof(binning_constants));
 
-            gfx::cmd::compute::set_active_resource_layout(cmd_ctx, resource_layout);
-            gfx::cmd::compute::set_pipeline_state(cmd_ctx, pso);
+            gfx::cmd::set_compute_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::set_compute_pipeline_state(cmd_ctx, pso);
 
-            gfx::cmd::compute::bind_constant_buffer(cmd_ctx, binning_cb, u32(Slots::LIGHT_GRID_CONSTANTS));
-            gfx::cmd::compute::bind_constant_buffer(cmd_ctx, view_cb_handle, u32(Slots::VIEW_CONSTANTS));
-            gfx::cmd::compute::bind_constant_buffer(cmd_ctx, scene_buffers.scene_constants, u32(Slots::SCENE_CONSTANTS));
+            gfx::cmd::bind_compute_constant_buffer(cmd_ctx, binning_cb, u32(Slots::LIGHT_GRID_CONSTANTS));
+            gfx::cmd::bind_compute_constant_buffer(cmd_ctx, view_cb_handle, u32(Slots::VIEW_CONSTANTS));
+            gfx::cmd::bind_compute_constant_buffer(cmd_ctx, scene_buffers.scene_constants, u32(Slots::SCENE_CONSTANTS));
 
-            gfx::cmd::compute::bind_resource_table(cmd_ctx, u32(Slots::READ_BUFFERS_TABLE));
-            gfx::cmd::compute::bind_resource_table(cmd_ctx, u32(Slots::WRITE_BUFFERS_TABLE));
-            gfx::cmd::compute::bind_resource_table(cmd_ctx, u32(Slots::WRITE_3D_TEXTURES_TABLE));
+            gfx::cmd::bind_compute_resource_table(cmd_ctx, u32(Slots::READ_BUFFERS_TABLE));
+            gfx::cmd::bind_compute_resource_table(cmd_ctx, u32(Slots::WRITE_BUFFERS_TABLE));
+            gfx::cmd::bind_compute_resource_table(cmd_ctx, u32(Slots::WRITE_3D_TEXTURES_TABLE));
 
             u32 group_size = 8;
             u32 group_count_x = (CLUSTER_SETUP.width + (group_size - 1)) / group_size;
             u32 group_count_y = (CLUSTER_SETUP.height + (group_size - 1)) / group_size;
             u32 group_count_z = CLUSTER_SETUP.depth;
 
-            gfx::cmd::compute::dispatch(cmd_ctx, group_count_x, group_count_y, group_count_z);
+            gfx::cmd::dispatch(cmd_ctx, group_count_x, group_count_y, group_count_z);
         };
 
         // TODO!
@@ -1066,17 +1066,17 @@ namespace clustered
             ASSERT(is_valid(resource_layout));
             ASSERT(is_valid(resource_layout));
 
-            gfx::cmd::compute::set_active_resource_layout(cmd_ctx, resource_layout);
-            gfx::cmd::compute::set_pipeline_state(cmd_ctx, pso_handle);
+            gfx::cmd::set_compute_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::set_compute_pipeline_state(cmd_ctx, pso_handle);
 
             u32 out_texture_id = gfx::textures::get_shader_writable_index(settings.out_texture);
-            gfx::cmd::compute::bind_constants(cmd_ctx, &out_texture_id, 1, 0);
-            gfx::cmd::compute::bind_resource_table(cmd_ctx, 1);
+            gfx::cmd::bind_compute_constants(cmd_ctx, &out_texture_id, 1, 0);
+            gfx::cmd::bind_compute_resource_table(cmd_ctx, 1);
 
             const u32 lut_width = gfx::textures::get_texture_info(settings.out_texture).width;
 
             const u32 dispatch_size = lut_width / 8u;
-            gfx::cmd::compute::dispatch(cmd_ctx, dispatch_size, dispatch_size, 1);
+            gfx::cmd::dispatch(cmd_ctx, dispatch_size, dispatch_size, 1);
         }
     };
 
@@ -1136,11 +1136,11 @@ namespace clustered
             ASSERT(is_valid(resource_layout));
             ASSERT(is_valid(resource_layout));
 
-            gfx::cmd::compute::set_active_resource_layout(cmd_ctx, resource_layout);
-            gfx::cmd::compute::set_pipeline_state(cmd_ctx, pso_handle);
+            gfx::cmd::set_compute_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::set_compute_pipeline_state(cmd_ctx, pso_handle);
 
-            gfx::cmd::compute::bind_resource_table(cmd_ctx, 1);
-            gfx::cmd::compute::bind_resource_table(cmd_ctx, 2);
+            gfx::cmd::bind_compute_resource_table(cmd_ctx, 1);
+            gfx::cmd::bind_compute_resource_table(cmd_ctx, 2);
             TextureInfo src_texture_info = gfx::textures::get_texture_info(settings.src_texture);
             TextureInfo out_texture_info = gfx::textures::get_texture_info(settings.out_texture);
 
@@ -1149,10 +1149,10 @@ namespace clustered
                 .out_texture_idx = gfx::textures::get_shader_writable_index(settings.out_texture),
                 .src_img_width = src_texture_info.width,
             };
-            gfx::cmd::compute::bind_constants(cmd_ctx, &constants, 3, 0);
+            gfx::cmd::bind_compute_constants(cmd_ctx, &constants, 3, 0);
 
             const u32 dispatch_size = max(1u, out_texture_info.width / 8u);
-            gfx::cmd::compute::dispatch(cmd_ctx, dispatch_size, dispatch_size, 6);
+            gfx::cmd::dispatch(cmd_ctx, dispatch_size, dispatch_size, 6);
         }
     };
 
