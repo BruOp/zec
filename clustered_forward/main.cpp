@@ -119,12 +119,6 @@ namespace clustered
 
     static_assert(sizeof(MaterialData) == 128);
 
-    struct SceneBuffers
-    {
-        BufferHandle scene_constants = {};
-        BufferHandle spot_lights_buffer = {};
-    };
-
     class Renderables
     {
     public:
@@ -133,24 +127,41 @@ namespace clustered
         size_t num_entities;
         Array<u32> material_indices;
         Array<MeshHandle> meshes;
+        Array<MaterialData> material_instances = {};
         Array<VertexShaderData> vertex_shader_data;
 
-        u32 material_buffer_idx;
+        u32 material_buffer_idx = {};
+        u32 vs_buffer_idx = {};
+
+        BufferHandle materials_buffer = {};
         BufferHandle vs_buffer = {};
 
-        void init(const BufferHandle materials_buffer, const u32 max_num_entities)
+        void init(const u32 max_num_entities, const u32 max_num_materials)
         {
+            materials_buffer = gfx::buffers::create({
+                .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
+                .type = BufferType::RAW,
+                .byte_size = sizeof(MaterialData) * max_num_materials,
+                .stride = 4 });
+            gfx::set_debug_name(materials_buffer, L"Materials Buffer");
+
             material_buffer_idx = gfx::buffers::get_shader_readable_index(materials_buffer);
 
-            BufferDesc vs_buffer_desc{
+            vs_buffer = gfx::buffers::create({
                 .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
                 .type = BufferType::RAW,
                 .byte_size = sizeof(VertexShaderData) * max_num_entities,
                 .stride = 4,
-            };
-            vs_buffer = gfx::buffers::create(vs_buffer_desc);
+            });
             gfx::set_debug_name(vs_buffer, L"Vertex Shader Constants Buffer");
 
+            vs_buffer_idx = gfx::buffers::get_shader_readable_index(vs_buffer);
+
+        }
+        
+        void push_material(const MaterialData& material)
+        {
+            material_instances.push_back(material);
         }
 
         void push_renderable(const u32 material_idx, const MeshHandle mesh_handle, const VertexShaderData& vs_data)
@@ -160,6 +171,103 @@ namespace clustered
             meshes.push_back(mesh_handle);
             vertex_shader_data.push_back(vs_data);
             ASSERT(meshes.size == vertex_shader_data.size && meshes.size == num_entities);
+        }
+
+        void copy()
+        {
+            gfx::buffers::update(
+                vs_buffer,
+                vertex_shader_data.data,
+                vertex_shader_data.size * sizeof(VertexShaderData));
+
+            gfx::buffers::update(
+                materials_buffer,
+                material_instances.data,
+                material_instances.size * sizeof(MaterialData));
+        }
+    };
+
+    struct RenderableSceneDesc
+    {
+        u32 max_num_entities = 0;
+        u32 max_num_materials = 0;
+        u32 max_num_spot_lights = 0;
+    };
+
+    struct RenderableScene
+    {
+        Renderables renderables = {};
+        SceneConstantData scene_constant_data = {};
+
+        BufferHandle scene_constants = {};
+        BufferHandle spot_lights_buffer = {};
+        // GPU side copy of the material instances data
+
+        void initialize(const RenderableSceneDesc& desc)
+        {
+            renderables.init(desc.max_num_entities, desc.max_num_materials);
+            // Initialize our buffers
+            scene_constants = gfx::buffers::create({
+                    .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
+                    .type = BufferType::DEFAULT,
+                    .byte_size = sizeof(SceneConstantData), // will get bumped up to 256
+                    .stride = 0 });
+            gfx::set_debug_name(scene_constants, L"Scene Constants Buffers");
+
+            spot_lights_buffer = gfx::buffers::create({
+                .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
+                .type = BufferType::RAW,
+                .byte_size = sizeof(SpotLight) * desc.max_num_spot_lights,
+                .stride = 4 });
+            gfx::set_debug_name(spot_lights_buffer, L"Spot Lights Buffer");
+
+        }
+
+        void copy(/* const Scene& scene, eventually, */const Array<SpotLight>& spot_lights)
+        {
+            scene_constant_data.num_spot_lights = u32(spot_lights.size);
+            scene_constant_data.spot_light_buffer_idx = gfx::buffers::get_shader_readable_index(spot_lights_buffer);
+
+            gfx::buffers::update(
+                scene_constants,
+                &scene_constant_data,
+                sizeof(scene_constant_data));
+
+            gfx::buffers::update(
+                spot_lights_buffer,
+                spot_lights.data,
+                spot_lights.size * sizeof(SpotLight));
+
+            renderables.copy();
+        }
+    };
+
+    struct RenderableCamera
+    {
+        PerspectiveCamera* camera = nullptr;
+        ViewConstantData view_constant_data = {};
+        BufferHandle view_constant_buffer = {};
+
+        void initialize(const wchar* name, PerspectiveCamera* in_camera)
+        {
+            camera = in_camera;
+            view_constant_buffer = gfx::buffers::create({
+                .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
+                .type = BufferType::DEFAULT,
+                .byte_size = sizeof(ViewConstantData),
+                .stride = 0 });
+            gfx::set_debug_name(view_constant_buffer, name);
+        }
+
+        void copy()
+        {
+            ViewConstantData view_constant_data{
+                .VP = camera->projection * camera->view,
+                .invVP = invert(camera->projection * mat4(to_mat3(camera->view), {})),
+                .view = camera->view,
+                .camera_position = camera->position,
+            };
+            gfx::buffers::update(view_constant_buffer, &view_constant_data, sizeof(view_constant_data));
         }
     };
 
@@ -308,7 +416,7 @@ namespace clustered
     {
     public:
         Renderables* scene_renderables = nullptr;
-        SceneBuffers* scene_buffers = nullptr;
+        BufferHandle scene_constants_buffer = {};
         BufferHandle view_cb_handle = {};
 
         virtual void setup() final
@@ -389,7 +497,7 @@ namespace clustered
             gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1, depth_target);
 
             gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
-            gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, scene_buffers->scene_constants, u32(BindingSlots::SCENE_CONSTANT_BUFFER));
+            gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, scene_constants_buffer, u32(BindingSlots::SCENE_CONSTANT_BUFFER));
 
             const auto* scene_data = scene_renderables;
             gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::RAW_BUFFERS_TABLE));
@@ -482,7 +590,7 @@ namespace clustered
     {
     public:
         BufferHandle view_cb_handle = {};
-        SceneBuffers scene_buffers = {};
+        TextureHandle cube_map_buffer = {};
         float mip_level = 1.0f;
 
         void setup() override final
@@ -521,14 +629,13 @@ namespace clustered
 
             ResourceLayoutDesc layout_desc{
                 .constants = {
-                    {.visibility = ShaderVisibility::PIXEL, .num_constants = 1 },
+                    {.visibility = ShaderVisibility::PIXEL, .num_constants = 2 },
                  },
                 .num_constants = 1,
                 .constant_buffers = {
                     { ShaderVisibility::ALL },
-                    { ShaderVisibility::PIXEL },
                 },
-                .num_constant_buffers = 2,
+                .num_constant_buffers = 1,
                 .tables = {
                     {.usage = ResourceAccess::READ, .count = DESCRIPTOR_TABLE_SIZE },
                 },
@@ -581,9 +688,17 @@ namespace clustered
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
-            gfx::cmd::bind_graphics_constants(cmd_ctx, &mip_level, 1, u32(BindingSlots::MIP_LEVEL));
+            struct Constants
+            {
+                u32 cube_map_idx;
+                float mip_level;
+            };
+            Constants constants = {
+                .cube_map_idx = gfx::textures::get_shader_readable_index(cube_map_buffer),
+                .mip_level = mip_level,
+            };
+            gfx::cmd::bind_graphics_constants(cmd_ctx, &constants, 2, u32(BindingSlots::CONSTANTS));
             gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
-            gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, scene_buffers.scene_constants, u32(BindingSlots::SCENE_CONSTANTS_BUFFER));
             gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::RESOURCE_TABLE));
 
             gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
@@ -624,9 +739,8 @@ namespace clustered
     private:
         enum struct BindingSlots : u32
         {
-            MIP_LEVEL = 0,
+            CONSTANTS = 0,
             VIEW_CONSTANT_BUFFER,
-            SCENE_CONSTANTS_BUFFER,
             RESOURCE_TABLE
         };
 
@@ -824,7 +938,7 @@ namespace clustered
 
         // Settings
         PerspectiveCamera* camera = nullptr;
-        SceneBuffers scene_buffers = {};
+        BufferHandle scene_constants_buffer = {};
         BufferHandle view_cb_handle = {};
 
         void setup() override final
@@ -893,7 +1007,7 @@ namespace clustered
 
             gfx::cmd::bind_compute_constant_buffer(cmd_ctx, binning_cb, u32(Slots::LIGHT_GRID_CONSTANTS));
             gfx::cmd::bind_compute_constant_buffer(cmd_ctx, view_cb_handle, u32(Slots::VIEW_CONSTANTS));
-            gfx::cmd::bind_compute_constant_buffer(cmd_ctx, scene_buffers.scene_constants, u32(Slots::SCENE_CONSTANTS));
+            gfx::cmd::bind_compute_constant_buffer(cmd_ctx, scene_constants_buffer, u32(Slots::SCENE_CONSTANTS));
 
             gfx::cmd::bind_compute_resource_table(cmd_ctx, u32(Slots::READ_BUFFERS_TABLE));
             gfx::cmd::bind_compute_resource_table(cmd_ctx, u32(Slots::WRITE_BUFFERS_TABLE));
@@ -1167,29 +1281,20 @@ namespace clustered
             BackgroundPass background = {};
             ToneMappingPass tone_mapping = {};
         };
+
     public:
         ClusteredForward() : App{ L"Clustered Forward Rendering" } { }
 
         FPSCameraController camera_controller = {};
 
-        MeshHandle fullscreen_mesh;
-
         PerspectiveCamera camera;
         PerspectiveCamera debug_camera;
-
         // Scene data
-        Array<MaterialData> material_instances;
         Array<SpotLight> spot_lights;
 
         // Rendering Data
-        Renderables scene_renderables = {};
-        SceneBuffers scene_buffers = {};
-        SceneConstantData scene_constant_data = {};
-
-        BufferHandle view_cb_handle = {};
-        // GPU side copy of the material instances data
-        BufferHandle materials_buffer = {};
-
+        RenderableScene renderable_scene;
+        RenderableCamera renderable_camera;
         Passes render_passes{ };
         render_pass_system::RenderPassList render_list;
 
@@ -1236,29 +1341,13 @@ namespace clustered
                 }
             }
 
-            view_cb_handle = gfx::buffers::create({
-                .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
-                .type = BufferType::DEFAULT,
-                .byte_size = sizeof(ViewConstantData),
-                .stride = 0 });
-            gfx::set_debug_name(view_cb_handle, L"View Constant Buffer");
+            renderable_camera.initialize(L"Main camera view constant buffer", &camera);
 
-            // Scene buffers
-            {
-                scene_buffers.scene_constants = gfx::buffers::create({
-                    .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
-                    .type = BufferType::DEFAULT,
-                    .byte_size = sizeof(SceneConstantData), // will get bumped up to 256
-                    .stride = 0 });
-                gfx::set_debug_name(scene_buffers.scene_constants, L"Scene Constants Buffers");
-
-                scene_buffers.spot_lights_buffer = gfx::buffers::create({
-                    .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
-                    .type = BufferType::RAW,
-                    .byte_size = sizeof(SpotLight) * SpotLight::MAX_SPOT_LIGHTS,
-                    .stride = 4 });
-                gfx::set_debug_name(scene_buffers.spot_lights_buffer, L"Spot Lights Buffer");
-            }
+            renderable_scene.initialize(RenderableSceneDesc{
+                .max_num_entities = 2000,
+                .max_num_materials = 2000,
+                .max_num_spot_lights = 1024
+            });
 
             CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
 
@@ -1275,7 +1364,6 @@ namespace clustered
                 .initial_state = RESOURCE_USAGE_COMPUTE_WRITABLE
             };
             TextureHandle brdf_lut_map = gfx::textures::create(brdf_lut_desc);
-            scene_constant_data.brdf_lut_idx = gfx::textures::get_shader_readable_index(brdf_lut_map);
             gfx::set_debug_name(brdf_lut_map, L"BRDF LUT");
 
             TextureDesc irradiance_desc{
@@ -1294,8 +1382,6 @@ namespace clustered
             gfx::set_debug_name(irradiance_map, L"Irradiance Map");
 
             TextureHandle radiance_map = gfx::textures::create_from_file(copy_ctx, "textures/prefiltered_paper_mill.dds");
-            scene_constant_data.irradiance_map_idx = gfx::textures::get_shader_readable_index(irradiance_map);
-            scene_constant_data.radiance_map_idx = gfx::textures::get_shader_readable_index(radiance_map);
 
             gltf::Context gltf_context{};
             gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", copy_ctx, gltf_context, gltf::GLTF_LOADING_FLAG_NONE);
@@ -1335,9 +1421,8 @@ namespace clustered
             receipt = gfx::cmd::return_and_execute(&graphics_ctx, 1);
 
             // Materials buffer
-            material_instances.reserve(gltf_context.materials.size);
             for (const auto& material : gltf_context.materials) {
-                material_instances.push_back({
+                renderable_scene.renderables.push_material({
                     .base_color_factor = material.base_color_factor,
                     .emissive_factor = material.emissive_factor,
                     .metallic_factor = material.metallic_factor,
@@ -1350,17 +1435,9 @@ namespace clustered
                     });
             }
 
-            materials_buffer = gfx::buffers::create({
-                .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
-                .type = BufferType::RAW,
-                .byte_size = u32(material_instances.get_byte_size()),
-                .stride = 4 });
-            gfx::set_debug_name(materials_buffer, L"Materials Buffer");
-            gfx::buffers::set_data(materials_buffer, material_instances.data, material_instances.get_byte_size());
-
             for (size_t i = 0; i < gltf_context.draw_calls.size; i++) {
                 const auto& draw_call = gltf_context.draw_calls[i];
-                scene_renderables.push_renderable(
+                renderable_scene.renderables.push_renderable(
                     draw_call.material_index,
                     draw_call.mesh,
                     {
@@ -1369,25 +1446,22 @@ namespace clustered
                     });
             }
 
-            scene_renderables.init(materials_buffer, scene_renderables.num_entities);
-
-            
-            render_passes.light_binning_pass.view_cb_handle = view_cb_handle;
+            /*render_passes.light_binning_pass.view_cb_handle = view_cb_handle;
             render_passes.light_binning_pass.scene_buffers = scene_buffers;
-            render_passes.light_binning_pass.camera = &camera;
+            render_passes.light_binning_pass.camera = &camera;*/
 
-            render_passes.depth_prepass.view_cb_handle = view_cb_handle;
-            render_passes.depth_prepass.scene_renderables = &scene_renderables;
+            render_passes.depth_prepass.view_cb_handle = renderable_camera.view_constant_buffer;
+            render_passes.depth_prepass.scene_renderables = &renderable_scene.renderables;
 
-            render_passes.forward.view_cb_handle = view_cb_handle;
-            render_passes.forward.scene_renderables = &scene_renderables;
-            render_passes.forward.scene_buffers = &scene_buffers;
+            render_passes.forward.view_cb_handle = renderable_camera.view_constant_buffer;
+            render_passes.forward.scene_renderables = &renderable_scene.renderables;
+            render_passes.forward.scene_constants_buffer = renderable_scene.scene_constants;
 
-            render_passes.background.view_cb_handle = view_cb_handle;
-            render_passes.background.scene_buffers = scene_buffers;
+            render_passes.background.view_cb_handle = renderable_camera.view_constant_buffer;
+            render_passes.background.cube_map_buffer = radiance_map;
 
             render_pass_system::IRenderPass* pass_ptrs[] = {
-                &render_passes.light_binning_pass,
+                //&render_passes.light_binning_pass,
                 &render_passes.depth_prepass,
                 &render_passes.forward,
                 &render_passes.background,
@@ -1418,32 +1492,10 @@ namespace clustered
 
         void copy() override final
         {
-            ViewConstantData view_constant_data{
-                .VP = camera.projection * camera.view,
-                .invVP = invert(camera.projection * mat4(to_mat3(camera.view), {})),
-                .view = camera.view,
-                .camera_position = camera.position,
-            };
-            gfx::buffers::update(view_cb_handle, &view_constant_data, sizeof(view_constant_data));
+            renderable_camera.copy();
 
-            scene_constant_data.num_spot_lights = u32(spot_lights.size);
-            scene_constant_data.spot_light_buffer_idx = gfx::buffers::get_shader_readable_index(scene_buffers.spot_lights_buffer);
-
-            gfx::buffers::update(
-                scene_buffers.scene_constants,
-                &scene_constant_data,
-                sizeof(scene_constant_data));
-
-            gfx::buffers::update(
-                scene_buffers.spot_lights_buffer,
-                spot_lights.data,
-                spot_lights.size * sizeof(SpotLight));
-
-            gfx::buffers::update(
-                scene_renderables.vs_buffer,
-                scene_renderables.vertex_shader_data.data,
-                scene_renderables.vertex_shader_data.size * sizeof(VertexShaderData));
-
+            renderable_scene.copy(spot_lights);
+            
             render_list.copy();
         }
 
