@@ -14,7 +14,7 @@
 #include "passes/forward_pass.h"
 #include "passes/background_pass.h"
 #include "passes/tone_mapping_pass.h"
-//#include "passes/light_binning_pass.h"
+#include "passes/light_binning_pass.h"
 
 #include "compute_tasks/brdf_lut_creator.h"
 #include "compute_tasks/irradiance_map_creator.h"
@@ -26,19 +26,15 @@ using namespace zec;
 
 namespace clustered
 {
-    struct ClusterGridSetup
-    {
-        u32 width = 1;
-        u32 height = 1;
-        u32 depth = 1;
-        u32 max_lights_per_bin = 1;
-    };
+    constexpr float VERTICAL_FOV = deg_to_rad(65.0f);
+    constexpr float CAMERA_NEAR = 0.1f;
+    constexpr float CAMERA_FAR = 100.0f;
 
+    constexpr u32 CLUSTER_HEIGHT = 8;
     const static ClusterGridSetup CLUSTER_SETUP = {
-        .width = 16,
-        .height = 8,
-        .depth = u32(ceilf(log10f(100.0f / 0.1f) / log10f(1.0f + 2.0f * tanf(0.5f * deg_to_rad(65.0f)) / 8))),
-        .max_lights_per_bin = 16,
+        .width = 2 * CLUSTER_HEIGHT,
+        .height = CLUSTER_HEIGHT,
+        .depth = u32(ceilf(log10f(CAMERA_FAR / CAMERA_NEAR) / log10f(1.0f + 2.0f * tanf(0.5f * VERTICAL_FOV) / CLUSTER_HEIGHT))),
     };
 
     class ClusteredForward : public zec::App
@@ -46,7 +42,7 @@ namespace clustered
         struct Passes
         {
         public:
-            //LightBinningPass light_binning_pass = {};
+            LightBinningPass light_binning_pass = { CLUSTER_SETUP };
             DepthPass depth_prepass = {};
             ForwardPass forward = {};
             BackgroundPass background = {};
@@ -73,11 +69,7 @@ namespace clustered
     protected:
         void init() override final
         {
-            float vertical_fov = deg_to_rad(65.0f);
-            constexpr float camera_near = 0.1f;
-            constexpr float camera_far = 100.0f;
-
-            camera = create_camera(float(width) / float(height), vertical_fov, camera_near, camera_far, CAMERA_CREATION_FLAG_REVERSE_Z);
+            camera = create_camera(float(width) / float(height), VERTICAL_FOV, CAMERA_NEAR, CAMERA_FAR, CAMERA_CREATION_FLAG_REVERSE_Z);
             camera.position = vec3{ 0.0f, 0.0f, -10.0f };
 
             camera_controller.init();
@@ -217,9 +209,9 @@ namespace clustered
                     });
             }
 
-            /*render_passes.light_binning_pass.view_cb_handle = view_cb_handle;
-            render_passes.light_binning_pass.scene_buffers = scene_buffers;
-            render_passes.light_binning_pass.camera = &camera;*/
+            render_passes.light_binning_pass.view_cb_handle = renderable_camera.view_constant_buffer;
+            render_passes.light_binning_pass.scene_constants_buffer = renderable_scene.scene_constants;
+            render_passes.light_binning_pass.camera = &camera;
 
             render_passes.depth_prepass.view_cb_handle = renderable_camera.view_constant_buffer;
             render_passes.depth_prepass.scene_renderables = &renderable_scene.renderables;
@@ -232,7 +224,7 @@ namespace clustered
             render_passes.background.cube_map_buffer = radiance_map;
 
             render_pass_system::IRenderPass* pass_ptrs[] = {
-                //&render_passes.light_binning_pass,
+                &render_passes.light_binning_pass,
                 &render_passes.depth_prepass,
                 &render_passes.forward,
                 &render_passes.background,

@@ -20,13 +20,13 @@ namespace zec
     constexpr float k_inv_pi = M_1_PI;
     constexpr float k_2_pi = M_PI * 2.0f;
 
-    inline float deg_to_rad(const float degrees)
+    constexpr float deg_to_rad(const float degrees)
     {
         constexpr float conversion_factor = k_pi / 180.0f;
         return degrees * conversion_factor;
     }
 
-    inline float rad_to_deg(const float radians)
+    constexpr float rad_to_deg(const float radians)
     {
         constexpr float conversion_factor = 180.0f * k_inv_pi;
         return radians * conversion_factor;

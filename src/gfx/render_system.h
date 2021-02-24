@@ -55,8 +55,8 @@ namespace zec::render_pass_system
 
     struct PassOutputDesc
     {
-        u64 id;
-        const char* name;
+        u64 id = 0;
+        const char* name = nullptr;
         PassResourceType type = PassResourceType::INVALID;
         ResourceUsage usage = RESOURCE_USAGE_UNUSED;
         union
