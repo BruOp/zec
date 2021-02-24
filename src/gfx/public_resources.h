@@ -336,18 +336,12 @@ namespace zec
         // if using as RENDER_TARGET or DEPTH_STENCIL
         // Unused maps to common -- TODO: make this more explicit?
         ResourceUsage initial_state = RESOURCE_USAGE_UNUSED;
-        
-        union
-        {
-            // Used as optimized clear values when creating for render targets
-            float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-            struct
-            {
-                // Used as the optimized clear alue when creating a depth stencil target
-                float clear_depth;
-                u8 clear_stencil;
-            };
-        };
+
+        // Used as optimized clear values when creating for render targets
+        float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+        // Used as the optimized clear alue when creating a depth stencil target
+        float clear_depth;
+        u8 clear_stencil;
     };
 
     struct SamplerDesc
@@ -361,8 +355,9 @@ namespace zec
 
     struct ResourceTableEntryDesc
     {
+        static constexpr u32 UNBOUNDED_TABLE_SIZE = UINT32_MAX;
         ResourceAccess usage = ResourceAccess::UNUSED;
-        u32 count = 0;
+        u32 count = UNBOUNDED_TABLE_SIZE;
     };
 
     struct ResourceLayoutConstantsDesc

@@ -36,18 +36,13 @@ namespace zec::render_pass_system
         u32 array_size = 1;
         u16 is_cubemap = 0;
         u16 is_3d = 0;
-        
-        union
-        {
-            // Used as optimized clear values when creating for render targets
-            float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-            struct
-            {
-                // Used as the optimized clear alue when creating a depth stencil target
-                float clear_depth;
-                u8 clear_stencil;
-            };
-        };
+
+        // Used as optimized clear values when creating for render targets
+        float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+        // Used as the optimized clear alue when creating a depth stencil target
+        float clear_depth;
+        u8 clear_stencil;
     };
 
     struct PassBufferResource
