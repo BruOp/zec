@@ -15,6 +15,7 @@
 #include "passes/background_pass.h"
 #include "passes/tone_mapping_pass.h"
 #include "passes/light_binning_pass.h"
+#include "passes/cluster_debug_pass.h"
 
 #include "compute_tasks/brdf_lut_creator.h"
 #include "compute_tasks/irradiance_map_creator.h"
@@ -30,20 +31,30 @@ namespace clustered
     constexpr float CAMERA_NEAR = 0.1f;
     constexpr float CAMERA_FAR = 100.0f;
 
-    constexpr u32 CLUSTER_HEIGHT = 8;
+    constexpr u32 CLUSTER_HEIGHT = 16;
     const static ClusterGridSetup CLUSTER_SETUP = {
         .width = 2 * CLUSTER_HEIGHT,
         .height = CLUSTER_HEIGHT,
         .depth = u32(ceilf(log10f(CAMERA_FAR / CAMERA_NEAR) / log10f(1.0f + 2.0f * tanf(0.5f * VERTICAL_FOV) / CLUSTER_HEIGHT))),
     };
 
+    ClusterGridSetup calculate_cluster_grid(u32 pixel_width, u32 pixel_height, u32 num_depth_divisions, u32 tile_size)
+    {
+        return {
+            .width = pixel_width + (tile_size - 1) / tile_size,
+            .height = pixel_height + (tile_size - 1) / tile_size,
+            .depth = num_depth_divisions
+        };
+    }
+    
     class ClusteredForward : public zec::App
     {
         struct Passes
         {
         public:
-            LightBinningPass light_binning_pass = { CLUSTER_SETUP };
             DepthPass depth_prepass = {};
+            LightBinningPass light_binning = { CLUSTER_SETUP };
+            ClusterDebugPass cluster_debug = { CLUSTER_SETUP };
             ForwardPass forward = {};
             BackgroundPass background = {};
             ToneMappingPass tone_mapping = {};
@@ -75,6 +86,8 @@ namespace clustered
             camera_controller.init();
             camera_controller.set_camera(&camera);
 
+            //ClusterGridSetup cluster_grid_setup = calculate_cluster_grid(width, heigth, 32, tile)
+
             // Create lights
             {
                 constexpr vec3 light_colors[] = {
@@ -86,20 +99,34 @@ namespace clustered
                     {0.0f, 1.0f, 1.0f },
                     {1.0f, 1.0f, 1.0f },
                     {0.5f, 0.3f, 1.0f },
+                    {0.1f, 0.4f, 0.4f },
                 };
 
-                constexpr size_t num_lights = 3;
-                for (size_t i = 0; i < num_lights; i++) {
-                    // place the lights in a ring around the origin
-                    float ring_radius = 20.0f;
-                    vec3 position = vec3{ ring_radius * (-0.5f + float(i) / float(num_lights - 1)), 3.0f, 0.0f };
+                constexpr size_t num_lights = 512;
+                for (size_t i = 0; i < num_lights; ++i) {
+                    constexpr float scene_length = 40.0f;
+                    constexpr float scene_width = 40.0f;
+                    constexpr float scene_height = 14.0f;
+                    float coeff = float(i) / float(num_lights - 1);
+                    float phase = k_2_pi * coeff;
+                    constexpr u32 grid_size_x = 8;
+                    constexpr u32 grid_size_y = 8;
+                    constexpr u32 grid_size_z = 8;
+
+                    const u32 xz_idx = i % (grid_size_x * grid_size_z);
+                    vec3 position = {
+                        float(xz_idx % grid_size_x) * (scene_width / float(grid_size_x)) - (0.5f * scene_width),
+                        2.0f + float(i / u32(64)) * (scene_height / float(grid_size_y)),
+                        float(xz_idx / grid_size_z) * (scene_length / float(grid_size_z)) - (0.5f * scene_length),
+                    };
+                    // Set positions in Cartesian
                     spot_lights.push_back({
                         .position = position,
-                        .radius = 30.0f,
+                        .radius = 3.0f,
                         .direction = vec3{0.0f, -1.0f, 0.0f},
-                        .umbra_angle = k_half_pi * 0.5f,
-                        .penumbra_angle = k_half_pi * 0.4f,
-                        .color = light_colors[i] * 10.0f,
+                        .umbra_angle = k_half_pi * 0.25f,
+                        .penumbra_angle = k_half_pi * 0.2f,
+                        .color = light_colors[i % std::size(light_colors)] * 2.0f,
                         });
                 }
             }
@@ -147,7 +174,7 @@ namespace clustered
             TextureHandle radiance_map = gfx::textures::create_from_file(copy_ctx, "textures/prefiltered_paper_mill.dds");
 
             gltf::Context gltf_context{};
-            gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", copy_ctx, gltf_context, gltf::GLTF_LOADING_FLAG_NONE);
+            gltf::load_gltf_file("models/Sponza/Sponza.gltf", copy_ctx, gltf_context, gltf::GLTF_LOADING_FLAG_NONE);
             CmdReceipt receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
 
             gfx::cmd::gpu_wait(CommandQueueType::GRAPHICS, receipt);
@@ -209,23 +236,31 @@ namespace clustered
                     });
             }
 
-            render_passes.light_binning_pass.view_cb_handle = renderable_camera.view_constant_buffer;
-            render_passes.light_binning_pass.scene_constants_buffer = renderable_scene.scene_constants;
-            render_passes.light_binning_pass.camera = &camera;
+            render_passes.light_binning.view_cb_handle = renderable_camera.view_constant_buffer;
+            render_passes.light_binning.scene_constants_buffer = renderable_scene.scene_constants;
+            render_passes.light_binning.camera = &camera;
 
             render_passes.depth_prepass.view_cb_handle = renderable_camera.view_constant_buffer;
             render_passes.depth_prepass.scene_renderables = &renderable_scene.renderables;
 
+            render_passes.cluster_debug.view_cb_handle = renderable_camera.view_constant_buffer;
+            render_passes.cluster_debug.scene_renderables = &renderable_scene.renderables;
+            render_passes.cluster_debug.scene_constants_buffer = renderable_scene.scene_constants;
+            render_passes.cluster_debug.camera = &camera;
+
+            render_passes.forward.camera = &camera;
             render_passes.forward.view_cb_handle = renderable_camera.view_constant_buffer;
             render_passes.forward.scene_renderables = &renderable_scene.renderables;
             render_passes.forward.scene_constants_buffer = renderable_scene.scene_constants;
+            render_passes.forward.cluster_grid_setup = CLUSTER_SETUP;
 
             render_passes.background.view_cb_handle = renderable_camera.view_constant_buffer;
             render_passes.background.cube_map_buffer = radiance_map;
 
             render_pass_system::IRenderPass* pass_ptrs[] = {
-                &render_passes.light_binning_pass,
                 &render_passes.depth_prepass,
+                &render_passes.light_binning,
+                //&render_passes.cluster_debug,
                 &render_passes.forward,
                 &render_passes.background,
                 &render_passes.tone_mapping,

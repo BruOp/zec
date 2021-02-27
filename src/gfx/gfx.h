@@ -145,6 +145,9 @@ namespace zec::gfx
             ResourceTransitionDesc* transition_descs,
             u64 num_transitions
         );
+
+        void compute_write_barrier(const CommandContextHandle ctx, BufferHandle buffer_handle);
+        void compute_write_barrier(const CommandContextHandle ctx, TextureHandle texture_handle);
     }
 
     void set_debug_name(const ResourceLayoutHandle handle, const wchar* name);

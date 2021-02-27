@@ -7,14 +7,16 @@
 
 namespace clustered
 {
-    class ForwardPass : public zec::render_pass_system::IRenderPass
+    class ClusterDebugPass : public zec::render_pass_system::IRenderPass
     {
     public:
         zec::PerspectiveCamera* camera = nullptr;
         Renderables* scene_renderables = nullptr;
         zec::BufferHandle scene_constants_buffer = {};
         zec::BufferHandle view_cb_handle = {};
-        ClusterGridSetup cluster_grid_setup = {};
+
+        ClusterDebugPass(const ClusterGridSetup grid_setup) : cluster_grid_setup{ grid_setup }
+        { }
 
         virtual void setup() final;
 
@@ -57,7 +59,7 @@ namespace clustered
         }
 
         static constexpr zec::CommandQueueType command_queue_type = zec::CommandQueueType::GRAPHICS;
-        static constexpr char pass_name[] = "ForwardPass";
+        static constexpr char pass_name[] = "ClusterDebugPass";
         static constexpr zec::render_pass_system::PassInputDesc pass_inputs[] = {
             {
                 .id = PassResources::DEPTH_TARGET.id,
@@ -77,11 +79,11 @@ namespace clustered
         };
         static constexpr zec::render_pass_system::PassOutputDesc pass_outputs[] = {
             {
-                .id = PassResources::HDR_TARGET.id,
-                .name = PassResources::HDR_TARGET.name,
+                .id = PassResources::SDR_TARGET.id,
+                .name = PassResources::SDR_TARGET.name,
                 .type = zec::render_pass_system::PassResourceType::TEXTURE,
                 .usage = zec::RESOURCE_USAGE_RENDER_TARGET,
-                .texture_desc = {.format = zec::BufferFormat::R16G16B16A16_FLOAT}
+                .texture_desc = {.format = zec::BufferFormat::R8G8B8A8_UNORM_SRGB}
             }
         };
 
@@ -120,7 +122,7 @@ namespace clustered
         zec::PipelineStateHandle pso = {};
         zec::BufferHandle binning_cb = {};
 
+        ClusterGridSetup cluster_grid_setup = {};
         BinningConstants binning_constants = {};
-
     };
 }

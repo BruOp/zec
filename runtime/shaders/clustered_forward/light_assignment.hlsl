@@ -1,6 +1,6 @@
 #pragma pack_matrix( row_major )
 
-static const uint MAX_NUM_VISIBLE = 16;
+static const uint MAX_NUM_VISIBLE = 32;
 static const float TWO_PI = 6.283185307179586;
 
 
@@ -94,12 +94,6 @@ void CSMain(
 {
     RWByteAddressBuffer global_count_buffer = write_buffers_table[global_count_idx];
 
-    if (dispatch_id.x == 0 && dispatch_id.y == 0 && dispatch_id.z == 0) {
-        global_count_buffer.Store(0, 0);
-    }
-
-    AllMemoryBarrier();
-
     uint local_visible_count = 0;
     uint visible_lights[MAX_NUM_VISIBLE];
 
@@ -114,6 +108,7 @@ void CSMain(
     float2 plane_xy = max_z / z_near * float2(x_near, y_near);
     // Calculate the corners of our AABB using the far plane vertices
     float2 ratio = float2(dispatch_id.xy) / float2(grid_bins.xy);
+
     float3 left_bottom = float3(
         plane_xy.x * (2.0 * ratio.x - 1.0),
         plane_xy.y * (1.0 - 2.0 * ratio.y),
@@ -165,9 +160,12 @@ void CSMain(
     uint offset = 0;
     // TODO: Do we even care about this?
     global_count_buffer.InterlockedAdd(0, local_visible_count, offset);
-
+    
+    uint MAX_INDEX = 0;
+    indices_list.GetDimensions(MAX_INDEX);
     for (uint i = 0; i < local_visible_count; i++) {
-        indices_list.Store(offset + i, visible_lights[i]);
+        uint idx = min(offset + i, MAX_INDEX);
+        indices_list.Store(idx * sizeof(uint), visible_lights[i]);
     }
     
     cluster_infos[dispatch_id] = uint2(offset, local_visible_count);

@@ -19,12 +19,12 @@ namespace clustered
 
     void LightBinningPass::set_output_dimensions(const ClusterGridSetup cluster_grid_setup) {
     
-        u32 num_clusters = binning_constants.grid_bins_x * binning_constants.grid_bins_y * binning_constants.grid_bins_z;
-        pass_outputs[size_t(Outputs::LIGHT_INDICES)].buffer_desc.byte_size = ClusterGridSetup::MAX_LIGHTS_PER_BIN * num_clusters;
+        u32 num_clusters = cluster_grid_setup.width * cluster_grid_setup.height * cluster_grid_setup.depth;
+        pass_outputs[size_t(Outputs::LIGHT_INDICES)].buffer_desc.byte_size = ClusterGridSetup::MAX_LIGHTS_PER_BIN * num_clusters * sizeof(u32);
 
-        pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.width = float(binning_constants.grid_bins_x);
-        pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.height = float(binning_constants.grid_bins_y);
-        pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.depth = binning_constants.grid_bins_z;
+        pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.width = float(cluster_grid_setup.width);
+        pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.height = float(cluster_grid_setup.height);
+        pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.depth = cluster_grid_setup.depth;
     };
 
     void LightBinningPass::setup()
@@ -47,14 +47,36 @@ namespace clustered
         };
 
         resource_layout = gfx::pipelines::create_resource_layout(resource_layout_desc);
+
         PipelineStateObjectDesc pipeline_desc = {
             .resource_layout = resource_layout,
             .used_stages = PipelineStage::PIPELINE_STAGE_COMPUTE,
             .shader_file_path = L"shaders/clustered_forward/light_assignment.hlsl",
         };
-
         pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
         gfx::set_debug_name(pso, L"Light Binning PSO");
+
+        ResourceLayoutDesc clearing_resource_layout_desc{
+            .constants = {
+                { .visibility=ShaderVisibility::COMPUTE, .num_constants = 3 },
+            },
+            .num_constants = 1,
+            .constant_buffers = { },
+            .num_constant_buffers = 0,
+            .tables = {
+                {.usage = ResourceAccess::WRITE },
+            },
+            .num_resource_tables = 1,
+            .num_static_samplers = 0,
+        };
+        clearing_resource_layout = gfx::pipelines::create_resource_layout(clearing_resource_layout_desc);
+
+        clearing_pso = gfx::pipelines::create_pipeline_state_object({
+            .resource_layout = clearing_resource_layout,
+            .used_stages = PipelineStage::PIPELINE_STAGE_COMPUTE,
+            .shader_file_path = L"shaders/clustered_forward/clear_buffer.hlsl",
+            });
+        gfx::set_debug_name(pso, L"Light count clearing PSO");
 
         binning_cb = gfx::buffers::create({
             .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
@@ -81,6 +103,20 @@ namespace clustered
         binning_constants.cluster_offsets_idx = gfx::textures::get_shader_writable_index(cluster_offsets);
         binning_constants.global_count_idx = gfx::buffers::get_shader_writable_index(count_buffer);
         gfx::buffers::update(binning_cb, &binning_constants, sizeof(binning_constants));
+
+        gfx::cmd::set_compute_resource_layout(cmd_ctx, clearing_resource_layout);
+        gfx::cmd::set_compute_pipeline_state(cmd_ctx, clearing_pso);
+
+        u32 constants[] = {
+            gfx::buffers::get_shader_writable_index(count_buffer),
+            4,
+            0
+        };
+        gfx::cmd::bind_compute_constants(cmd_ctx, constants, std::size(constants), 0);
+        gfx::cmd::bind_compute_resource_table(cmd_ctx, 1);
+        gfx::cmd::dispatch(cmd_ctx, 1, 1, 1);
+
+        gfx::cmd::compute_write_barrier(cmd_ctx, count_buffer);
 
         gfx::cmd::set_compute_resource_layout(cmd_ctx, resource_layout);
         gfx::cmd::set_compute_pipeline_state(cmd_ctx, pso);

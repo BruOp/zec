@@ -55,11 +55,6 @@ namespace clustered
         const OutputList get_output_list() const override final;
 
     private:
-
-        zec::ResourceLayoutHandle resource_layout = {};
-        zec::PipelineStateHandle pso = {};
-        zec::BufferHandle binning_cb = {};
-
         enum struct Slots : u32
         {
             LIGHT_GRID_CONSTANTS = 0,
@@ -95,12 +90,17 @@ namespace clustered
             u32 global_count_idx;
         };
 
-        static constexpr zec::CommandQueueType command_queue_type = zec::CommandQueueType::ASYNC_COMPUTE;
-        static constexpr char pass_name[] = "Light Binning Pass";
-        //static constexpr render_pass_system::PassInputDesc pass_inputs[] = {};
-        //static const zec::render_pass_system::PassOutputDesc pass_outputs[3];
+        zec::ResourceLayoutHandle resource_layout = {};
+        zec::PipelineStateHandle pso = {};
+        zec::ResourceLayoutHandle clearing_resource_layout = {};
+        zec::PipelineStateHandle clearing_pso = {};
+        zec::BufferHandle binning_cb = {};
 
         BinningConstants binning_constants = {};
+
+        static constexpr zec::CommandQueueType command_queue_type = zec::CommandQueueType::GRAPHICS;
+        static constexpr char pass_name[] = "Light Binning Pass";
+        
         zec::render_pass_system::PassOutputDesc pass_outputs[3] = {
             {
                 .id = PassResources::COUNT_BUFFER.id,

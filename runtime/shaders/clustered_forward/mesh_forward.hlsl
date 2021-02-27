@@ -61,7 +61,6 @@ cbuffer view_constants_buffer : register(b2)
     float3 camera_pos;
 };
 
-
 cbuffer scene_constants_buffer : register(b3)
 {
     float time;
@@ -72,11 +71,26 @@ cbuffer scene_constants_buffer : register(b3)
     uint spot_light_buffer_idx;
 };
 
+cbuffer clustered_lighting_constants : register(b4)
+{
+    uint3 num_grid_bins;
+    
+    // Top right corner of the near plane
+    float x_near;
+    float y_near;
+    float z_near;
+    float z_far; // The z-value for the far plane
+    
+    uint indices_list_idx;
+    uint cluster_offsets_idx;
+};
+
 SamplerState default_sampler : register(s0);
 
 ByteAddressBuffer buffers_table[4096] : register(t0, space1);
 Texture2D tex2D_table[4096] : register(t0, space2);
 TextureCube tex_cube_table[4096] : register(t0, space3);
+Texture3D<uint2> tex3D_table[4096] : register(t0, space4);
 
 
 //=================================================================================================
@@ -118,7 +132,7 @@ float3 perturb_normal(Texture2D normal_map, float3 N, float3 V, float2 texcoord)
     // V, the view vector (vertex to eye)
     float3 map = normal_map.Sample(default_sampler, texcoord).xyz * 2.0 - 1.0;
     map.z = sqrt(1. - dot(map.xy, map.xy));
-    float3x3 TBN = cotangent_frame(N, V, texcoord);
+    float3x3 TBN = cotangent_frame(N, -V, texcoord);
     return normalize(mul(map, TBN));
 }
 
@@ -168,13 +182,26 @@ float3 calc_specular(float3 light_dir, float3 view_dir, float3 f0, float3 normal
     return D * V * F;
 }
 
+uint3 calculate_cluster_index(float3 position_ndc, float depth_view_space) {
+        uint3 cluster_idx;
+    float a = x_near / y_near;
+    float tan_fov = (y_near / -z_near);
+    float h = 2.0 * tan_fov / float(num_grid_bins.y);
+    
+    uint k = uint(floor(log(depth_view_space / -z_near) / log(1.0 + h)));
+    cluster_idx = uint3(0.5 * (position_ndc.xy + 1.0) * num_grid_bins.xy, k);
+
+    return cluster_idx;
+}
+
 //=================================================================================================
 // Vertex Shader
 //=================================================================================================
 
 struct PSInput
 {
-    float4 position_cs : SV_POSITION;
+    float4 sv_position : SV_POSITION;
+    float4 position_cs : POSITIONCS;
     float4 position_ws : POSITIONWS;
     float3 normal_ws : NORMAL;
     float2 uv : TEXCOORD;
@@ -186,7 +213,8 @@ PSInput VSMain(float3 position : POSITION0, float3 normal : NORMAL0, float2 uv :
     
     PSInput res;
     res.position_ws = mul(vs_cb.model, float4(position, 1.0));
-    res.position_cs = mul(VP, res.position_ws);
+    res.sv_position = mul(VP, res.position_ws);
+    res.position_cs = res.sv_position;
     res.uv = uv;
     // This sucks!
     float3x3 normal_transform = float3x3(vs_cb.normal._11_12_13, vs_cb.normal._21_22_23, vs_cb.normal._31_32_33);
@@ -280,11 +308,26 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     //     color += occlusion * (FssEss * radiance + base_color.rgb * irradiance);
     // }
-    
-    float3 light_out = float3(0.0, 0.0, 0.0);
+
+    // Get light info
+    float3 position_ndc = input.position_cs.xyz /= input.position_cs.w;
+    position_ndc.y *= -1.0;
+    float depth_vs = input.position_cs.w;
+
+    uint3 cluster_idx = calculate_cluster_index(position_ndc, depth_vs);
+
     ByteAddressBuffer spot_lights_buffer = buffers_table[spot_light_buffer_idx];
-    for (uint i =0; i < num_spot_lights; ++i) {
-        SpotLight spot_light = spot_lights_buffer.Load<SpotLight>(i * sizeof(SpotLight));
+    ByteAddressBuffer indices_buffer = buffers_table[indices_list_idx];
+    Texture3D<uint2> cluster_offsets = tex3D_table[cluster_offsets_idx];
+
+    uint2 offset_and_count = cluster_offsets[cluster_idx];
+    uint light_offset = offset_and_count.x;
+    uint light_count = offset_and_count.y;
+
+    float3 light_out = float3(0.0, 0.0, 0.0);
+    for (uint i =0; i < light_count; ++i) {
+        uint light_idx = indices_buffer.Load<uint>((i + light_offset) * sizeof(uint));
+        SpotLight spot_light = spot_lights_buffer.Load<SpotLight>(light_idx * sizeof(SpotLight));
         float3 light_dir = spot_light.position - input.position_ws.xyz;
         float light_dist = length(light_dir);
         light_dir = light_dir / light_dist;
@@ -298,14 +341,17 @@ float4 PSMain(PSInput input) : SV_TARGET
         float distance_attenuation = 1.0 / (light_dist * light_dist + 0.01);
         //float distance_attenuation = pow(saturate(1.0 - pow(light_dist / spot_light.radius, 4)), 2) / (light_dist * light_dist + 0.01)
         
-        float attenuation = directonal_attenuation  * distance_attenuation;
-        float3 light_in = attenuation * spot_light.color * clamp_dot(normal, light_dir);
+        float attenuation = directonal_attenuation * distance_attenuation * clamp_dot(normal, light_dir);
+        if (attenuation == 0) {
+            continue;
+        }
+        float3 light_in = attenuation * spot_light.color;
     
         float3 brdf_specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
         
         light_out += light_in * (INV_PI *  brdf_diffuse + brdf_specular);
     }
-    color += emissive + occlusion * light_out * PI;
+    color += light_out * PI;
 
     return float4(color, 1.0);
 }

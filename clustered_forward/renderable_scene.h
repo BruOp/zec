@@ -132,6 +132,6 @@ namespace clustered
         u32 width = 1;
         u32 height = 1;
         u32 depth = 1;
-        constexpr static u32 MAX_LIGHTS_PER_BIN = 16;
+        constexpr static u32 MAX_LIGHTS_PER_BIN = 32;
     };
 }

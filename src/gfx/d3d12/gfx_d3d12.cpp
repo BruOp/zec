@@ -1136,15 +1136,22 @@ namespace zec::gfx
 
                 if (desc.is_cubemap) {
                     ASSERT(texture.info.array_size == 6);
+                    ASSERT(texture.info.depth == 1);
+                    ASSERT(!desc.is_3d);
                     srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-                    srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
                     srv_desc.TextureCube.MostDetailedMip = 0;
                     srv_desc.TextureCube.MipLevels = texture.info.num_mips;
                     srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
                 }
 
-                // TODO: 3D Texture support
-                ASSERT(!desc.is_3d);
+                if (desc.is_3d) {
+                    // Can't support 3D texture arrays
+                    ASSERT(desc.array_size == 1);
+                    srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+                    srv_desc.Texture3D.MipLevels = desc.num_mips;
+                    srv_desc.Texture3D.MostDetailedMip = 0;
+                    srv_desc.Texture3D.ResourceMinLODClamp = 0.0f;
+                }
 
                 if (desc.usage & RESOURCE_USAGE_RENDER_TARGET) {
                     texture.srv = g_context.descriptor_heap_manager.allocate_descriptors(g_context.device, texture.resource, static_cast<D3D12_SHADER_RESOURCE_VIEW_DESC*>(nullptr));
@@ -1346,7 +1353,7 @@ namespace zec::gfx
                     }
                 }
             }
-
+            image.Release();
             ID3D12GraphicsCommandList* cmd_list = get_command_list(cmd_ctx);
             for (u64 subresource_idx = 0; subresource_idx < num_subresources; ++subresource_idx) {
                 D3D12_TEXTURE_COPY_LOCATION dst = { };
@@ -1679,7 +1686,41 @@ namespace zec::gfx
             }
             ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
             cmd_list->ResourceBarrier(u32(num_transitions), barriers);
-        };
+        }
+        
+        void compute_write_barrier(const CommandContextHandle ctx, BufferHandle buffer_handle)
+        {
+            ASSERT(is_valid(buffer_handle));
+            DescriptorRangeHandle uav = g_context.buffers.uavs[buffer_handle];
+            ASSERT(is_valid(uav));
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+
+            D3D12_RESOURCE_BARRIER barrier{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_UAV,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                .UAV = {
+                    .pResource = g_context.buffers.resources[buffer_handle]
+                },
+            };
+            cmd_list->ResourceBarrier(1, &barrier);
+        }
+
+        void compute_write_barrier(const CommandContextHandle ctx, TextureHandle texture_handle)
+        {
+            ASSERT(is_valid(texture_handle));
+            DescriptorRangeHandle uav = g_context.textures.uavs[texture_handle];
+            ASSERT(is_valid(uav));
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
+
+            D3D12_RESOURCE_BARRIER barrier{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_UAV,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                .UAV = {
+                    .pResource = g_context.textures.resources[texture_handle]
+                },
+            };
+            cmd_list->ResourceBarrier(1, &barrier);
+        }
     }
 
     void set_debug_name(const ResourceLayoutHandle handle, const wchar* name)
