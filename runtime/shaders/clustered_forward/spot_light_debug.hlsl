@@ -16,13 +16,7 @@ struct SpotLight
     float3 color;
 };
 
-cbuffer draw_call_constants0 : register(b0)
-{
-    uint renderable_idx;
-
-}
-
-cbuffer view_constants_buffer : register(b1)
+cbuffer view_constants_buffer : register(b0)
 {
     float4x4 VP;
     float4x4 invVP;
@@ -30,7 +24,7 @@ cbuffer view_constants_buffer : register(b1)
     float3 camera_pos;
 };
 
-cbuffer scene_constants_buffer : register(b2)
+cbuffer scene_constants_buffer : register(b1)
 {
     float time;
     uint radiance_map_idx;
@@ -68,9 +62,9 @@ float4 quaternion_mul(float4 q1, float4 q2)
     );
 }
 
-PSInput VSMain(uint vert_idx : SV_VERTEXID)
+PSInput VSMain(uint vert_idx : SV_VERTEXID, uint instance_id : SV_INSTANCEID)
 {
-    SpotLight spot_light = buffers_table[spot_light_buffer_idx].Load<SpotLight>(renderable_idx * sizeof(SpotLight));
+    SpotLight spot_light = buffers_table[spot_light_buffer_idx].Load<SpotLight>(instance_id * sizeof(SpotLight));
     
     float4 vert_position;
         vert_position.w = 1.0;

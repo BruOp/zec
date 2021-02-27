@@ -90,7 +90,7 @@ namespace zec::gfx
 
         // Draw
         void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices);
-        void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id);
+        void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id, const size_t num_instances = 1);
         void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
 
 

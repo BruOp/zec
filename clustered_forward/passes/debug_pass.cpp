@@ -7,10 +7,8 @@ namespace clustered
 void DebugPass::setup()
     {
         ResourceLayoutDesc layout_desc{
-            .constants = {
-                {.visibility = ShaderVisibility::VERTEX, .num_constants = 1 },
-            },
-            .num_constants = 1,
+            .constants = { },
+            .num_constants = 0,
             .constant_buffers = {
                 { ShaderVisibility::VERTEX },
                 { ShaderVisibility::VERTEX },
@@ -90,9 +88,6 @@ void DebugPass::setup()
         gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::RAW_BUFFERS_TABLE));
 
         // Render spot light bounding frustums
-        for (u32 i = 0; i < renderable_scene->scene_constant_data.num_spot_lights; i++) {
-            gfx::cmd::bind_graphics_constants(cmd_ctx, &i, 1, u32(BindingSlots::PER_INSTANCE_CONSTANTS));
-            gfx::cmd::draw_mesh(cmd_ctx, frustum_indices_buffer);
-        }
+        gfx::cmd::draw_mesh(cmd_ctx, frustum_indices_buffer, renderable_scene->scene_constant_data.num_spot_lights);
     };
 }

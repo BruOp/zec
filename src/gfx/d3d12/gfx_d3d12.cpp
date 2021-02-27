@@ -1509,7 +1509,7 @@ namespace zec::gfx
             cmd_list->DrawInstanced(u32(buffer_info.per_frame_size) / stride, 1, 0, 0);
         };
 
-        void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id)
+        void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id, const size_t num_instances)
         {
             ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
             const BufferInfo& buffer_info = g_context.buffers.infos[index_buffer_id];
@@ -1521,7 +1521,7 @@ namespace zec::gfx
             };
             cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             cmd_list->IASetIndexBuffer(&view);
-            cmd_list->DrawIndexedInstanced(u32(buffer_info.per_frame_size / buffer_info.stride), 1, 0, 0, 0);
+            cmd_list->DrawIndexedInstanced(u32(buffer_info.per_frame_size / buffer_info.stride), num_instances, 0, 0, 0);
         }
 
         //--------- Resource Binding ----------

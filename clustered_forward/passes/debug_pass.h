@@ -79,7 +79,6 @@ namespace clustered
     private:
         enum struct BindingSlots : u32
         {
-            PER_INSTANCE_CONSTANTS = 0,
             VIEW_CONSTANT_BUFFER,
             SCENE_CONSTANT_BUFFER,
             RAW_BUFFERS_TABLE,
