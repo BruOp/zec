@@ -16,9 +16,12 @@
 #include "passes/tone_mapping_pass.h"
 #include "passes/light_binning_pass.h"
 #include "passes/cluster_debug_pass.h"
+#include "passes/debug_pass.h"
 
 #include "compute_tasks/brdf_lut_creator.h"
 #include "compute_tasks/irradiance_map_creator.h"
+
+#include <random>
 
 static constexpr u32 DESCRIPTOR_TABLE_SIZE = 4096;
 static constexpr size_t MAX_NUM_OBJECTS = 16384;
@@ -56,6 +59,7 @@ namespace clustered
             LightBinningPass light_binning = { CLUSTER_SETUP };
             ClusterDebugPass cluster_debug = { CLUSTER_SETUP };
             ForwardPass forward = {};
+            DebugPass debug_pass = {};
             BackgroundPass background = {};
             ToneMappingPass tone_mapping = {};
         };
@@ -102,28 +106,34 @@ namespace clustered
                     {0.1f, 0.4f, 0.4f },
                 };
 
-                constexpr size_t num_lights = 512;
-                for (size_t i = 0; i < num_lights; ++i) {
-                    constexpr float scene_length = 40.0f;
-                    constexpr float scene_width = 40.0f;
+                std::default_random_engine generator;
+                std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
+                auto random_generator = std::bind(distribution, generator);
+                
+                constexpr size_t num_lights = 96;
+                for (size_t idx = 0; idx < num_lights; ++idx) {
+                    constexpr float scene_width = 25.0f;
+                    constexpr float scene_length = 12.0f;
                     constexpr float scene_height = 14.0f;
-                    float coeff = float(i) / float(num_lights - 1);
+                    float coeff = float(idx) / float(num_lights - 1);
                     float phase = k_2_pi * coeff;
-                    constexpr u32 grid_size_x = 8;
-                    constexpr u32 grid_size_y = 8;
-                    constexpr u32 grid_size_z = 8;
+                    constexpr u32 grid_size_x = 6;
+                    constexpr u32 grid_size_y = 4;
+                    constexpr u32 grid_size_z = 4;
 
-                    const u32 xz_idx = i % (grid_size_x * grid_size_z);
+                    u32 k = idx / (grid_size_x * grid_size_z);
+                    u32 j = (idx - k * (grid_size_x * grid_size_y)) / grid_size_x;
+                    u32 i = idx - j * grid_size_x - k * (grid_size_x * grid_size_y);
                     vec3 position = {
-                        float(xz_idx % grid_size_x) * (scene_width / float(grid_size_x)) - (0.5f * scene_width),
-                        2.0f + float(i / u32(64)) * (scene_height / float(grid_size_y)),
-                        float(xz_idx / grid_size_z) * (scene_length / float(grid_size_z)) - (0.5f * scene_length),
+                        (2.0f * float(i) / float(grid_size_x) - 1.0f) * scene_width,
+                        float(j) / float(grid_size_y) * scene_height,
+                        (2.0f * float(k) / float(grid_size_z) - 1.0f) * scene_length,
                     };
                     // Set positions in Cartesian
                     spot_lights.push_back({
                         .position = position,
-                        .radius = 3.0f,
-                        .direction = vec3{0.0f, -1.0f, 0.0f},
+                        .radius = 6.0f,
+                        .direction = normalize(vec3{random_generator(), -random_generator(), random_generator()}),
                         .umbra_angle = k_half_pi * 0.25f,
                         .penumbra_angle = k_half_pi * 0.2f,
                         .color = light_colors[i % std::size(light_colors)] * 2.0f,
@@ -248,6 +258,9 @@ namespace clustered
             render_passes.cluster_debug.scene_constants_buffer = renderable_scene.scene_constants;
             render_passes.cluster_debug.camera = &camera;
 
+            render_passes.debug_pass.view_cb_handle = renderable_camera.view_constant_buffer;
+            render_passes.debug_pass.renderable_scene = &renderable_scene;
+
             render_passes.forward.camera = &camera;
             render_passes.forward.view_cb_handle = renderable_camera.view_constant_buffer;
             render_passes.forward.scene_renderables = &renderable_scene.renderables;
@@ -264,6 +277,7 @@ namespace clustered
                 &render_passes.forward,
                 &render_passes.background,
                 &render_passes.tone_mapping,
+                &render_passes.debug_pass,
             };
             render_pass_system::RenderPassListDesc render_list_desc = {
                 .render_passes = pass_ptrs,
