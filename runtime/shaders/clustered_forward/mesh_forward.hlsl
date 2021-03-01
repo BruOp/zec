@@ -183,12 +183,12 @@ float3 calc_specular(float3 light_dir, float3 view_dir, float3 f0, float3 normal
 }
 
 uint3 calculate_cluster_index(float3 position_ndc, float depth_view_space) {
-        uint3 cluster_idx;
+    uint3 cluster_idx;
     float a = x_near / y_near;
     float tan_fov = (y_near / -z_near);
     float h = 2.0 * tan_fov / float(num_grid_bins.y);
     
-    uint k = uint(floor(log(depth_view_space / -z_near) / log(1.0 + h)));
+    uint k = uint(log(depth_view_space / -z_near) / log(1.0 + h));
     cluster_idx = uint3(0.5 * (position_ndc.xy + 1.0) * num_grid_bins.xy, k);
 
     return cluster_idx;
@@ -338,8 +338,8 @@ float4 PSMain(PSInput input) : SV_TARGET
         float directonal_attenuation = t * t;
         
         // Taken from KARIS 2013
-        float distance_attenuation = 1.0 / (light_dist * light_dist + 0.01);
-        //float distance_attenuation = pow(saturate(1.0 - pow(light_dist / spot_light.radius, 4)), 2) / (light_dist * light_dist + 0.01)
+        // float distance_attenuation = 1.0 / (light_dist * light_dist + 0.01);
+        float distance_attenuation = pow(saturate(1.0 - pow(light_dist / spot_light.radius, 4.0)), 2.0) / (light_dist * light_dist + 0.01);
         
         float attenuation = directonal_attenuation * distance_attenuation * clamp_dot(normal, light_dir);
         if (attenuation == 0) {

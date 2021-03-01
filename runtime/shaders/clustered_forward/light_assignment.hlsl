@@ -71,16 +71,16 @@ bool test_cone_vs_sphere(
     in float3 light_dir,
     in float light_radius,
     in float light_umbra,
-    in Sphere test_sphere
+    in float4 test_sphere
 ) {
-    const float3 V = test_sphere.center - light_origin;
+    const float3 V = test_sphere.xyz - light_origin;
     const float  VlenSq = dot(V, V);
     const float  V1len  = dot(V, light_dir);
     const float  distance_closest_point = cos(light_umbra) * sqrt(VlenSq - V1len*V1len) - V1len * sin(light_umbra);
  
-    const bool angle_cull = distance_closest_point > test_sphere.radius;
-    const bool front_cull = V1len > test_sphere.radius + light_radius;
-    const bool back_cull  = V1len < -test_sphere.radius;
+    const bool angle_cull = distance_closest_point > test_sphere.w;
+    const bool front_cull = V1len > test_sphere.w + light_radius;
+    const bool back_cull  = V1len < -test_sphere.w;
     return !(angle_cull || front_cull || back_cull);
 }
 
@@ -99,36 +99,49 @@ void CSMain(
 
     ByteAddressBuffer spot_light_buffer = buffers_table[spot_light_buffer_idx];
     
-    // Calculate bounding sphere
+    // Calculate view space AABB
     float tan_theta = y_near / -z_near;
     float h_0 = 2.0 * tan_theta / float(grid_bins.y);
-    float max_z = z_near * pow(1.0 + h_0, float(dispatch_id.z));
-    float min_z = z_near * pow(1.0 + h_0, float(dispatch_id.z + 1));
-    // Width of the frustum slice at max_z
-    float2 plane_xy = max_z / z_near * float2(x_near, y_near);
-    // Calculate the corners of our AABB using the far plane vertices
-    float2 ratio = float2(dispatch_id.xy) / float2(grid_bins.xy);
+    float cluster_near_z = z_near * pow(1.0 + h_0, float(dispatch_id.z));
+    float cluster_far_z = z_near * pow(1.0 + h_0, float(dispatch_id.z + 1));
 
-    float3 left_bottom = float3(
-        plane_xy.x * (2.0 * ratio.x - 1.0),
-        plane_xy.y * (1.0 - 2.0 * ratio.y),
-        min_z
-    );
+    float3 min_corner;
+    float3 max_corner;
+    min_corner.z = cluster_near_z;
+    max_corner.z = cluster_far_z;
+
+    float2 delta_XY = 2.0 / float2(grid_bins.xy);
+    float2 left_bottom_ndc_xy = (float2(dispatch_id.xy) * delta_XY - 1.0);
+    float2 right_top_ndc_xy = (float2(dispatch_id.xy + 1) * delta_XY - 1.0);
     
-    ratio = float2(dispatch_id.xy + 1) / float2(grid_bins.xy);
-    float3 right_top = float3(
-        plane_xy.x * (2.0 * ratio.x - 1.0),
-        plane_xy.y * (1.0 - 2.0 * ratio.y),
-        max_z
-    );
+    min_corner.x = x_near / z_near * left_bottom_ndc_xy.x;
+    max_corner.x = x_near / z_near * right_top_ndc_xy.x;
+
+    if (left_bottom_ndc_xy.x < 0.5) {
+        // We're on the left size of the frustum, so the left, far side will be min
+        // And the near right side will be max
+        min_corner.x *= cluster_far_z;
+        max_corner.x *= cluster_near_z;
+    } else {
+        min_corner.x *= cluster_near_z;
+        max_corner.x *= cluster_far_z;
+    }
+
+    min_corner.y = tan_theta * left_bottom_ndc_xy.y;
+    max_corner.y = tan_theta * right_top_ndc_xy.y;
+    if (left_bottom_ndc_xy.y < 0.5) {
+        min_corner.y *= cluster_far_z;
+        max_corner.y *= cluster_near_z;
+    } else {
+        min_corner.y *= cluster_near_z;
+        max_corner.y *= cluster_far_z;
+    }
     
-    // Calculate center
-    float3 center = 0.5 * (left_bottom + right_top);
-    // Calculate radius
-    float radius = length(right_top - center);
-    Sphere cluster_sphere;
-    cluster_sphere.center = center;
-    cluster_sphere.radius = radius;
+    // so now our AABB is defined by min and max corner
+    float4 bounding_sphere = float4(
+        0.5 * (min_corner + max_corner),
+        0.5 * distance(max_corner, min_corner)
+    );
 
     // There's two options: we can transform each light on each thread,
     // resulting in a lot of wasted cycles
@@ -138,11 +151,11 @@ void CSMain(
     for (uint light_idx = 0; light_idx < num_spot_lights; ++light_idx) {
         SpotLight light = spot_light_buffer.Load<SpotLight>(light_idx * sizeof(SpotLight));
         float3 position = mul(view, float4(light.position, 1.0f)).xyz;
-        float3 direction = mul(view, float4(light.direction, 0.0f)).xyz;
+        float3 direction = normalize(mul(view, float4(light.direction, 0.0f)).xyz);
 
         if (
             local_visible_count < MAX_NUM_VISIBLE
-            && test_cone_vs_sphere(position, direction, light.radius, light.umbra_angle, cluster_sphere)
+            && test_cone_vs_sphere(position, direction, light.radius, light.umbra_angle, bounding_sphere)
         ) {
             visible_lights[local_visible_count++] = light_idx;
         };

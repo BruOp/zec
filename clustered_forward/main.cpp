@@ -95,48 +95,49 @@ namespace clustered
             // Create lights
             {
                 constexpr vec3 light_colors[] = {
-                    {1.0f, 0.0f, 0.0f },
-                    {0.0f, 1.0f, 0.0f },
-                    {0.0f, 0.0f, 1.0f },
-                    {1.0f, 1.0f, 0.0f },
-                    {1.0f, 0.0f, 1.0f },
-                    {0.0f, 1.0f, 1.0f },
+                    {1.0f, 0.6f, 0.6f },
+                    {0.6f, 1.0f, 0.6f },
+                    {0.6f, 0.6f, 1.0f },
+                    {1.0f, 1.0f, 0.6f },
+                    {1.0f, 0.6f, 1.0f },
+                    {0.6f, 1.0f, 1.0f },
                     {1.0f, 1.0f, 1.0f },
                     {0.5f, 0.3f, 1.0f },
-                    {0.1f, 0.4f, 0.4f },
+                    {0.7f, 0.8f, 1.0f },
                 };
 
                 std::default_random_engine generator;
                 std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
                 auto random_generator = std::bind(distribution, generator);
                 
-                constexpr size_t num_lights = 96;
+                constexpr float scene_width = 25.0f;
+                constexpr float scene_length = 12.0f;
+                constexpr float scene_height = 14.0f;
+                constexpr u32 grid_size_x = 8;
+                constexpr u32 grid_size_y = 3;
+                constexpr u32 grid_size_z = 4;
+                constexpr size_t num_lights = grid_size_x * grid_size_y * grid_size_z;
                 for (size_t idx = 0; idx < num_lights; ++idx) {
-                    constexpr float scene_width = 25.0f;
-                    constexpr float scene_length = 12.0f;
-                    constexpr float scene_height = 14.0f;
                     float coeff = float(idx) / float(num_lights - 1);
                     float phase = k_2_pi * coeff;
-                    constexpr u32 grid_size_x = 6;
-                    constexpr u32 grid_size_y = 4;
-                    constexpr u32 grid_size_z = 4;
 
-                    u32 k = idx / (grid_size_x * grid_size_z);
-                    u32 j = (idx - k * (grid_size_x * grid_size_y)) / grid_size_x;
-                    u32 i = idx - j * grid_size_x - k * (grid_size_x * grid_size_y);
+                    u32 j = idx / (grid_size_x * grid_size_z);
+                    u32 k = (idx - j * (grid_size_z * grid_size_x)) / grid_size_x;
+                    u32 i = idx - k * (grid_size_x) -j * (grid_size_z * grid_size_x);
                     vec3 position = {
                         (2.0f * float(i) / float(grid_size_x) - 1.0f) * scene_width,
-                        float(j) / float(grid_size_y) * scene_height,
+                        2.0f + float(j) / float(grid_size_y) * scene_height,
                         (2.0f * float(k) / float(grid_size_z) - 1.0f) * scene_length,
                     };
                     // Set positions in Cartesian
                     spot_lights.push_back({
                         .position = position,
-                        .radius = 6.0f,
-                        .direction = normalize(vec3{random_generator(), -random_generator(), random_generator()}),
+                        .radius = 10.0f,
+                        .direction = normalize(vec3{random_generator(), -1.0f, random_generator()}),
+                        //.direction = vec3{0.0f, -1.0f, 0.0f},
                         .umbra_angle = k_half_pi * 0.25f,
                         .penumbra_angle = k_half_pi * 0.2f,
-                        .color = light_colors[i % std::size(light_colors)] * 2.0f,
+                        .color = light_colors[i % std::size(light_colors)] * 3.0f,
                         });
                 }
             }
