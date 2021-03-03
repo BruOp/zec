@@ -103,16 +103,7 @@ namespace clustered
 
         struct BinningConstants
         {
-            u32 grid_bins_x = 1;
-            u32 grid_bins_y = 1;
-            u32 grid_bins_z = 1;
-
-            // Top right corner of the near plane
-            float x_near = 0.0f;
-            float y_near = 0.0f;
-            float z_near = 0.0f;
-            // The z-value for the far plane
-            float z_far = 0.0f;
+            ClusterGridSetup setup;
 
             u32 indices_list_idx;
             u32 cluster_offsets_idx;

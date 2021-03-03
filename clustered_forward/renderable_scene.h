@@ -131,7 +131,13 @@ namespace clustered
     {
         u32 width = 1;
         u32 height = 1;
-        u32 depth = 1;
+        u32 pre_mid_depth = 1;
+        u32 post_mid_depth = 1;
+        float near_x;
+        float near_y;
+        float near_plane;
+        float far_plane;
+        float mid_plane;
         constexpr static u32 MAX_LIGHTS_PER_BIN = 32;
     };
 }

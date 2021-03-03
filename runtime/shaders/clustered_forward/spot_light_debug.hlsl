@@ -73,8 +73,8 @@ PSInput VSMain(uint vert_idx : SV_VERTEXID, uint instance_id : SV_INSTANCEID)
         vert_position = float4(spot_light.position, 1.0);
     } else {
         float3 world_up = abs(spot_light.direction.y) > 0.9 ? float3(0.0, 0.0, 1.0) : float3(0.0, 1.0, 0.0);
-        float3 right = cross(spot_light.direction, world_up);
-        float3 up = cross(spot_light.direction, right);
+        float3 right = normalize(cross(spot_light.direction, world_up));
+        float3 up = normalize(cross(spot_light.direction, right));
 
         // How far the bounding frustum will extend in any direction
         float cap_extent = spot_light.radius * tan(spot_light.umbra_angle);

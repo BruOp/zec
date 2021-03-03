@@ -18,13 +18,13 @@ namespace clustered
     }
 
     void LightBinningPass::set_output_dimensions(const ClusterGridSetup cluster_grid_setup) {
-    
-        u32 num_clusters = cluster_grid_setup.width * cluster_grid_setup.height * cluster_grid_setup.depth;
+        u32 depth = cluster_grid_setup.pre_mid_depth + cluster_grid_setup.post_mid_depth;
+        u32 num_clusters = cluster_grid_setup.width * cluster_grid_setup.height * depth;
         pass_outputs[size_t(Outputs::LIGHT_INDICES)].buffer_desc.byte_size = ClusterGridSetup::MAX_LIGHTS_PER_BIN * num_clusters * sizeof(u32);
 
         pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.width = float(cluster_grid_setup.width);
         pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.height = float(cluster_grid_setup.height);
-        pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.depth = cluster_grid_setup.depth;
+        pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.depth = depth;
     };
 
     void LightBinningPass::setup()
@@ -92,13 +92,7 @@ namespace clustered
         const TextureHandle cluster_offsets = resource_map.get_texture_resource(PassResources::CLUSTER_OFFSETS.id);
 
         // Hmmm, shouldn't this be in copy?
-        binning_constants.grid_bins_x = cluster_grid_setup.width;
-        binning_constants.grid_bins_y = cluster_grid_setup.height;
-        binning_constants.grid_bins_z = cluster_grid_setup.depth;
-        binning_constants.x_near = camera->aspect_ratio * tanf(0.5f * camera->vertical_fov) * camera->near_plane,
-        binning_constants.y_near = tanf(0.5f * camera->vertical_fov) * camera->near_plane,
-        binning_constants.z_near = -camera->near_plane,
-        binning_constants.z_far = -camera->far_plane,
+        binning_constants.setup = cluster_grid_setup;
         binning_constants.indices_list_idx = gfx::buffers::get_shader_writable_index(indices_buffer);
         binning_constants.cluster_offsets_idx = gfx::textures::get_shader_writable_index(cluster_offsets);
         binning_constants.global_count_idx = gfx::buffers::get_shader_writable_index(count_buffer);
@@ -130,9 +124,9 @@ namespace clustered
         gfx::cmd::bind_compute_resource_table(cmd_ctx, u32(Slots::WRITE_3D_TEXTURES_TABLE));
 
         u32 group_size = 8;
-        u32 group_count_x = (binning_constants.grid_bins_x + (group_size - 1)) / group_size;
-        u32 group_count_y = (binning_constants.grid_bins_y + (group_size - 1)) / group_size;
-        u32 group_count_z = binning_constants.grid_bins_z;
+        u32 group_count_x = (binning_constants.setup.width + (group_size - 1)) / group_size;
+        u32 group_count_y = (binning_constants.setup.height + (group_size - 1)) / group_size;
+        u32 group_count_z = binning_constants.setup.pre_mid_depth + binning_constants.setup.post_mid_depth;
 
         gfx::cmd::dispatch(cmd_ctx, group_count_x, group_count_y, group_count_z);
     };

@@ -74,13 +74,7 @@ namespace clustered
         const TextureHandle cluster_offsets = resource_map.get_texture_resource(PassResources::CLUSTER_OFFSETS.id);
 
         // Hmmm, shouldn't this be in copy?
-        binning_constants.grid_bins_x = cluster_grid_setup.width;
-        binning_constants.grid_bins_y = cluster_grid_setup.height;
-        binning_constants.grid_bins_z = cluster_grid_setup.depth;
-        binning_constants.x_near = camera->aspect_ratio * tanf(0.5f * camera->vertical_fov) * camera->near_plane,
-        binning_constants.y_near = tanf(0.5f * camera->vertical_fov) * camera->near_plane,
-        binning_constants.z_near = -camera->near_plane,
-        binning_constants.z_far = -camera->far_plane,
+        binning_constants.setup = cluster_grid_setup;
         binning_constants.indices_list_idx = gfx::buffers::get_shader_readable_index(indices_buffer);
         binning_constants.cluster_offsets_idx = gfx::textures::get_shader_readable_index(cluster_offsets);
         gfx::buffers::update(binning_cb, &binning_constants, sizeof(binning_constants));

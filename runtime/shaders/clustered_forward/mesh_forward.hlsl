@@ -73,13 +73,17 @@ cbuffer scene_constants_buffer : register(b3)
 
 cbuffer clustered_lighting_constants : register(b4)
 {
-    uint3 num_grid_bins;
+    uint grid_width;
+    uint grid_height;
+    uint pre_mid_depth;
+    uint post_mid_depth;
     
     // Top right corner of the near plane
     float x_near;
     float y_near;
     float z_near;
     float z_far; // The z-value for the far plane
+    float mid_plane; // The z-value that defines a transition from one partitioning scheme to another;
     
     uint indices_list_idx;
     uint cluster_offsets_idx;
@@ -186,13 +190,23 @@ uint3 calculate_cluster_index(float3 position_ndc, float depth_view_space) {
     uint3 cluster_idx;
     float a = x_near / y_near;
     float tan_fov = (y_near / -z_near);
-    float h = 2.0 * tan_fov / float(num_grid_bins.y);
-    
-    uint k = uint(log(depth_view_space / -z_near) / log(1.0 + h));
-    cluster_idx = uint3(0.5 * (position_ndc.xy + 1.0) * num_grid_bins.xy, k);
+
+    uint k;
+    if (-depth_view_space <= mid_plane) {
+        // Beyond mid plane, switch to cubic partitioning
+        // Ola Olsson
+        k = pre_mid_depth + uint(log2(-depth_view_space / mid_plane) / log2(1.0 + 2.0 * tan_fov / grid_height));
+    } else {
+        //Linear depth partitioning
+        // linear
+        k = uint((-depth_view_space - z_near) / (mid_plane - z_near) * float(pre_mid_depth));
+    }
+
+    cluster_idx = uint3(0.5 * (position_ndc.xy + 1.0) * float2(grid_width, grid_height), k);
 
     return cluster_idx;
 }
+
 
 //=================================================================================================
 // Vertex Shader
@@ -311,7 +325,6 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     // Get light info
     float3 position_ndc = input.position_cs.xyz /= input.position_cs.w;
-    position_ndc.y *= -1.0;
     float depth_vs = input.position_cs.w;
 
     uint3 cluster_idx = calculate_cluster_index(position_ndc, depth_vs);

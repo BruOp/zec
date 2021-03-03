@@ -1,4 +1,5 @@
 
+#include "pch.h"
 #include "app.h"
 #include "core/zec_math.h"
 #include "utils/exceptions.h"
@@ -31,24 +32,25 @@ using namespace zec;
 namespace clustered
 {
     constexpr float VERTICAL_FOV = deg_to_rad(65.0f);
+    const float TAN_FOV = tanf(0.5f * VERTICAL_FOV);
     constexpr float CAMERA_NEAR = 0.1f;
     constexpr float CAMERA_FAR = 100.0f;
 
     constexpr u32 CLUSTER_HEIGHT = 16;
+    constexpr float CLUSTER_MID_PLANE = 5.0f;
+    constexpr u32 PRE_MID_DEPTH = 10 ;
+    
     const static ClusterGridSetup CLUSTER_SETUP = {
         .width = 2 * CLUSTER_HEIGHT,
         .height = CLUSTER_HEIGHT,
-        .depth = u32(ceilf(log10f(CAMERA_FAR / CAMERA_NEAR) / log10f(1.0f + 2.0f * tanf(0.5f * VERTICAL_FOV) / CLUSTER_HEIGHT))),
+        .pre_mid_depth = PRE_MID_DEPTH,
+        .post_mid_depth = u32(ceilf(log10f(CAMERA_FAR / CLUSTER_MID_PLANE) / log10f(1.0f + 2.0f * tanf(0.5f * VERTICAL_FOV) / CLUSTER_HEIGHT))),
+        .near_x = 16.0f / 9.0f * TAN_FOV * CAMERA_NEAR,
+        .near_y = TAN_FOV * CAMERA_NEAR,
+        .near_plane=-CAMERA_NEAR,
+        .far_plane=-CAMERA_FAR,
+        .mid_plane=-CLUSTER_MID_PLANE,
     };
-
-    ClusterGridSetup calculate_cluster_grid(u32 pixel_width, u32 pixel_height, u32 num_depth_divisions, u32 tile_size)
-    {
-        return {
-            .width = pixel_width + (tile_size - 1) / tile_size,
-            .height = pixel_height + (tile_size - 1) / tile_size,
-            .depth = num_depth_divisions
-        };
-    }
     
     class ClusteredForward : public zec::App
     {
@@ -114,7 +116,7 @@ namespace clustered
                 constexpr float scene_length = 12.0f;
                 constexpr float scene_height = 14.0f;
                 constexpr u32 grid_size_x = 8;
-                constexpr u32 grid_size_y = 3;
+                constexpr u32 grid_size_y = 4;
                 constexpr u32 grid_size_z = 4;
                 constexpr size_t num_lights = grid_size_x * grid_size_y * grid_size_z;
                 for (size_t idx = 0; idx < num_lights; ++idx) {
@@ -126,13 +128,13 @@ namespace clustered
                     u32 i = idx - k * (grid_size_x) -j * (grid_size_z * grid_size_x);
                     vec3 position = {
                         (2.0f * float(i) / float(grid_size_x) - 1.0f) * scene_width,
-                        2.0f + float(j) / float(grid_size_y) * scene_height,
+                        5.0f + float(j) / float(grid_size_y) * scene_height,
                         (2.0f * float(k) / float(grid_size_z) - 1.0f) * scene_length,
                     };
                     // Set positions in Cartesian
                     spot_lights.push_back({
                         .position = position,
-                        .radius = 10.0f,
+                        .radius = 5.0f,
                         .direction = normalize(vec3{random_generator(), -1.0f, random_generator()}),
                         //.direction = vec3{0.0f, -1.0f, 0.0f},
                         .umbra_angle = k_half_pi * 0.25f,
