@@ -69,14 +69,12 @@ namespace clustered
         {
             GLOBAL_COUNT,
             LIGHT_INDICES,
-            CLUSTER_OFFSETS
         };
 
         struct BinningConstants
         {
             ClusterGridSetup setup;
             u32 indices_list_idx;
-            u32 cluster_offsets_idx;
             u32 global_count_idx;
         };
 
@@ -113,24 +111,7 @@ namespace clustered
                     .byte_size = 0,
                     .stride = 4,
                     }
-            },
-            {
-                .id = PassResources::CLUSTER_OFFSETS.id,
-                .name = PassResources::CLUSTER_OFFSETS.name,
-                .type = zec::render_pass_system::PassResourceType::TEXTURE,
-                .usage = zec::RESOURCE_USAGE_COMPUTE_WRITABLE,
-                .texture_desc = {
-                    .size_class = zec::render_pass_system::SizeClass::ABSOLUTE,
-                    .format = zec::BufferFormat::UINT32_2,
-                    .width = 0,
-                    .height = 0,
-                    .depth = 0,
-                    .num_mips = 1,
-                    .array_size = 1,
-                    .is_cubemap = false,
-                    .is_3d = true,
-                },
-            },
+            }
         };
     };
 }

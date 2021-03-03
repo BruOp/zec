@@ -71,11 +71,6 @@ namespace clustered
                 .type = zec::render_pass_system::PassResourceType::BUFFER,
                 .usage = zec::RESOURCE_USAGE_SHADER_READABLE,
             },
-            {
-                .id = PassResources::CLUSTER_OFFSETS.id,
-                .type = zec::render_pass_system::PassResourceType::TEXTURE,
-                .usage = zec::RESOURCE_USAGE_SHADER_READABLE,
-            },
         };
         static constexpr zec::render_pass_system::PassOutputDesc pass_outputs[] = {
             {
@@ -106,7 +101,6 @@ namespace clustered
             ClusterGridSetup setup;
 
             u32 indices_list_idx;
-            u32 cluster_offsets_idx;
         };
 
         zec::ResourceLayoutHandle resource_layout = {};

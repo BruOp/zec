@@ -5,7 +5,7 @@ static const float DIELECTRIC_SPECULAR = 0.04;
 static const float MIN_ROUGHNESS = 0.045;
 static const float PI = 3.141592653589793;
 static const float INV_PI = 0.318309886;
-
+static const uint MAX_NUM_VISIBLE_PER_CLUSTER = 127;
 
 //=================================================================================================
 // Bindings
@@ -328,18 +328,18 @@ float4 PSMain(PSInput input) : SV_TARGET
     float depth_vs = input.position_cs.w;
 
     uint3 cluster_idx = calculate_cluster_index(position_ndc, depth_vs);
+    uint linear_cluster_idx = cluster_idx.x + cluster_idx.y * (grid_width) + cluster_idx.z * (grid_width * grid_height);
 
     ByteAddressBuffer spot_lights_buffer = buffers_table[spot_light_buffer_idx];
     ByteAddressBuffer indices_buffer = buffers_table[indices_list_idx];
-    Texture3D<uint2> cluster_offsets = tex3D_table[cluster_offsets_idx];
-
-    uint2 offset_and_count = cluster_offsets[cluster_idx];
-    uint light_offset = offset_and_count.x;
-    uint light_count = offset_and_count.y;
+    
+    uint light_offset = (MAX_NUM_VISIBLE_PER_CLUSTER + 1) * linear_cluster_idx;
+    uint light_count = indices_buffer.Load<uint>(light_offset * sizeof(uint));
 
     float3 light_out = float3(0.0, 0.0, 0.0);
     for (uint i =0; i < light_count; ++i) {
-        uint light_idx = indices_buffer.Load<uint>((i + light_offset) * sizeof(uint));
+        // light_offset + 1 to skip the inline count
+        uint light_idx = indices_buffer.Load<uint>((i + light_offset + 1) * sizeof(uint));
         SpotLight spot_light = spot_lights_buffer.Load<SpotLight>(light_idx * sizeof(SpotLight));
         float3 light_dir = spot_light.position - input.position_ws.xyz;
         float light_dist = length(light_dir);

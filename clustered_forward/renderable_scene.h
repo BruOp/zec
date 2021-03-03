@@ -138,6 +138,6 @@ namespace clustered
         float near_plane;
         float far_plane;
         float mid_plane;
-        constexpr static u32 MAX_LIGHTS_PER_BIN = 32;
+        constexpr static u32 MAX_LIGHTS_PER_BIN = 127;
     };
 }

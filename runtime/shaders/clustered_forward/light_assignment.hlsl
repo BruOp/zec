@@ -1,8 +1,8 @@
 #pragma pack_matrix( row_major )
 
-static const uint MAX_NUM_VISIBLE = 32;
+static const uint MAX_NUM_VISIBLE = 127;
 static const float TWO_PI = 6.283185307179586;
-
+static const uint NUM_THREADS = 64;
 
 struct SpotLight
 {
@@ -57,6 +57,7 @@ ByteAddressBuffer buffers_table[4096] : register(t0, space1);
 RWByteAddressBuffer write_buffers_table[4096] : register(u0, space2);
 RWTexture3D<uint2> write_tex3D_table[4096] : register(u0, space3);
 
+
 // Taken from https://bartwronski.com/2017/04/13/cull-that-cone/
 bool test_cone_vs_sphere(
     in float3 light_origin,
@@ -106,6 +107,17 @@ bool test_cone_vs_AABB(
     return AABB_intersection(spot_light_AABB_min, spot_light_AABB_max, AABB_min, AABB_max);
 }
 
+groupshared float gs_light_pos_x[NUM_THREADS];
+groupshared float gs_light_pos_y[NUM_THREADS];
+groupshared float gs_light_pos_z[NUM_THREADS];
+
+groupshared float gs_light_dir_x[NUM_THREADS];
+groupshared float gs_light_dir_y[NUM_THREADS];
+groupshared float gs_light_dir_z[NUM_THREADS];
+
+groupshared float gs_light_radius[NUM_THREADS];
+groupshared float gs_light_umbra[NUM_THREADS];
+
 [numthreads(8, 8, 1)]
 void CSMain(
     uint3 group_id : SV_GROUPID,
@@ -115,10 +127,6 @@ void CSMain(
 )
 {
     RWByteAddressBuffer global_count_buffer = write_buffers_table[global_count_idx];
-
-    uint local_visible_count = 0;
-    uint visible_lights[MAX_NUM_VISIBLE];
-
     ByteAddressBuffer spot_light_buffer = buffers_table[spot_light_buffer_idx];
     
     // Calculate view space AABB
@@ -176,23 +184,49 @@ void CSMain(
         0.5 * distance(max_corner, min_corner)
     );
 
-    // There's two options: we can transform each light on each thread,
-    // resulting in a lot of wasted cycles
-    // Or we can transform them ahead of time and index that light list instead,
-    // Let's do the former for now, and add the latter later
+    
+    uint local_visible_count = 0;
+    uint visible_lights[MAX_NUM_VISIBLE];
 
-    for (uint light_idx = 0; light_idx < num_spot_lights; ++light_idx) {
-        SpotLight light = spot_light_buffer.Load<SpotLight>(light_idx * sizeof(SpotLight));
+    uint num_batches = uint((num_spot_lights + NUM_THREADS - 1) / NUM_THREADS);
+    for (uint batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
+        uint batch_offset = batch_idx * NUM_THREADS;
+        // Each thread loads a light, and then transforms it, and then stores it in shared memory
+        SpotLight light = spot_light_buffer.Load<SpotLight>((batch_offset + group_idx) * sizeof(SpotLight));
+        
         float3 position = mul(view, float4(light.position, 1.0f)).xyz;
         float3 direction = normalize(mul(view, float4(light.direction, 0.0f)).xyz);
 
-        if (
-            local_visible_count < MAX_NUM_VISIBLE
-            && test_cone_vs_sphere(position, direction, light.radius, light.umbra_angle, bounding_sphere)
-            // && test_cone_vs_AABB(position, direction, light.radius, light.umbra_angle, min_corner, max_corner)
-        ) {
-            visible_lights[local_visible_count++] = light_idx;
-        };
+        gs_light_pos_x[group_idx] = position.x;
+        gs_light_pos_y[group_idx] = position.y;
+        gs_light_pos_z[group_idx] = position.z;
+
+        gs_light_dir_x[group_idx] = direction.x;
+        gs_light_dir_y[group_idx] = direction.y;
+        gs_light_dir_z[group_idx] = direction.z;
+
+        gs_light_radius[group_idx] = light.radius;
+        gs_light_umbra[group_idx] = light.umbra_angle;
+
+        // Ensure all threads have caught up
+        GroupMemoryBarrierWithGroupSync();
+
+        uint per_batch_count = min(NUM_THREADS, num_spot_lights - batch_offset);
+        for (uint light_idx = 0; light_idx < per_batch_count; ++light_idx) {
+            float3 light_pos = float3(gs_light_pos_x[light_idx], gs_light_pos_y[light_idx], gs_light_pos_z[light_idx]);
+            float3 light_dir = float3(gs_light_dir_x[light_idx], gs_light_dir_y[light_idx], gs_light_dir_z[light_idx]);
+            float light_radius = gs_light_radius[light_idx];
+            float light_umbra = gs_light_umbra[light_idx];
+
+            if (
+                local_visible_count < MAX_NUM_VISIBLE
+                && test_cone_vs_sphere(light_pos, light_dir, light_radius, light_umbra, bounding_sphere)
+            ) {
+                visible_lights[local_visible_count++] = batch_offset + light_idx;
+            }
+        }
+
+        GroupMemoryBarrierWithGroupSync();
     }
 
     // So at this point each thread should have completed looping through the lights
@@ -202,18 +236,14 @@ void CSMain(
     // 3. Store the offset + count in our per cluster buffer
 
     RWByteAddressBuffer indices_list = write_buffers_table[indices_list_idx];
-    RWTexture3D<uint2> cluster_infos = write_tex3D_table[cluster_offsets_idx];
     
-    uint offset = 0;
-    // TODO: Do we even care about this?
-    global_count_buffer.InterlockedAdd(0, local_visible_count, offset);
-    
-    uint MAX_INDEX = 0;
-    indices_list.GetDimensions(MAX_INDEX);
+    uint linear_cluster_idx = dispatch_id.x + dispatch_id.y * (grid_width) + dispatch_id.z * (grid_width * grid_height);
+    uint offset = linear_cluster_idx * (MAX_NUM_VISIBLE + 1);
+    // Store count inline
+    indices_list.Store(offset * sizeof(uint), local_visible_count);
+
     for (uint i = 0; i < local_visible_count; i++) {
-        uint idx = min(offset + i, MAX_INDEX);
+        uint idx = offset + i + 1; // 1 is to skip inline count
         indices_list.Store(idx * sizeof(uint), visible_lights[i]);
     }
-    
-    cluster_infos[dispatch_id] = uint2(offset, local_visible_count);
 }

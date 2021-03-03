@@ -20,11 +20,7 @@ namespace clustered
     void LightBinningPass::set_output_dimensions(const ClusterGridSetup cluster_grid_setup) {
         u32 depth = cluster_grid_setup.pre_mid_depth + cluster_grid_setup.post_mid_depth;
         u32 num_clusters = cluster_grid_setup.width * cluster_grid_setup.height * depth;
-        pass_outputs[size_t(Outputs::LIGHT_INDICES)].buffer_desc.byte_size = ClusterGridSetup::MAX_LIGHTS_PER_BIN * num_clusters * sizeof(u32);
-
-        pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.width = float(cluster_grid_setup.width);
-        pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.height = float(cluster_grid_setup.height);
-        pass_outputs[size_t(Outputs::CLUSTER_OFFSETS)].texture_desc.depth = depth;
+        pass_outputs[size_t(Outputs::LIGHT_INDICES)].buffer_desc.byte_size = (ClusterGridSetup::MAX_LIGHTS_PER_BIN + 1) * num_clusters * sizeof(u32);
     };
 
     void LightBinningPass::setup()
@@ -89,12 +85,10 @@ namespace clustered
     {
         const BufferHandle indices_buffer = resource_map.get_buffer_resource(PassResources::LIGHT_INDICES.id);
         const BufferHandle count_buffer = resource_map.get_buffer_resource(PassResources::COUNT_BUFFER.id);
-        const TextureHandle cluster_offsets = resource_map.get_texture_resource(PassResources::CLUSTER_OFFSETS.id);
 
         // Hmmm, shouldn't this be in copy?
         binning_constants.setup = cluster_grid_setup;
         binning_constants.indices_list_idx = gfx::buffers::get_shader_writable_index(indices_buffer);
-        binning_constants.cluster_offsets_idx = gfx::textures::get_shader_writable_index(cluster_offsets);
         binning_constants.global_count_idx = gfx::buffers::get_shader_writable_index(count_buffer);
         gfx::buffers::update(binning_cb, &binning_constants, sizeof(binning_constants));
 
