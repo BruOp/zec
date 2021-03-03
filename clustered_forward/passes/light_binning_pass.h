@@ -67,7 +67,6 @@ namespace clustered
 
         enum struct Outputs : u32
         {
-            GLOBAL_COUNT,
             LIGHT_INDICES,
         };
 
@@ -75,7 +74,6 @@ namespace clustered
         {
             ClusterGridSetup setup;
             u32 indices_list_idx;
-            u32 global_count_idx;
         };
 
         zec::ResourceLayoutHandle resource_layout = {};
@@ -88,19 +86,8 @@ namespace clustered
 
         static constexpr zec::CommandQueueType command_queue_type = zec::CommandQueueType::GRAPHICS;
         static constexpr char pass_name[] = "Light Binning Pass";
-        
+
         zec::render_pass_system::PassOutputDesc pass_outputs[3] = {
-            {
-                .id = PassResources::COUNT_BUFFER.id,
-                    .name = PassResources::COUNT_BUFFER.name,
-                    .type = zec::render_pass_system::PassResourceType::BUFFER,
-                    .usage = zec::RESOURCE_USAGE_COMPUTE_WRITABLE,
-                    .buffer_desc = {
-                        .type = zec::BufferType::RAW,
-                        .byte_size = 4,
-                        .stride = 4,
-                }
-            },
             {
                 .id = PassResources::LIGHT_INDICES.id,
                 .name = PassResources::LIGHT_INDICES.name,

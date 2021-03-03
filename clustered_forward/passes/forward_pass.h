@@ -91,7 +91,6 @@ namespace clustered
             RAW_BUFFERS_TABLE,
             TEXTURE_2D_TABLE,
             TEXTURE_CUBE_TABLE,
-            TEXTURE_3D_TABLE,
         };
 
         struct BinningConstants

@@ -22,9 +22,8 @@ namespace clustered
                 {.usage = ResourceAccess::READ },
                 {.usage = ResourceAccess::READ },
                 {.usage = ResourceAccess::READ },
-                {.usage = ResourceAccess::READ },
             },
-            .num_resource_tables = 4,
+            .num_resource_tables = 3,
             .static_samplers = {
                 {
                     .filtering = SamplerFilterType::ANISOTROPIC,
@@ -101,7 +100,6 @@ namespace clustered
         gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::RAW_BUFFERS_TABLE));
         gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::TEXTURE_2D_TABLE));
         gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::TEXTURE_CUBE_TABLE));
-        gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::TEXTURE_3D_TABLE));
 
         u32 buffer_descriptors[2] = {
             gfx::buffers::get_shader_readable_index(scene_data->vs_buffer),

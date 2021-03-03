@@ -29,8 +29,6 @@ cbuffer light_grid_info : register(b0)
     float mid_plane; // The z-value that defines a transition from one partitioning scheme to another;
 
     uint indices_list_idx;
-    uint cluster_offsets_idx;
-    uint global_count_idx;
 };
 
 cbuffer view_constants_buffer : register(b1)
@@ -55,7 +53,6 @@ cbuffer scene_constants_buffer : register(b2)
 ByteAddressBuffer buffers_table[4096] : register(t0, space1);
 
 RWByteAddressBuffer write_buffers_table[4096] : register(u0, space2);
-RWTexture3D<uint2> write_tex3D_table[4096] : register(u0, space3);
 
 
 // Taken from https://bartwronski.com/2017/04/13/cull-that-cone/
@@ -126,7 +123,6 @@ void CSMain(
     uint group_idx : SV_GROUPINDEX
 )
 {
-    RWByteAddressBuffer global_count_buffer = write_buffers_table[global_count_idx];
     ByteAddressBuffer spot_light_buffer = buffers_table[spot_light_buffer_idx];
     
     // Calculate view space AABB

@@ -86,7 +86,6 @@ cbuffer clustered_lighting_constants : register(b4)
     float mid_plane; // The z-value that defines a transition from one partitioning scheme to another;
     
     uint indices_list_idx;
-    uint cluster_offsets_idx;
 };
 
 SamplerState default_sampler : register(s0);
@@ -94,7 +93,6 @@ SamplerState default_sampler : register(s0);
 ByteAddressBuffer buffers_table[4096] : register(t0, space1);
 Texture2D tex2D_table[4096] : register(t0, space2);
 TextureCube tex_cube_table[4096] : register(t0, space3);
-Texture3D<uint2> tex3D_table[4096] : register(t0, space4);
 
 
 //=================================================================================================

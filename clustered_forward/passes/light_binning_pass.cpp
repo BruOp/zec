@@ -36,9 +36,8 @@ namespace clustered
             .tables = {
                 {.usage = ResourceAccess::READ },
                 {.usage = ResourceAccess::WRITE },
-                {.usage = ResourceAccess::WRITE },
             },
-            .num_resource_tables = 3,
+            .num_resource_tables = 2,
             .num_static_samplers = 0,
         };
 
@@ -84,27 +83,11 @@ namespace clustered
     void LightBinningPass::record(const render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx)
     {
         const BufferHandle indices_buffer = resource_map.get_buffer_resource(PassResources::LIGHT_INDICES.id);
-        const BufferHandle count_buffer = resource_map.get_buffer_resource(PassResources::COUNT_BUFFER.id);
 
         // Hmmm, shouldn't this be in copy?
         binning_constants.setup = cluster_grid_setup;
         binning_constants.indices_list_idx = gfx::buffers::get_shader_writable_index(indices_buffer);
-        binning_constants.global_count_idx = gfx::buffers::get_shader_writable_index(count_buffer);
         gfx::buffers::update(binning_cb, &binning_constants, sizeof(binning_constants));
-
-        gfx::cmd::set_compute_resource_layout(cmd_ctx, clearing_resource_layout);
-        gfx::cmd::set_compute_pipeline_state(cmd_ctx, clearing_pso);
-
-        u32 constants[] = {
-            gfx::buffers::get_shader_writable_index(count_buffer),
-            4,
-            0
-        };
-        gfx::cmd::bind_compute_constants(cmd_ctx, constants, std::size(constants), 0);
-        gfx::cmd::bind_compute_resource_table(cmd_ctx, 1);
-        gfx::cmd::dispatch(cmd_ctx, 1, 1, 1);
-
-        gfx::cmd::compute_write_barrier(cmd_ctx, count_buffer);
 
         gfx::cmd::set_compute_resource_layout(cmd_ctx, resource_layout);
         gfx::cmd::set_compute_pipeline_state(cmd_ctx, pso);
@@ -115,7 +98,6 @@ namespace clustered
 
         gfx::cmd::bind_compute_resource_table(cmd_ctx, u32(Slots::READ_BUFFERS_TABLE));
         gfx::cmd::bind_compute_resource_table(cmd_ctx, u32(Slots::WRITE_BUFFERS_TABLE));
-        gfx::cmd::bind_compute_resource_table(cmd_ctx, u32(Slots::WRITE_3D_TEXTURES_TABLE));
 
         u32 group_size = 8;
         u32 group_count_x = (binning_constants.setup.width + (group_size - 1)) / group_size;

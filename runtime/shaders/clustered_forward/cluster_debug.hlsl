@@ -1,6 +1,6 @@
 #pragma pack_matrix( row_major )
 
-static const uint MAX_NUM_VISIBLE = 32;
+static const uint MAX_NUM_VISIBLE = 127;
 
 //=================================================================================================
 // Bindings
@@ -68,13 +68,11 @@ cbuffer clustered_lighting_constants : register(b4)
     float mid_plane; // The z-value that defines a transition from one partitioning scheme to another;
     
     uint indices_list_idx;
-    uint cluster_offsets_idx;
 };
 
 ByteAddressBuffer buffers_table[4096] : register(t0, space1);
 Texture2D tex2D_table[4096] : register(t0, space2);
 TextureCube tex_cube_table[4096] : register(t0, space3);
-Texture3D<uint2> tex3D_table[4096] : register(t0, space4);
 
 //=================================================================================================
 // Helpers
@@ -131,7 +129,6 @@ float4 PSMain(PSInput input) : SV_TARGET
 {
     ByteAddressBuffer spot_lights_buffer = buffers_table[spot_light_buffer_idx];
     ByteAddressBuffer indices_buffer = buffers_table[indices_list_idx];
-    Texture3D<uint2> cluster_offsets = tex3D_table[cluster_offsets_idx];
 
     float3 position_ndc = input.position_clip.xyz /= input.position_clip.w;
     // position_ndc.y *= -1.0;
@@ -139,10 +136,10 @@ float4 PSMain(PSInput input) : SV_TARGET
     float depth_vs = input.position_clip.w;
     
     uint3 cluster_idx = calculate_cluster_index(position_ndc, depth_vs);
+    uint linear_cluster_idx = cluster_idx.x + cluster_idx.y * (grid_width) + cluster_idx.z * (grid_width * grid_height);
 
-    uint2 offset_and_count = cluster_offsets[cluster_idx];
-    uint light_offset = offset_and_count.x;
-    uint light_count = offset_and_count.y;
+    uint light_offset = (MAX_NUM_VISIBLE + 1) * linear_cluster_idx;
+    uint light_count = indices_buffer.Load<uint>(light_offset * sizeof(uint));
 
     float unused_counter = 0.0;
     for (uint i =0; i < light_count; ++i) {

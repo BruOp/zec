@@ -18,8 +18,6 @@ namespace clustered
         constexpr ResourceIdentifier HDR_TARGET = PASS_RESOURCE_IDENTIFIER("hdr");
         constexpr ResourceIdentifier SDR_TARGET = PASS_RESOURCE_IDENTIFIER("sdr");
         constexpr ResourceIdentifier LIGHT_INDICES = PASS_RESOURCE_IDENTIFIER("light_indices");
-        constexpr ResourceIdentifier CLUSTER_OFFSETS = PASS_RESOURCE_IDENTIFIER("cluster_indices");
-        constexpr ResourceIdentifier COUNT_BUFFER = PASS_RESOURCE_IDENTIFIER("global count buffer");
     }
 }
 
