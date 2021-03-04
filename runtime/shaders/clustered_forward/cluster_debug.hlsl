@@ -1,6 +1,9 @@
 #pragma pack_matrix( row_major )
 
-static const uint MAX_NUM_VISIBLE = 127;
+#include "light_helpers.hlsl"
+#include "cluster_helpers.hlsl"
+
+static const uint VIZ_UPPER_BOUND = 15;
 
 //=================================================================================================
 // Bindings
@@ -12,21 +15,10 @@ struct VSConstants
     row_major float3x4 normal;
 };
 
-struct SpotLight
-{
-    float3 position;
-    float radius;
-    float3 direction;
-    float umbra_angle;
-    float penumbra_angle;
-    float3 color;
-};
-
 cbuffer draw_call_constants0 : register(b0)
 {
     uint renderable_idx;
     uint material_idx;
-
 }
 
 cbuffer draw_call_constants1 : register(b1)
@@ -57,49 +49,14 @@ cbuffer scene_constants_buffer : register(b3)
 
 cbuffer clustered_lighting_constants : register(b4)
 {
-    uint grid_width;
-    uint grid_height;
-    uint pre_mid_depth;
-    uint post_mid_depth;
-    
-    // Top right corner of the near plane
-    float x_near;
-    float y_near;
-    float z_near;
-    float z_far; // The z-value for the far plane
-    float mid_plane; // The z-value that defines a transition from one partitioning scheme to another;
-    
-    uint indices_list_idx;
+    ClusterSetup cluster_setup;
+    uint spot_light_indices_list_idx;
+    uint point_light_indices_list_idx;
 };
 
 ByteAddressBuffer buffers_table[4096] : register(t0, space1);
 Texture2D tex2D_table[4096] : register(t0, space2);
 TextureCube tex_cube_table[4096] : register(t0, space3);
-
-//=================================================================================================
-// Helpers
-//=================================================================================================
-
-uint3 calculate_cluster_index(float3 position_ndc, float depth_view_space) {
-    uint3 cluster_idx;
-    float a = x_near / y_near;
-    float tan_fov = (y_near / -z_near);
-
-    uint k;
-    if (-depth_view_space <= mid_plane) {
-        // Beyond mid plane, switch to cubic partitioning
-        // Ola Olsson
-        k = pre_mid_depth + uint(log2(-depth_view_space / mid_plane) / log2(1.0 + 2.0 * tan_fov / grid_height));
-    } else {
-        //Linear depth partitioning
-        // linear
-        k = uint((-depth_view_space - z_near) / (mid_plane - z_near) * float(pre_mid_depth));
-    }
-
-    cluster_idx = uint3(0.5 * (position_ndc.xy + 1.0) * float2(grid_width, grid_height), k);
-
-    return cluster_idx;
-}
 
 //=================================================================================================
 // Vertex Shader
@@ -127,49 +84,82 @@ PSInput VSMain(float3 position : POSITION)
 // Pixel Shader
 //=================================================================================================
 
+// Taken from
+// https://www.shadertoy.com/view/WlfXRN
+float3 viridis(float t) {
+
+    const float3 c0 = float3(0.2777273272234177, 0.005407344544966578, 0.3340998053353061);
+    const float3 c1 = float3(0.1050930431085774, 1.404613529898575, 1.384590162594685);
+    const float3 c2 = float3(-0.3308618287255563, 0.214847559468213, 0.09509516302823659);
+    const float3 c3 = float3(-4.634230498983486, -5.799100973351585, -19.33244095627987);
+    const float3 c4 = float3(6.228269936347081, 14.17993336680509, 56.69055260068105);
+    const float3 c5 = float3(4.776384997670288, -13.74514537774601, -65.35303263337234);
+    const float3 c6 = float3(-5.435455855934631, 4.645852612178535, 26.3124352495832);
+
+    return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
+}
+
+float3 plasma(float t) {
+
+    const float3 c0 = float3(0.05873234392399702, 0.02333670892565664, 0.5433401826748754);
+    const float3 c1 = float3(2.176514634195958, 0.2383834171260182, 0.7539604599784036);
+    const float3 c2 = float3(-2.689460476458034, -7.455851135738909, 3.110799939717086);
+    const float3 c3 = float3(6.130348345893603, 42.3461881477227, -28.51885465332158);
+    const float3 c4 = float3(-11.10743619062271, -82.66631109428045, 60.13984767418263);
+    const float3 c5 = float3(10.02306557647065, 71.41361770095349, -54.07218655560067);
+    const float3 c6 = float3(-3.658713842777788, -22.93153465461149, 18.19190778539828);
+
+    return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
+
+}
+
+float3 magma(float t) {
+
+    const float3 c0 = float3(-0.002136485053939582, -0.000749655052795221, -0.005386127855323933);
+    const float3 c1 = float3(0.2516605407371642, 0.6775232436837668, 2.494026599312351);
+    const float3 c2 = float3(8.353717279216625, -3.577719514958484, 0.3144679030132573);
+    const float3 c3 = float3(-27.66873308576866, 14.26473078096533, -13.64921318813922);
+    const float3 c4 = float3(52.17613981234068, -27.94360607168351, 12.94416944238394);
+    const float3 c5 = float3(-50.76852536473588, 29.04658282127291, 4.23415299384598);
+    const float3 c6 = float3(18.65570506591883, -11.48977351997711, -5.601961508734096);
+
+    return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
+
+}
+
+float3 inferno(float t) {
+
+    const float3 c0 = float3(0.0002189403691192265, 0.001651004631001012, -0.01948089843709184);
+    const float3 c1 = float3(0.1065134194856116, 0.5639564367884091, 3.932712388889277);
+    const float3 c2 = float3(11.60249308247187, -3.972853965665698, -15.9423941062914);
+    const float3 c3 = float3(-41.70399613139459, 17.43639888205313, 44.35414519872813);
+    const float3 c4 = float3(77.162935699427, -33.40235894210092, -81.80730925738993);
+    const float3 c5 = float3(-71.31942824499214, 32.62606426397723, 73.20951985803202);
+    const float3 c6 = float3(25.13112622477341, -12.24266895238567, -23.07032500287172);
+
+    return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
+}
+
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    ByteAddressBuffer spot_lights_buffer = buffers_table[spot_light_buffer_idx];
-    ByteAddressBuffer indices_buffer = buffers_table[indices_list_idx];
-
     float3 position_ndc = input.position_clip.xyz /= input.position_clip.w;
-    // position_ndc.y *= -1.0;
+    float depth_vs = -input.position_clip.w;
     
-    float depth_vs = input.position_clip.w;
-    
-    uint3 cluster_idx = calculate_cluster_index(position_ndc, depth_vs);
-    uint linear_cluster_idx = cluster_idx.x + cluster_idx.y * (grid_width) + cluster_idx.z * (grid_width * grid_height);
+    uint3 cluster_idx = calculate_cluster_index(cluster_setup, position_ndc, depth_vs);
+    uint linear_cluster_idx = get_linear_cluster_idx(cluster_setup, cluster_idx);
+    uint light_offset = (MAX_LIGHTS_PER_CLUSTER + 1) * linear_cluster_idx;
 
-    uint light_offset = (MAX_NUM_VISIBLE + 1) * linear_cluster_idx;
-    uint light_count = indices_buffer.Load<uint>(light_offset * sizeof(uint));
+    // Spot Lights
+    ByteAddressBuffer spot_lights_buffer = buffers_table[spot_light_buffer_idx];
+    ByteAddressBuffer spot_light_indices_buffer = buffers_table[spot_light_indices_list_idx];
+    uint spot_light_count = spot_light_indices_buffer.Load<uint>(light_offset * sizeof(uint));
 
-    float unused_counter = 0.0;
-    for (uint i =0; i < light_count; ++i) {
-        uint light_idx = indices_buffer.Load<uint>((i + light_offset) * sizeof(uint));
-        SpotLight spot_light = spot_lights_buffer.Load<SpotLight>(light_idx * sizeof(SpotLight));
-        float3 light_dir = spot_light.position - input.position_ws.xyz;
-        float light_dist = length(light_dir);
-        light_dir = light_dir / light_dist;
-        
-        float cos_umbra = cos(spot_light.umbra_angle);
-        // Taken from RTR v4 p115
-        float t = saturate((dot(light_dir, -spot_light.direction) - cos_umbra) / (cos(spot_light.penumbra_angle) - cos_umbra));
-        float directonal_attenuation = t * t;
-        
-        // Taken from KARIS 2013
-        float distance_attenuation = pow(saturate(1.0 - pow(light_dist / spot_light.radius, 4.0)), 2.0) / (light_dist * light_dist + 0.01);
-        
-        float attenuation = directonal_attenuation * distance_attenuation;
-        if (attenuation == 0) {
-            unused_counter += 1.0;
-        }
-    }
+    // Point Lights
+    ByteAddressBuffer point_lights_buffer = buffers_table[point_light_buffer_idx];
+    ByteAddressBuffer point_light_indices_buffer = buffers_table[point_light_indices_list_idx];
+    uint point_light_count = point_light_indices_buffer.Load<uint>(light_offset * sizeof(uint));
 
-
-    float3 color = float3(
-        float(light_count - unused_counter) / float(MAX_NUM_VISIBLE),
-        unused_counter / float(MAX_NUM_VISIBLE),
-        0.0);
+    float3 color = pow(viridis(smoothstep(0, VIZ_UPPER_BOUND, spot_light_count + point_light_count)), 2.2);
     
     return float4(color, 1.0);
 }

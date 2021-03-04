@@ -99,8 +99,8 @@ namespace clustered
         struct BinningConstants
         {
             ClusterGridSetup setup;
-
-            u32 indices_list_idx;
+            u32 spot_light_indices_list_idx;
+            u32 point_light_indices_list_idx;
         };
 
         zec::ResourceLayoutHandle resource_layout = {};

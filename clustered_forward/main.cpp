@@ -88,9 +88,10 @@ namespace clustered
         void init() override final
         {
             camera = create_camera(float(width) / float(height), VERTICAL_FOV, CAMERA_NEAR, CAMERA_FAR, CAMERA_CREATION_FLAG_REVERSE_Z);
-            camera.position = vec3{ 0.0f, 0.0f, -10.0f };
+            camera.position = vec3{ -5.5f, 4.4f, -0.2f };
 
             camera_controller.init();
+            camera_controller.yaw = 0.0f;
             camera_controller.set_camera(&camera);
 
             //ClusterGridSetup cluster_grid_setup = calculate_cluster_grid(width, heigth, 32, tile)

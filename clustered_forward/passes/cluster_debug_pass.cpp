@@ -68,11 +68,14 @@ void ClusterDebugPass::setup()
 
     void ClusterDebugPass::record(const render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx)
     {
-        const BufferHandle indices_buffer = resource_map.get_buffer_resource(PassResources::SPOT_LIGHT_INDICES.id);
+        const BufferHandle spot_light_indices_buffer = resource_map.get_buffer_resource(PassResources::SPOT_LIGHT_INDICES.id);
+        const BufferHandle point_light_indices_buffer = resource_map.get_buffer_resource(PassResources::POINT_LIGHT_INDICES.id);
 
         // Hmmm, shouldn't this be in copy?
         binning_constants.setup = cluster_grid_setup;
-        binning_constants.indices_list_idx = gfx::buffers::get_shader_readable_index(indices_buffer);
+        binning_constants.spot_light_indices_list_idx = gfx::buffers::get_shader_writable_index(spot_light_indices_buffer);
+        binning_constants.point_light_indices_list_idx = gfx::buffers::get_shader_writable_index(point_light_indices_buffer);
+
         gfx::buffers::update(binning_cb, &binning_constants, sizeof(binning_constants));
 
         constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };

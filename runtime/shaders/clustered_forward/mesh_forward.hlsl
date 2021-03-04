@@ -272,6 +272,7 @@ float4 PSMain(PSInput input) : SV_TARGET
         // spot_light_offset + 1 to skip the inline count
         uint light_idx = spot_light_indices_buffer.Load<uint>((i + spot_light_offset + 1) * sizeof(uint));
         SpotLight spot_light = spot_lights_buffer.Load<SpotLight>(light_idx * sizeof(SpotLight));
+        
         float3 light_dir = spot_light.position - input.position_ws.xyz;
         float light_dist = length(light_dir);
         light_dir = light_dir / light_dist;
@@ -298,6 +299,7 @@ float4 PSMain(PSInput input) : SV_TARGET
         // point_light_offset + 1 to skip the inline count
         uint light_idx = point_light_indices_buffer.Load<uint>((j + point_light_offset + 1) * sizeof(uint));
         PointLight point_light = point_lights_buffer.Load<PointLight>(light_idx * sizeof(PointLight));
+        
         float3 light_dir = point_light.position - input.position_ws.xyz;
         float light_dist = length(light_dir);
         light_dir = light_dir / light_dist;
