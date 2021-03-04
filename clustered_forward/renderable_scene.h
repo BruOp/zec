@@ -6,6 +6,14 @@
 
 namespace clustered
 {
+    struct PointLight
+    {
+        zec::vec3 position;
+        float radius;
+        zec::vec3 color;
+        float padding;
+    };
+
     struct SpotLight
     {
         zec::vec3 position;
@@ -23,7 +31,9 @@ namespace clustered
         u32 irradiance_map_idx = UINT32_MAX;
         u32 brdf_lut_idx = UINT32_MAX;
         u32 num_spot_lights = 0;
+        u32 num_point_lights = 0;
         u32 spot_light_buffer_idx = UINT32_MAX;
+        u32 point_light_buffer_idx = UINT32_MAX;
     };
 
     struct MaterialData
@@ -99,6 +109,7 @@ namespace clustered
         u32 max_num_entities = 0;
         u32 max_num_materials = 0;
         u32 max_num_spot_lights = 0;
+        u32 max_num_point_lights = 0;
     };
 
     struct RenderableScene
@@ -109,11 +120,12 @@ namespace clustered
 
         zec::BufferHandle scene_constants = {};
         zec::BufferHandle spot_lights_buffer = {};
+        zec::BufferHandle point_lights_buffer = {};
         // GPU side copy of the material instances data
 
         void initialize(const RenderableSceneSettings& settings);
 
-        void copy(/* const Scene& scene, eventually, */const zec::Array<SpotLight>& spot_lights);
+        void copy(/* const Scene& scene, eventually, */const zec::Array<SpotLight>& spot_lights, const zec::Array<PointLight>& point_lights);
     };
 
     struct RenderableCamera

@@ -38,8 +38,8 @@ namespace clustered
 
     constexpr u32 CLUSTER_HEIGHT = 16;
     constexpr float CLUSTER_MID_PLANE = 5.0f;
-    constexpr u32 PRE_MID_DEPTH = 10 ;
-    
+    constexpr u32 PRE_MID_DEPTH = 10;
+
     const static ClusterGridSetup CLUSTER_SETUP = {
         .width = 2 * CLUSTER_HEIGHT,
         .height = CLUSTER_HEIGHT,
@@ -47,11 +47,11 @@ namespace clustered
         .post_mid_depth = u32(ceilf(log10f(CAMERA_FAR / CLUSTER_MID_PLANE) / log10f(1.0f + 2.0f * tanf(0.5f * VERTICAL_FOV) / CLUSTER_HEIGHT))),
         .near_x = 16.0f / 9.0f * TAN_FOV * CAMERA_NEAR,
         .near_y = TAN_FOV * CAMERA_NEAR,
-        .near_plane=-CAMERA_NEAR,
-        .far_plane=-CAMERA_FAR,
-        .mid_plane=-CLUSTER_MID_PLANE,
+        .near_plane = -CAMERA_NEAR,
+        .far_plane = -CAMERA_FAR,
+        .mid_plane = -CLUSTER_MID_PLANE,
     };
-    
+
     class ClusteredForward : public zec::App
     {
         struct Passes
@@ -75,6 +75,7 @@ namespace clustered
         PerspectiveCamera debug_camera;
         // Scene data
         Array<SpotLight> spot_lights;
+        Array<PointLight> point_lights;
 
         // Rendering Data
         RenderableScene renderable_scene;
@@ -111,13 +112,14 @@ namespace clustered
                 std::default_random_engine generator;
                 std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
                 auto random_generator = std::bind(distribution, generator);
-                
+
                 constexpr float scene_width = 25.0f;
                 constexpr float scene_length = 12.0f;
                 constexpr float scene_height = 14.0f;
                 constexpr u32 grid_size_x = 8;
                 constexpr u32 grid_size_y = 4;
                 constexpr u32 grid_size_z = 4;
+
                 constexpr size_t num_lights = grid_size_x * grid_size_y * grid_size_z;
                 for (size_t idx = 0; idx < num_lights; ++idx) {
                     float coeff = float(idx) / float(num_lights - 1);
@@ -125,7 +127,7 @@ namespace clustered
 
                     u32 j = idx / (grid_size_x * grid_size_z);
                     u32 k = (idx - j * (grid_size_z * grid_size_x)) / grid_size_x;
-                    u32 i = idx - k * (grid_size_x) -j * (grid_size_z * grid_size_x);
+                    u32 i = idx - k * (grid_size_x)-j * (grid_size_z * grid_size_x);
                     vec3 position = {
                         (2.0f * float(i) / float(grid_size_x) - 1.0f) * scene_width,
                         5.0f + float(j) / float(grid_size_y) * scene_height,
@@ -139,7 +141,22 @@ namespace clustered
                         //.direction = vec3{0.0f, -1.0f, 0.0f},
                         .umbra_angle = k_half_pi * 0.25f,
                         .penumbra_angle = k_half_pi * 0.2f,
-                        .color = light_colors[i % std::size(light_colors)] * 3.0f,
+                        .color = light_colors[idx % std::size(light_colors)] * 3.0f,
+                        });
+                }
+
+                constexpr size_t num_point_lights = 1024;
+                for (size_t idx = 0; idx < num_point_lights; ++idx) {
+                    vec3 position = {
+                        random_generator() * scene_width,
+                        random_generator() * scene_height,
+                        random_generator() * scene_length,
+                    };
+                    // Set positions in Cartesian
+                    point_lights.push_back({
+                        .position = position,
+                        .radius = 2.0f,
+                        .color = light_colors[idx % std::size(light_colors)] * 2.0f,
                         });
                 }
             }
@@ -149,7 +166,8 @@ namespace clustered
             renderable_scene.initialize(RenderableSceneSettings{
                 .max_num_entities = 2000,
                 .max_num_materials = 2000,
-                .max_num_spot_lights = 1024
+                .max_num_spot_lights = 1024,
+                .max_num_point_lights = 1024,
                 });
 
             CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
@@ -309,7 +327,7 @@ namespace clustered
         {
             renderable_camera.copy();
 
-            renderable_scene.copy(spot_lights);
+            renderable_scene.copy(spot_lights, point_lights);
 
             render_list.copy();
         }

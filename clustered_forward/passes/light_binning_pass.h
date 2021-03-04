@@ -67,19 +67,20 @@ namespace clustered
 
         enum struct Outputs : u32
         {
-            LIGHT_INDICES,
+            SPOT_LIGHT_INDICES,
+            POINT_LIGHT_INDICES,
         };
 
         struct BinningConstants
         {
             ClusterGridSetup setup;
-            u32 indices_list_idx;
+            u32 spot_light_indices_list_idx;
+            u32 point_light_indices_list_idx;
         };
 
         zec::ResourceLayoutHandle resource_layout = {};
-        zec::PipelineStateHandle pso = {};
-        zec::ResourceLayoutHandle clearing_resource_layout = {};
-        zec::PipelineStateHandle clearing_pso = {};
+        zec::PipelineStateHandle spot_light_pso = {};
+        zec::PipelineStateHandle point_light_pso = {};        
         zec::BufferHandle binning_cb = {};
 
         BinningConstants binning_constants = {};
@@ -87,10 +88,21 @@ namespace clustered
         static constexpr zec::CommandQueueType command_queue_type = zec::CommandQueueType::GRAPHICS;
         static constexpr char pass_name[] = "Light Binning Pass";
 
-        zec::render_pass_system::PassOutputDesc pass_outputs[3] = {
+        zec::render_pass_system::PassOutputDesc pass_outputs[2] = {
             {
-                .id = PassResources::LIGHT_INDICES.id,
-                .name = PassResources::LIGHT_INDICES.name,
+                .id = PassResources::SPOT_LIGHT_INDICES.id,
+                .name = PassResources::SPOT_LIGHT_INDICES.name,
+                .type = zec::render_pass_system::PassResourceType::BUFFER,
+                .usage = zec::RESOURCE_USAGE_COMPUTE_WRITABLE,
+                .buffer_desc = {
+                    .type = zec::BufferType::RAW,
+                    .byte_size = 0,
+                    .stride = 4,
+                    }
+            },
+            {
+                .id = PassResources::POINT_LIGHT_INDICES.id,
+                .name = PassResources::POINT_LIGHT_INDICES.name,
                 .type = zec::render_pass_system::PassResourceType::BUFFER,
                 .usage = zec::RESOURCE_USAGE_COMPUTE_WRITABLE,
                 .buffer_desc = {

@@ -50,7 +50,9 @@ cbuffer scene_constants_buffer : register(b3)
     uint irradiance_map_idx;
     uint brdf_lut_idx;
     uint num_spot_lights;
+    uint num_point_lights;
     uint spot_light_buffer_idx;
+    uint point_light_buffer_idx;
 };
 
 cbuffer clustered_lighting_constants : register(b4)

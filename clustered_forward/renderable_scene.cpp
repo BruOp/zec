@@ -72,12 +72,22 @@ namespace clustered
             .stride = 4,
             });
         gfx::set_debug_name(spot_lights_buffer, L"Spot Lights Buffer");
+
+        point_lights_buffer = gfx::buffers::create({
+            .usage = RESOURCE_USAGE_SHADER_READABLE | RESOURCE_USAGE_DYNAMIC,
+            .type = BufferType::RAW,
+            .byte_size = sizeof(PointLight) * u32(settings.max_num_point_lights),
+            .stride = 4,
+            });
+        gfx::set_debug_name(point_lights_buffer, L"Point Lights Buffer");
     }
 
-    void RenderableScene::copy(/* const Scene& scene, eventually, */ const Array<SpotLight>& spot_lights)
+    void RenderableScene::copy(/* const Scene& scene, eventually, */ const Array<SpotLight>& spot_lights, const Array<PointLight>& point_lights)
     {
         scene_constant_data.num_spot_lights = u32(spot_lights.size);
+        scene_constant_data.num_point_lights = u32(point_lights.size);
         scene_constant_data.spot_light_buffer_idx = gfx::buffers::get_shader_readable_index(spot_lights_buffer);
+        scene_constant_data.point_light_buffer_idx = gfx::buffers::get_shader_readable_index(point_lights_buffer);
 
         gfx::buffers::update(
             scene_constants,
@@ -88,6 +98,11 @@ namespace clustered
             spot_lights_buffer,
             spot_lights.data,
             spot_lights.size * sizeof(SpotLight));
+
+        gfx::buffers::update(
+            point_lights_buffer,
+            point_lights.data,
+            point_lights.size * sizeof(PointLight));
 
         renderables.copy();
     }

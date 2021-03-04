@@ -65,7 +65,12 @@ namespace clustered
                 .usage = zec::RESOURCE_USAGE_DEPTH_STENCIL,
             },
             {
-                .id = PassResources::LIGHT_INDICES.id,
+                .id = PassResources::SPOT_LIGHT_INDICES.id,
+                .type = zec::render_pass_system::PassResourceType::BUFFER,
+                .usage = zec::RESOURCE_USAGE_SHADER_READABLE,
+            },
+            {
+                .id = PassResources::POINT_LIGHT_INDICES.id,
                 .type = zec::render_pass_system::PassResourceType::BUFFER,
                 .usage = zec::RESOURCE_USAGE_SHADER_READABLE,
             },
@@ -96,7 +101,8 @@ namespace clustered
         struct BinningConstants
         {
             ClusterGridSetup setup;
-            u32 indices_list_idx;
+            u32 spot_light_indices_list_idx;
+            u32 point_light_indices_list_idx;
         };
 
         zec::ResourceLayoutHandle resource_layout = {};

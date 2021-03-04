@@ -5,7 +5,9 @@ static const float DIELECTRIC_SPECULAR = 0.04;
 static const float MIN_ROUGHNESS = 0.045;
 static const float PI = 3.141592653589793;
 static const float INV_PI = 0.318309886;
-static const uint MAX_NUM_VISIBLE_PER_CLUSTER = 127;
+
+#include "light_helpers.hlsl"
+#include "cluster_helpers.hlsl"
 
 //=================================================================================================
 // Bindings
@@ -29,16 +31,6 @@ struct MaterialData
     uint occlusion_texture_idx;
     uint emissive_texture_idx;
     float padding[18];
-};
-
-struct SpotLight
-{
-    float3 position;
-    float radius;
-    float3 direction;
-    float umbra_angle;
-    float penumbra_angle;
-    float3 color;
 };
 
 cbuffer draw_call_constants0 : register(b0)
@@ -68,24 +60,16 @@ cbuffer scene_constants_buffer : register(b3)
     uint irradiance_map_idx;
     uint brdf_lut_idx;
     uint num_spot_lights;
+    uint num_point_lights;
     uint spot_light_buffer_idx;
+    uint point_light_buffer_idx;
 };
 
 cbuffer clustered_lighting_constants : register(b4)
 {
-    uint grid_width;
-    uint grid_height;
-    uint pre_mid_depth;
-    uint post_mid_depth;
-    
-    // Top right corner of the near plane
-    float x_near;
-    float y_near;
-    float z_near;
-    float z_far; // The z-value for the far plane
-    float mid_plane; // The z-value that defines a transition from one partitioning scheme to another;
-    
-    uint indices_list_idx;
+    ClusterSetup cluster_setup;
+    uint spot_light_indices_list_idx;
+    uint point_light_indices_list_idx;
 };
 
 SamplerState default_sampler : register(s0);
@@ -184,28 +168,6 @@ float3 calc_specular(float3 light_dir, float3 view_dir, float3 f0, float3 normal
     return D * V * F;
 }
 
-uint3 calculate_cluster_index(float3 position_ndc, float depth_view_space) {
-    uint3 cluster_idx;
-    float a = x_near / y_near;
-    float tan_fov = (y_near / -z_near);
-
-    uint k;
-    if (-depth_view_space <= mid_plane) {
-        // Beyond mid plane, switch to cubic partitioning
-        // Ola Olsson
-        k = pre_mid_depth + uint(log2(-depth_view_space / mid_plane) / log2(1.0 + 2.0 * tan_fov / grid_height));
-    } else {
-        //Linear depth partitioning
-        // linear
-        k = uint((-depth_view_space - z_near) / (mid_plane - z_near) * float(pre_mid_depth));
-    }
-
-    cluster_idx = uint3(0.5 * (position_ndc.xy + 1.0) * float2(grid_width, grid_height), k);
-
-    return cluster_idx;
-}
-
-
 //=================================================================================================
 // Vertex Shader
 //=================================================================================================
@@ -291,7 +253,69 @@ float4 PSMain(PSInput input) : SV_TARGET
     float3 f0 = lerp(float3_splat(DIELECTRIC_SPECULAR), base_color.rgb, metallic);
     
     float3 color = float3(0.0, 0.0, 0.0);
+
+    // Get cluster info
+    float3 position_ndc = input.position_cs.xyz /= input.position_cs.w;
+    float depth_vs = -input.position_cs.w;
+
+    uint3 cluster_idx = calculate_cluster_index(cluster_setup, position_ndc, depth_vs);
+    uint linear_cluster_idx = get_linear_cluster_idx(cluster_setup, cluster_idx);
+
+    // Spot Lights
+    ByteAddressBuffer spot_lights_buffer = buffers_table[spot_light_buffer_idx];
+    ByteAddressBuffer spot_light_indices_buffer = buffers_table[spot_light_indices_list_idx];
+    uint spot_light_offset = (MAX_LIGHTS_PER_CLUSTER + 1) * linear_cluster_idx;
+    uint spot_light_count = spot_light_indices_buffer.Load<uint>(spot_light_offset * sizeof(uint));
+
+    float3 light_out = float3(0.0, 0.0, 0.0);
+    for (uint i =0; i < spot_light_count; ++i) {
+        // spot_light_offset + 1 to skip the inline count
+        uint light_idx = spot_light_indices_buffer.Load<uint>((i + spot_light_offset + 1) * sizeof(uint));
+        SpotLight spot_light = spot_lights_buffer.Load<SpotLight>(light_idx * sizeof(SpotLight));
+        float3 light_dir = spot_light.position - input.position_ws.xyz;
+        float light_dist = length(light_dir);
+        light_dir = light_dir / light_dist;
+        
+        float intensity = incoming_light_intensity(spot_light, light_dir, light_dist, normal);
+        if (intensity == 0) {
+            continue;
+        }
     
+        float3 light_in = intensity * spot_light.color;
+    
+        float3 brdf_specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
+        
+        light_out += light_in * (INV_PI * brdf_diffuse + brdf_specular);
+    }
+
+    // Point Lights
+    ByteAddressBuffer point_lights_buffer = buffers_table[point_light_buffer_idx];
+    ByteAddressBuffer point_light_indices_buffer = buffers_table[point_light_indices_list_idx];
+    uint point_light_offset = (MAX_LIGHTS_PER_CLUSTER + 1) * linear_cluster_idx;
+    uint point_light_count = point_light_indices_buffer.Load<uint>(point_light_offset * sizeof(uint));
+
+    for (uint j =0; j < point_light_count; ++j) {
+        // point_light_offset + 1 to skip the inline count
+        uint light_idx = point_light_indices_buffer.Load<uint>((j + point_light_offset + 1) * sizeof(uint));
+        PointLight point_light = point_lights_buffer.Load<PointLight>(light_idx * sizeof(PointLight));
+        float3 light_dir = point_light.position - input.position_ws.xyz;
+        float light_dist = length(light_dir);
+        light_dir = light_dir / light_dist;
+        
+        float intensity = incoming_light_intensity(point_light, light_dir, light_dist, normal);
+        if (intensity == 0) {
+            continue;
+        }
+
+        float3 light_in = intensity * point_light.color;
+    
+        float3 brdf_specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
+        
+        light_out += light_in * (INV_PI *  brdf_diffuse + brdf_specular);
+    }
+    // Analytic integration constant, see RTR
+    color += light_out * PI;
+
     // if (irradiance_map_idx != INVALID_TEXTURE_IDX && radiance_map_idx != INVALID_TEXTURE_IDX)
     // {
     //     Texture2D brdf_lut = tex2D_table[brdf_lut_idx];
@@ -320,49 +344,6 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     //     color += occlusion * (FssEss * radiance + base_color.rgb * irradiance);
     // }
-
-    // Get light info
-    float3 position_ndc = input.position_cs.xyz /= input.position_cs.w;
-    float depth_vs = input.position_cs.w;
-
-    uint3 cluster_idx = calculate_cluster_index(position_ndc, depth_vs);
-    uint linear_cluster_idx = cluster_idx.x + cluster_idx.y * (grid_width) + cluster_idx.z * (grid_width * grid_height);
-
-    ByteAddressBuffer spot_lights_buffer = buffers_table[spot_light_buffer_idx];
-    ByteAddressBuffer indices_buffer = buffers_table[indices_list_idx];
-    
-    uint light_offset = (MAX_NUM_VISIBLE_PER_CLUSTER + 1) * linear_cluster_idx;
-    uint light_count = indices_buffer.Load<uint>(light_offset * sizeof(uint));
-
-    float3 light_out = float3(0.0, 0.0, 0.0);
-    for (uint i =0; i < light_count; ++i) {
-        // light_offset + 1 to skip the inline count
-        uint light_idx = indices_buffer.Load<uint>((i + light_offset + 1) * sizeof(uint));
-        SpotLight spot_light = spot_lights_buffer.Load<SpotLight>(light_idx * sizeof(SpotLight));
-        float3 light_dir = spot_light.position - input.position_ws.xyz;
-        float light_dist = length(light_dir);
-        light_dir = light_dir / light_dist;
-        
-        float cos_umbra = cos(spot_light.umbra_angle);
-        // Taken from RTR v4 p115
-        float t = saturate((dot(light_dir, -spot_light.direction) - cos_umbra) / (cos(spot_light.penumbra_angle) - cos_umbra));
-        float directonal_attenuation = t * t;
-        
-        // Taken from KARIS 2013
-        // float distance_attenuation = 1.0 / (light_dist * light_dist + 0.01);
-        float distance_attenuation = pow(saturate(1.0 - pow(light_dist / spot_light.radius, 4.0)), 2.0) / (light_dist * light_dist + 0.01);
-        
-        float attenuation = directonal_attenuation * distance_attenuation * clamp_dot(normal, light_dir);
-        if (attenuation == 0) {
-            continue;
-        }
-        float3 light_in = attenuation * spot_light.color;
-    
-        float3 brdf_specular = calc_specular(light_dir, view_dir, f0, normal, roughness);
-        
-        light_out += light_in * (INV_PI *  brdf_diffuse + brdf_specular);
-    }
-    color += light_out * PI;
 
     return float4(color, 1.0);
 }

@@ -68,7 +68,7 @@ void ClusterDebugPass::setup()
 
     void ClusterDebugPass::record(const render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx)
     {
-        const BufferHandle indices_buffer = resource_map.get_buffer_resource(PassResources::LIGHT_INDICES.id);
+        const BufferHandle indices_buffer = resource_map.get_buffer_resource(PassResources::SPOT_LIGHT_INDICES.id);
 
         // Hmmm, shouldn't this be in copy?
         binning_constants.setup = cluster_grid_setup;

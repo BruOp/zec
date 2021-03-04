@@ -31,7 +31,9 @@ cbuffer scene_constants_buffer : register(b1)
     uint irradiance_map_idx;
     uint brdf_lut_idx;
     uint num_spot_lights;
+    uint num_point_lights;
     uint spot_light_buffer_idx;
+    uint point_light_buffer_idx;
 };
 
 ByteAddressBuffer buffers_table[4096] : register(t0, space1);

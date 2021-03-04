@@ -17,7 +17,8 @@ namespace clustered
         constexpr ResourceIdentifier DEPTH_TARGET = PASS_RESOURCE_IDENTIFIER("depth");
         constexpr ResourceIdentifier HDR_TARGET = PASS_RESOURCE_IDENTIFIER("hdr");
         constexpr ResourceIdentifier SDR_TARGET = PASS_RESOURCE_IDENTIFIER("sdr");
-        constexpr ResourceIdentifier LIGHT_INDICES = PASS_RESOURCE_IDENTIFIER("light_indices");
+        constexpr ResourceIdentifier SPOT_LIGHT_INDICES = PASS_RESOURCE_IDENTIFIER("spot light_indices");
+        constexpr ResourceIdentifier POINT_LIGHT_INDICES = PASS_RESOURCE_IDENTIFIER("point light_indices");
     }
 }
 

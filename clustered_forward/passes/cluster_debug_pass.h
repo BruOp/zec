@@ -67,7 +67,7 @@ namespace clustered
                 .usage = zec::RESOURCE_USAGE_DEPTH_STENCIL,
             },
             {
-                .id = PassResources::LIGHT_INDICES.id,
+                .id = PassResources::SPOT_LIGHT_INDICES.id,
                 .type = zec::render_pass_system::PassResourceType::BUFFER,
                 .usage = zec::RESOURCE_USAGE_SHADER_READABLE,
             },
