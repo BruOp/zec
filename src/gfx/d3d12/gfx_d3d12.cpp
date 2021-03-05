@@ -517,9 +517,9 @@ namespace zec::gfx
         }
 
         // Process resources queued for destruction
-        process_destruction_queue(g_context.destruction_queue, g_context.current_frame_idx);
+        g_context.destruction_queue.process(g_context.current_frame_idx);
 
-        process_destruction_queue(g_context.async_destruction_queue, queue_completed_fence_values);
+        g_context.async_destruction_queue.process(queue_completed_fence_values);
 
         g_context.descriptor_heap_manager.process_destruction_queue(g_context.current_frame_idx);
     }
@@ -1422,7 +1422,7 @@ namespace zec::gfx
                 if (g_context.upload_store.get_staged_uploads(context_handles[i])) {
                     Array<UploadContextStore::Upload>* uploads = g_context.upload_store.get_staged_uploads(context_handles[i]);
                     for (UploadContextStore::Upload& upload : *uploads) {
-                        queue_destruction(g_context.async_destruction_queue, receipt, upload.resource, upload.allocation);
+                        g_context.async_destruction_queue.enqueue(receipt, upload.resource, upload.allocation);
                     }
                     g_context.upload_store.clear_staged_uploads(context_handles[i]);
                 }
