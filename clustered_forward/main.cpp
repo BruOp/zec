@@ -69,7 +69,7 @@ namespace clustered
     public:
         ClusteredForward() : App{ L"Clustered Forward Rendering" } { }
 
-        FPSCameraController camera_controller = {};
+        FPSCameraController camera_controller = { input_manager };
 
         PerspectiveCamera camera;
         PerspectiveCamera debug_camera;

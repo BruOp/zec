@@ -1,7 +1,5 @@
 #include "pch.h"
-#include <imgui/imgui.h>
 #include "window.h"
-#include "input_manager.h"
 
 namespace zec
 {
@@ -38,13 +36,9 @@ namespace zec
     void Window::message_loop()
     {
         MSG msg;
-        ImGuiIO io = ImGui::GetIO();
         while (PeekMessage(&msg, hwnd, 0, 0, PM_REMOVE)) {
             ::TranslateMessage(&msg);
             ::DispatchMessage(&msg);
-            if (!(io.WantCaptureMouse || io.WantCaptureKeyboard)) {
-                input::handle_msg(msg);
-            }
         }
     }
 

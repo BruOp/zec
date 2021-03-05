@@ -36,7 +36,7 @@ namespace zec
     class OrbitCameraController : ICameraController
     {
     public:
-        OrbitCameraController() : input_map{ input::create_mapping() }
+        OrbitCameraController(input::InputManager& input_manager) : input_map{ input::create_mapping(input_manager) }
         { };
 
         void init();
@@ -60,7 +60,7 @@ namespace zec
     class FPSCameraController : ICameraController
     {
     public:
-        FPSCameraController() : input_map{ input::create_mapping() }
+        FPSCameraController(input::InputManager& input_manager) : input_map{ input::create_mapping(input_manager) }
         { };
 
         void init();

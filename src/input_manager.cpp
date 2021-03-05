@@ -3,70 +3,67 @@
 
 namespace zec::input
 {
-    static InputState g_input_state;
+    InputManager::InputManager() :
+        internal_manager{ },
+        keyboard_id{ internal_manager.CreateDevice<gainput::InputDeviceKeyboard>() },
+        mouse_id{ internal_manager.CreateDevice<gainput::InputDeviceMouse>() }
+    { }
 
-    void initialize(u32 width, u32 height)
+    InputManager::InputManager(const u32 width, const u32 height) : InputManager()
     {
-        g_input_state.internal_manager.SetDisplaySize(width, height);
-        auto keyboard = g_input_state.internal_manager.CreateDevice<gainput::InputDeviceKeyboard>();
-        g_input_state.keyboard_id = keyboard;
-        g_input_state.mouse_id = g_input_state.internal_manager.CreateDevice<gainput::InputDeviceMouse>();
-        g_input_state.is_initialized = true;
+        set_dimensions(width, height);
     }
 
-    void destroy()
+    void InputManager::set_dimensions(const u32 width, const u32 height)
     {
-        // TODO: Fix the fact that the current implementation leaks.
+        internal_manager.SetDisplaySize(width, height);
     }
 
-    void handle_msg(const MSG& msg)
+    void InputManager::update(const TimeData& time_data)
     {
-        if (g_input_state.is_initialized) {
-            g_input_state.internal_manager.HandleMessage(msg);
-        }
+        internal_manager.Update();
     }
 
-    void update(const TimeData& time_data)
+    void InputManager::handle_msg(const MSG& msg)
     {
-        ASSERT(g_input_state.is_initialized);
-        g_input_state.internal_manager.Update();
+        internal_manager.HandleMessage(msg);
     }
 
-    InputMapping create_mapping()
+    InputMapping create_mapping(InputManager& input_manager)
     {
-        return InputMapping{
-            g_input_state.internal_manager
-        };
+        return InputMapping{ &input_manager };
     }
 
-    void map_bool(InputMapping& mapping, const u32 user_button, const Key key)
+    void InputMapping::map_bool(const u32 user_button, const Key key)
     {
-        mapping.internal_mapping.MapBool(user_button, g_input_state.keyboard_id, gainput::UserButtonId(key));
+        ASSERT(input_manager != nullptr);
+        internal_mapping.MapBool(user_button, input_manager->keyboard_id, gainput::UserButtonId(key));
     }
 
-    void map_bool(InputMapping& mapping, const u32 user_button, const MouseInput key)
+    void InputMapping::map_bool(const u32 user_button, const MouseInput key)
     {
-        mapping.internal_mapping.MapBool(user_button, g_input_state.mouse_id, gainput::UserButtonId(key));
+        ASSERT(input_manager != nullptr);
+        internal_mapping.MapBool(user_button, input_manager->mouse_id, gainput::UserButtonId(key));
     }
 
-    void map_float(InputMapping& mapping, const u32 user_button, const MouseInput axis)
+    void InputMapping::map_float(const u32 user_button, const MouseInput axis)
     {
-        mapping.internal_mapping.MapFloat(user_button, g_input_state.mouse_id, gainput::UserButtonId(axis));
+        ASSERT(input_manager != nullptr);
+        internal_mapping.MapFloat(user_button, input_manager->mouse_id, gainput::UserButtonId(axis));
     }
 
-    bool button_is_down(InputMapping& mapping, const u32 user_button)
+    bool InputMapping::button_is_down(const u32 user_button)
     {
-        return mapping.internal_mapping.GetBool(user_button);
+        return internal_mapping.GetBool(user_button);
     }
 
-    bool button_was_down(InputMapping& mapping, const u32 user_button)
+    bool InputMapping::button_was_down(const u32 user_button)
     {
-        return mapping.internal_mapping.GetBoolWasDown(user_button);
+        return internal_mapping.GetBoolWasDown(user_button);
     }
 
-    float get_axis_delta(InputMapping& mapping, const u32 user_axis)
+    float InputMapping::get_axis_delta(const u32 user_axis)
     {
-        return mapping.internal_mapping.GetFloatDelta(user_axis);
+        return internal_mapping.GetFloatDelta(user_axis);
     }
-
 }

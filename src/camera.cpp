@@ -65,35 +65,35 @@ namespace zec
 
     void OrbitCameraController::init()
     {
-        input::map_bool(input_map, CAMERA_ROTATE_MODE, MouseInput::LEFT);
-        input::map_bool(input_map, CAMERA_PAN_MODE, MouseInput::RIGHT);
-        input::map_bool(input_map, CAMERA_ZOOM_IN, MouseInput::SCROLL_UP);
-        input::map_bool(input_map, CAMERA_ZOOM_OUT, MouseInput::SCROLL_DOWN);
-        input::map_bool(input_map, CAMERA_ZOOM_IN, Key::W);
-        input::map_bool(input_map, CAMERA_ZOOM_OUT, Key::S);
-        input::map_bool(input_map, CAMERA_YAW_LEFT, Key::A);
-        input::map_bool(input_map, CAMERA_YAW_RIGHT, Key::D);
-        input::map_bool(input_map, CAMERA_TRANSLATE_UP, Key::Q);
-        input::map_bool(input_map, CAMERA_TRANSLATE_DOWN, Key::E);
+        input_map.map_bool(CAMERA_ROTATE_MODE, MouseInput::LEFT);
+        input_map.map_bool(CAMERA_PAN_MODE, MouseInput::RIGHT);
+        input_map.map_bool(CAMERA_ZOOM_IN, MouseInput::SCROLL_UP);
+        input_map.map_bool(CAMERA_ZOOM_OUT, MouseInput::SCROLL_DOWN);
+        input_map.map_bool(CAMERA_ZOOM_IN, Key::W);
+        input_map.map_bool(CAMERA_ZOOM_OUT, Key::S);
+        input_map.map_bool(CAMERA_YAW_LEFT, Key::A);
+        input_map.map_bool(CAMERA_YAW_RIGHT, Key::D);
+        input_map.map_bool(CAMERA_TRANSLATE_UP, Key::Q);
+        input_map.map_bool(CAMERA_TRANSLATE_DOWN, Key::E);
 
-        input::map_float(input_map, CAMERA_YAW, MouseInput::AXIS_X);
-        input::map_float(input_map, CAMERA_PITCH, MouseInput::AXIS_Y);
+        input_map.map_float(CAMERA_YAW, MouseInput::AXIS_X);
+        input_map.map_float(CAMERA_PITCH, MouseInput::AXIS_Y);
     }
 
     void OrbitCameraController::update(const float delta_time)
     {
         ASSERT(camera != nullptr);
 
-        float delta_x = input::get_axis_delta(input_map, CAMERA_YAW);
-        float delta_y = input::get_axis_delta(input_map, CAMERA_PITCH);
+        float delta_x = input_map.get_axis_delta(CAMERA_YAW);
+        float delta_y = input_map.get_axis_delta(CAMERA_PITCH);
 
-        if (input::button_is_down(input_map, CAMERA_ROTATE_MODE)) {
+        if (input_map.button_is_down(CAMERA_ROTATE_MODE)) {
             // Handle rotation
             yaw -= yaw_sensitivity * delta_x;
             pitch += pitch_sensitivity * delta_y;
         }
 
-        if (input::button_is_down(input_map, CAMERA_PAN_MODE)) {
+        if (input_map.button_is_down(CAMERA_PAN_MODE)) {
 
             vec3 right = get_right(camera->view);
             vec3 up = get_up(camera->view);
@@ -101,11 +101,11 @@ namespace zec
             origin += movement_sensitivity * delta_y * up;
         }
 
-        if (input::button_is_down(input_map, CAMERA_ZOOM_IN)) {
+        if (input_map.button_is_down(CAMERA_ZOOM_IN)) {
             radius -= zoom_sensitivity;
         }
 
-        if (input::button_is_down(input_map, CAMERA_ZOOM_OUT)) {
+        if (input_map.button_is_down(CAMERA_ZOOM_OUT)) {
             radius += zoom_sensitivity;
         }
         constexpr float radiusLimit = 0.1f;
@@ -131,28 +131,28 @@ namespace zec
 
     void FPSCameraController::init()
     {
-        input::map_bool(input_map, CAMERA_ROTATE_MODE, MouseInput::LEFT);
-        input::map_bool(input_map, CAMERA_ZOOM_IN, MouseInput::SCROLL_UP);
-        input::map_bool(input_map, CAMERA_ZOOM_OUT, MouseInput::SCROLL_DOWN);
-        input::map_bool(input_map, CAMERA_TRANSLATE_FORWARD, Key::W);
-        input::map_bool(input_map, CAMERA_TRANSLATE_BACKWARD, Key::S);
-        input::map_bool(input_map, CAMERA_TRANSLATE_LEFT, Key::A);
-        input::map_bool(input_map, CAMERA_TRANSLATE_RIGHT, Key::D);
-        input::map_bool(input_map, CAMERA_TRANSLATE_UP, Key::Q);
-        input::map_bool(input_map, CAMERA_TRANSLATE_DOWN, Key::E);
+        input_map.map_bool(CAMERA_ROTATE_MODE, MouseInput::LEFT);
+        input_map.map_bool(CAMERA_ZOOM_IN, MouseInput::SCROLL_UP);
+        input_map.map_bool(CAMERA_ZOOM_OUT, MouseInput::SCROLL_DOWN);
+        input_map.map_bool(CAMERA_TRANSLATE_FORWARD, Key::W);
+        input_map.map_bool(CAMERA_TRANSLATE_BACKWARD, Key::S);
+        input_map.map_bool(CAMERA_TRANSLATE_LEFT, Key::A);
+        input_map.map_bool(CAMERA_TRANSLATE_RIGHT, Key::D);
+        input_map.map_bool(CAMERA_TRANSLATE_UP, Key::Q);
+        input_map.map_bool(CAMERA_TRANSLATE_DOWN, Key::E);
 
-        input::map_float(input_map, CAMERA_YAW, MouseInput::AXIS_X);
-        input::map_float(input_map, CAMERA_PITCH, MouseInput::AXIS_Y);
+        input_map.map_float(CAMERA_YAW, MouseInput::AXIS_X);
+        input_map.map_float(CAMERA_PITCH, MouseInput::AXIS_Y);
     }
 
     void FPSCameraController::update(const float deltaTime)
     {
         ASSERT(camera != nullptr);
 
-        float delta_x = input::get_axis_delta(input_map, CAMERA_YAW);
-        float delta_y = input::get_axis_delta(input_map, CAMERA_PITCH);
+        float delta_x = input_map.get_axis_delta(CAMERA_YAW);
+        float delta_y = input_map.get_axis_delta(CAMERA_PITCH);
 
-        if (input::button_is_down(input_map, CAMERA_ROTATE_MODE)) {
+        if (input_map.button_is_down(CAMERA_ROTATE_MODE)) {
             // Handle rotation
             yaw += yaw_sensitivity * delta_x;
             pitch += pitch_sensitivity * delta_y;
@@ -175,24 +175,24 @@ namespace zec
         vec3 right = cross(forward, k_up);
         vec3 movement_vector = {};
 
-        if (input::button_is_down(input_map, CAMERA_TRANSLATE_UP)) {
+        if (input_map.button_is_down(CAMERA_TRANSLATE_UP)) {
             movement_vector.y += 1.0f;
         }
-        if (input::button_is_down(input_map, CAMERA_TRANSLATE_DOWN)) {
+        if (input_map.button_is_down(CAMERA_TRANSLATE_DOWN)) {
             movement_vector.y -= 1.0f;
         }
 
-        if (input::button_is_down(input_map, CAMERA_TRANSLATE_LEFT)) {
+        if (input_map.button_is_down(CAMERA_TRANSLATE_LEFT)) {
             movement_vector -= right;
         }
-        if (input::button_is_down(input_map, CAMERA_TRANSLATE_RIGHT)) {
+        if (input_map.button_is_down(CAMERA_TRANSLATE_RIGHT)) {
             movement_vector += right;
         }
 
-        if (input::button_is_down(input_map, CAMERA_TRANSLATE_FORWARD)) {
+        if (input_map.button_is_down(CAMERA_TRANSLATE_FORWARD)) {
             movement_vector += forward;
         }
-        if (input::button_is_down(input_map, CAMERA_TRANSLATE_BACKWARD)) {
+        if (input_map.button_is_down(CAMERA_TRANSLATE_BACKWARD)) {
             movement_vector -= forward;
         }
 

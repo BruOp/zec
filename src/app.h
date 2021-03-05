@@ -32,11 +32,12 @@ namespace zec
         virtual void after_reset() = 0;
 
         void exit();
-        static void on_window_resize(void* context, HWND hWnd, UINT msg, WPARAM w_param, LPARAM l_param);
+        static void window_message_callback(void* context, HWND hWnd, UINT msg, WPARAM w_param, LPARAM l_param);
 
         TimeData time_data = {};
         std::wstring app_name;
-
+        
+        input::InputManager input_manager = {};
     private:
 
         //void parse_command_line(const wchar* cmdLine);
@@ -50,9 +51,5 @@ namespace zec
         void before_reset_internal();
         void after_reset_internal();
 
-        //void CreatePSOs_Internal();
-        //void DestroyPSOs_Internal();
-
-        //void DrawLog();
     };
 }

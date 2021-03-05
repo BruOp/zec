@@ -15,7 +15,8 @@ namespace zec
             WS_OVERLAPPEDWINDOW,
             WS_EX_APPWINDOW,
             width,
-            height }
+            height },
+            input_manager{ width, height }
     {
     }
 
@@ -48,20 +49,25 @@ namespace zec
         window.destroy();
     }
 
-    void App::on_window_resize(void* context, HWND hWnd, UINT msg, WPARAM w_param, LPARAM l_param)
+    void App::window_message_callback(void* context, HWND hWnd, UINT msg, WPARAM w_param, LPARAM l_param)
     {
-        if (msg != WM_SIZE)
-            return;
-
         App* app = reinterpret_cast<App*>(context);
+        ImGuiIO io = ImGui::GetIO();
+        if (!(io.WantCaptureMouse || io.WantCaptureKeyboard)) {
+            app->input_manager.handle_msg({ hWnd, msg, w_param, l_param });
+        }
 
-        if (w_param != SIZE_MINIMIZED) {
-            int width, height;
-            app->window.get_client_area(width, height);
+        if (msg == WM_SIZE) {
 
-            gfx::on_window_resize(width, height);
-            app->width = width;
-            app->height = height;
+            if (w_param != SIZE_MINIMIZED) {
+                int width, height;
+                app->window.get_client_area(width, height);
+                app->input_manager.set_dimensions(width, height);
+
+                gfx::on_window_resize(width, height);
+                app->width = width;
+                app->height = height;
+            }
         }
     }
 
@@ -81,9 +87,8 @@ namespace zec
         gfx::init_renderer(renderer_desc);
 
         ui::initialize(window);
-        input::initialize(width, height);
 
-        window.register_message_callback(on_window_resize, this);
+        window.register_message_callback(window_message_callback, this);
 
         init();
     }
@@ -92,7 +97,6 @@ namespace zec
     {
         gfx::flush_gpu();
         ui::destroy();
-        input::destroy();
         shutdown();
         gfx::destroy_renderer();
     }
@@ -101,7 +105,7 @@ namespace zec
     {
         PROFILE_EVENT("App Update");
 
-        input::update(time_data);
+        input_manager.update(time_data);
         update_time_data(time_data);
 
         update(time_data);
