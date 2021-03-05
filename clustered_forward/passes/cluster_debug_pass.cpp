@@ -20,19 +20,8 @@ void ClusterDebugPass::setup()
             .num_constant_buffers = 3,
             .tables = {
                 {.usage = ResourceAccess::READ },
-                {.usage = ResourceAccess::READ },
-                {.usage = ResourceAccess::READ },
-                {.usage = ResourceAccess::READ },
             },
-            .num_resource_tables = 4,
-            .static_samplers = {
-                {
-                    .filtering = SamplerFilterType::ANISOTROPIC,
-                    .wrap_u = SamplerWrapMode::WRAP,
-                    .wrap_v = SamplerWrapMode::WRAP,
-                    .binding_slot = 0,
-                },
-            },
+            .num_resource_tables = 1,
             .num_static_samplers = 0,
         };
 
@@ -60,7 +49,7 @@ void ClusterDebugPass::setup()
         binning_cb = gfx::buffers::create({
             .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
             .type = BufferType::DEFAULT,
-            .byte_size = sizeof(BinningConstants),
+            .byte_size = sizeof(ClusterGridConstants),
             .stride = 0 });
 
         gfx::set_debug_name(binning_cb, L"ClusterDebugPass Binning Constants");
@@ -73,8 +62,8 @@ void ClusterDebugPass::setup()
 
         // Hmmm, shouldn't this be in copy?
         binning_constants.setup = cluster_grid_setup;
-        binning_constants.spot_light_indices_list_idx = gfx::buffers::get_shader_writable_index(spot_light_indices_buffer);
-        binning_constants.point_light_indices_list_idx = gfx::buffers::get_shader_writable_index(point_light_indices_buffer);
+        binning_constants.spot_light_indices_list_idx = gfx::buffers::get_shader_readable_index(spot_light_indices_buffer);
+        binning_constants.point_light_indices_list_idx = gfx::buffers::get_shader_readable_index(point_light_indices_buffer);
 
         gfx::buffers::update(binning_cb, &binning_constants, sizeof(binning_constants));
 
@@ -96,13 +85,10 @@ void ClusterDebugPass::setup()
 
         gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
         gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, scene_constants_buffer, u32(BindingSlots::SCENE_CONSTANT_BUFFER));
-        gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, binning_cb, u32(BindingSlots::LIGHT_GRID_CONSTANTS));
+        gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, binning_cb, u32(BindingSlots::CLUSTER_GRID_CONSTANTS));
         
         const auto* scene_data = scene_renderables;
         gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::RAW_BUFFERS_TABLE));
-        gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::TEXTURE_2D_TABLE));
-        gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::TEXTURE_CUBE_TABLE));
-        gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::TEXTURE_3D_TABLE));
 
         u32 buffer_descriptors[2] = {
             gfx::buffers::get_shader_readable_index(scene_data->vs_buffer),

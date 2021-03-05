@@ -28,12 +28,6 @@ namespace zec
             u32 emissive_texture_idx = UINT32_MAX;
         };
 
-        struct AABB
-        {
-            vec3 max = {};
-            vec3 min = {};
-        };
-
         struct SceneGraph
         {
             Array<u32> parent_ids = {};

@@ -71,6 +71,11 @@ namespace clustered
                 .type = zec::render_pass_system::PassResourceType::BUFFER,
                 .usage = zec::RESOURCE_USAGE_SHADER_READABLE,
             },
+            {
+                .id = PassResources::POINT_LIGHT_INDICES.id,
+                .type = zec::render_pass_system::PassResourceType::BUFFER,
+                .usage = zec::RESOURCE_USAGE_SHADER_READABLE,
+            },
         };
         static constexpr zec::render_pass_system::PassOutputDesc pass_outputs[] = {
             {
@@ -89,14 +94,11 @@ namespace clustered
             BUFFERS_DESCRIPTORS,
             VIEW_CONSTANT_BUFFER,
             SCENE_CONSTANT_BUFFER,
-            LIGHT_GRID_CONSTANTS,
+            CLUSTER_GRID_CONSTANTS,
             RAW_BUFFERS_TABLE,
-            TEXTURE_2D_TABLE,
-            TEXTURE_CUBE_TABLE,
-            TEXTURE_3D_TABLE,
         };
 
-        struct BinningConstants
+        struct ClusterGridConstants
         {
             ClusterGridSetup setup;
             u32 spot_light_indices_list_idx;
@@ -108,6 +110,6 @@ namespace clustered
         zec::BufferHandle binning_cb = {};
 
         ClusterGridSetup cluster_grid_setup = {};
-        BinningConstants binning_constants = {};
+        ClusterGridConstants binning_constants = {};
     };
 }

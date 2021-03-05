@@ -96,72 +96,6 @@ namespace clustered
 
             //ClusterGridSetup cluster_grid_setup = calculate_cluster_grid(width, heigth, 32, tile)
 
-            // Create lights
-            {
-                constexpr vec3 light_colors[] = {
-                    {1.0f, 0.6f, 0.6f },
-                    {0.6f, 1.0f, 0.6f },
-                    {0.6f, 0.6f, 1.0f },
-                    {1.0f, 1.0f, 0.6f },
-                    {1.0f, 0.6f, 1.0f },
-                    {0.6f, 1.0f, 1.0f },
-                    {1.0f, 1.0f, 1.0f },
-                    {0.5f, 0.3f, 1.0f },
-                    {0.7f, 0.8f, 1.0f },
-                };
-
-                std::default_random_engine generator;
-                std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
-                auto random_generator = std::bind(distribution, generator);
-
-                constexpr float scene_width = 25.0f;
-                constexpr float scene_length = 12.0f;
-                constexpr float scene_height = 14.0f;
-                constexpr u32 grid_size_x = 8;
-                constexpr u32 grid_size_y = 4;
-                constexpr u32 grid_size_z = 4;
-
-                constexpr size_t num_lights = grid_size_x * grid_size_y * grid_size_z;
-                for (size_t idx = 0; idx < num_lights; ++idx) {
-                    float coeff = float(idx) / float(num_lights - 1);
-                    float phase = k_2_pi * coeff;
-
-                    u32 j = idx / (grid_size_x * grid_size_z);
-                    u32 k = (idx - j * (grid_size_z * grid_size_x)) / grid_size_x;
-                    u32 i = idx - k * (grid_size_x)-j * (grid_size_z * grid_size_x);
-                    vec3 position = {
-                        (2.0f * float(i) / float(grid_size_x) - 1.0f) * scene_width,
-                        5.0f + float(j) / float(grid_size_y) * scene_height,
-                        (2.0f * float(k) / float(grid_size_z) - 1.0f) * scene_length,
-                    };
-                    // Set positions in Cartesian
-                    spot_lights.push_back({
-                        .position = position,
-                        .radius = 5.0f,
-                        .direction = normalize(vec3{random_generator(), -1.0f, random_generator()}),
-                        //.direction = vec3{0.0f, -1.0f, 0.0f},
-                        .umbra_angle = k_half_pi * 0.25f,
-                        .penumbra_angle = k_half_pi * 0.2f,
-                        .color = light_colors[idx % std::size(light_colors)] * 3.0f,
-                        });
-                }
-
-                constexpr size_t num_point_lights = 1024;
-                for (size_t idx = 0; idx < num_point_lights; ++idx) {
-                    vec3 position = {
-                        random_generator() * scene_width,
-                        random_generator() * scene_height,
-                        random_generator() * scene_length,
-                    };
-                    // Set positions in Cartesian
-                    point_lights.push_back({
-                        .position = position,
-                        .radius = 2.0f,
-                        .color = light_colors[idx % std::size(light_colors)] * 2.0f,
-                        });
-                }
-            }
-
             renderable_camera.initialize(L"Main camera view constant buffer", &camera);
 
             renderable_scene.initialize(RenderableSceneSettings{
@@ -210,7 +144,7 @@ namespace clustered
             CmdReceipt receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
 
             gfx::cmd::gpu_wait(CommandQueueType::GRAPHICS, receipt);
-
+            
             CommandContextHandle graphics_ctx = gfx::cmd::provision(CommandQueueType::GRAPHICS);
 
             // Compute BRDF and Irraadiance maps
@@ -257,15 +191,101 @@ namespace clustered
                     });
             }
 
+            AABB scene_aabb{
+                .min = {FLT_MAX, FLT_MAX, FLT_MAX},
+                .max = {-FLT_MAX, -FLT_MAX, -FLT_MAX}
+            };
             for (size_t i = 0; i < gltf_context.draw_calls.size; i++) {
                 const auto& draw_call = gltf_context.draw_calls[i];
+                const mat4& model_transform = gltf_context.scene_graph.global_transforms[draw_call.scene_node_idx];
+                AABB aabb = gltf_context.aabbs[i];
+
                 renderable_scene.renderables.push_renderable(
                     draw_call.material_index,
                     draw_call.mesh,
                     {
-                        .model_transform = gltf_context.scene_graph.global_transforms[draw_call.scene_node_idx],
+                        .model_transform = model_transform,
                         .normal_transform = gltf_context.scene_graph.normal_transforms[draw_call.scene_node_idx],
-                    });
+                    },
+                    aabb
+                );
+
+                vec3 corners[] = {
+                            aabb.min,
+                            {aabb.max.x, aabb.min.y, aabb.min.z},
+                            {aabb.min.x, aabb.max.y, aabb.min.z},
+                            {aabb.min.x, aabb.min.y, aabb.max.z},
+                            {aabb.min.x, aabb.max.y, aabb.max.z},
+                            {aabb.max.x, aabb.min.y, aabb.max.z},
+                            {aabb.max.x, aabb.max.y, aabb.min.z},
+                            aabb.max,
+                };
+
+                // Transform corners
+                // This only translates to our OBB if our transform is affine
+                for (size_t corner_idx = 0; corner_idx < ARRAY_SIZE(corners); corner_idx++) {
+                    vec3 corner = (model_transform * corners[corner_idx]).xyz;
+                    scene_aabb.min = min(corner, scene_aabb.min);
+                    scene_aabb.max = max(corner, scene_aabb.max);
+                }
+            }
+
+            // Create lights
+            {
+                constexpr vec3 light_colors[] = {
+                    {1.0f, 0.6f, 0.6f },
+                    {0.6f, 1.0f, 0.6f },
+                    {0.6f, 0.6f, 1.0f },
+                    {1.0f, 1.0f, 0.6f },
+                    {1.0f, 0.6f, 1.0f },
+                    {0.6f, 1.0f, 1.0f },
+                    {1.0f, 1.0f, 1.0f },
+                    {0.5f, 0.3f, 1.0f },
+                    {0.7f, 0.8f, 1.0f },
+                };
+
+                std::default_random_engine generator;
+                std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
+                auto random_generator = std::bind(distribution, generator);
+
+                vec3 scene_dims = 0.5f * (scene_aabb.max - scene_aabb.min);
+                vec3 scene_origin = 0.5f * (scene_aabb.max + scene_aabb.min);
+                constexpr u32 grid_size_x = 8;
+                constexpr u32 grid_size_y = 4;
+                constexpr u32 grid_size_z = 4;
+
+                constexpr size_t num_lights = grid_size_x * grid_size_y * grid_size_z;
+                for (size_t idx = 0; idx < num_lights; ++idx) {
+                    float coeff = float(idx) / float(num_lights - 1);
+                    float phase = k_2_pi * coeff;
+
+                    u32 j = idx / (grid_size_x * grid_size_z);
+                    u32 k = (idx - j * (grid_size_z * grid_size_x)) / grid_size_x;
+                    u32 i = idx - k * (grid_size_x)-j * (grid_size_z * grid_size_x);
+                    vec3 cube_coords = 2.0f * vec3{ float(i) / float(grid_size_x), float(j) / float(grid_size_y), float(k) / float(grid_size_z) } - 1.0f;
+
+                    vec3 position = scene_origin + scene_dims * cube_coords;
+                    // Set positions in Cartesian
+                    spot_lights.push_back({
+                        .position = position,
+                        .radius = 5.0f,
+                        .direction = normalize(vec3{random_generator(), -1.0f, random_generator()}),
+                        .umbra_angle = k_half_pi * 0.25f,
+                        .penumbra_angle = k_half_pi * 0.2f,
+                        .color = light_colors[idx % std::size(light_colors)] * 3.0f,
+                        });
+                }
+
+                constexpr size_t num_point_lights = 1024;
+                for (size_t idx = 0; idx < num_point_lights; ++idx) {
+                    vec3 position = scene_origin + scene_dims * vec3{ random_generator(), random_generator(), random_generator() };
+                    // Set positions in Cartesian
+                    point_lights.push_back({
+                        .position = position,
+                        .radius = 2.0f,
+                        .color = light_colors[idx % std::size(light_colors)] * 1.0f,
+                        });
+                }
             }
 
             render_passes.light_binning.view_cb_handle = renderable_camera.view_constant_buffer;
@@ -297,9 +317,9 @@ namespace clustered
                 &render_passes.light_binning,
                 //&render_passes.cluster_debug,
                 &render_passes.forward,
-                &render_passes.background,
+                //&render_passes.background,
                 &render_passes.tone_mapping,
-                &render_passes.debug_pass,
+                //&render_passes.debug_pass,
             };
             render_pass_system::RenderPassListDesc render_list_desc = {
                 .render_passes = pass_ptrs,

@@ -3,7 +3,7 @@
 #include "light_helpers.hlsl"
 #include "cluster_helpers.hlsl"
 
-static const uint VIZ_UPPER_BOUND = 15;
+static const uint VIZ_UPPER_BOUND = 32;
 
 //=================================================================================================
 // Bindings
@@ -55,8 +55,6 @@ cbuffer clustered_lighting_constants : register(b4)
 };
 
 ByteAddressBuffer buffers_table[4096] : register(t0, space1);
-Texture2D tex2D_table[4096] : register(t0, space2);
-TextureCube tex_cube_table[4096] : register(t0, space3);
 
 //=================================================================================================
 // Vertex Shader

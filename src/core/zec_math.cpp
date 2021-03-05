@@ -19,20 +19,6 @@ namespace zec
         };
     }
 
-    bool obb_in_frustum(const OBB& obb)
-    {
-        bool inside = false;
-        // Max
-        for (size_t corner_idx = 0; corner_idx < ARRAY_SIZE(obb.corners); corner_idx++) {
-            const vec4& corner = obb.corners[corner_idx];
-            inside = inside ||
-                within(-corner.w, corner.x, corner.w) &&
-                within(-corner.w, corner.y, corner.w) &&
-                within(0.0f, corner.z, corner.w);
-        }
-        return inside;
-    };
-
     mat4 quat_to_mat4(const quaternion& q)
     {
         quaternion nq = normalize(q);

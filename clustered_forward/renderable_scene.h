@@ -6,6 +6,26 @@
 
 namespace clustered
 {
+    struct AABB_SoA
+    {
+        zec::Array<float> min_x;
+        zec::Array<float> min_y;
+        zec::Array<float> min_z;
+        zec::Array<float> max_x;
+        zec::Array<float> max_y;
+        zec::Array<float> max_z;
+
+        size_t push_back(const zec::AABB& aabb)
+        {
+            min_x.push_back(aabb.min.x);
+            min_y.push_back(aabb.min.y);
+            min_z.push_back(aabb.min.z);
+            max_x.push_back(aabb.max.x);
+            max_y.push_back(aabb.max.y);
+            return max_z.push_back(aabb.max.z);
+        };
+    };
+
     struct PointLight
     {
         zec::vec3 position;
@@ -83,6 +103,8 @@ namespace clustered
         zec::Array<MaterialData> material_instances = {};
         zec::Array<VertexShaderData> vertex_shader_data;
 
+        AABB_SoA aabb_soa;
+
         size_t max_num_materials;
         zec::Array<u32> material_indices;
 
@@ -100,7 +122,7 @@ namespace clustered
             material_instances.push_back(material);
         }
 
-        void push_renderable(const u32 material_idx, const zec::MeshHandle mesh_handle, const VertexShaderData& vs_data);
+        void push_renderable(const u32 material_idx, const zec::MeshHandle mesh_handle, const VertexShaderData& vs_data, const zec::AABB& aabb);
 
     };
 

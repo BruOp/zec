@@ -61,7 +61,7 @@ namespace clustered
         binning_cb = gfx::buffers::create({
             .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
             .type = BufferType::DEFAULT,
-            .byte_size = sizeof(BinningConstants),
+            .byte_size = sizeof(ClusterGridConstants),
             .stride = 0 });
     }
 
@@ -78,7 +78,7 @@ namespace clustered
         gfx::cmd::set_compute_resource_layout(cmd_ctx, resource_layout);
         gfx::cmd::set_compute_pipeline_state(cmd_ctx, spot_light_pso);
 
-        gfx::cmd::bind_compute_constant_buffer(cmd_ctx, binning_cb, u32(Slots::LIGHT_GRID_CONSTANTS));
+        gfx::cmd::bind_compute_constant_buffer(cmd_ctx, binning_cb, u32(Slots::CLUSTER_GRID_CONSTANTS));
         gfx::cmd::bind_compute_constant_buffer(cmd_ctx, view_cb_handle, u32(Slots::VIEW_CONSTANTS));
         gfx::cmd::bind_compute_constant_buffer(cmd_ctx, scene_constants_buffer, u32(Slots::SCENE_CONSTANTS));
 

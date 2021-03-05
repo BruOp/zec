@@ -118,6 +118,16 @@ namespace zec
         return { v1.x - v2.x, v1.y - v2.y, v1.z - v2.z };
     }
     template<typename T>
+    inline Vector3<T> operator-(const Vector3<T>& v, const T s)
+    {
+        return { v.x - s, v.y - s, v.z - s };
+    }
+    template<typename T>
+    inline Vector3<T> operator-(const T s, const Vector3<T>& v)
+    {
+        return v - s;
+    }
+    template<typename T>
     inline Vector3<T> operator*(const Vector3<T>& v1, const T s)
     {
         return { v1.x * s, v1.y * s, v1.z * s };
@@ -126,6 +136,11 @@ namespace zec
     inline Vector3<T> operator*(const T s, const Vector3<T>& v1)
     {
         return { v1.x * s, v1.y * s, v1.z * s };
+    }
+    template<typename T>
+    inline Vector3<T> operator*(const Vector3<T>& v1, const Vector3<T>& v2)
+    {
+        return { v1.x * v2.x, v1.y * v2.y, v1.z * v2.z };
     }
     template<typename T>
     inline Vector3<T> operator/(const Vector3<T>& v1, const T s)
@@ -201,6 +216,17 @@ namespace zec
         return { a2b3 - a3b2, a3b1 - a1b3, a1b2 - a2b1 };
     };
 
+    template<typename T>
+    Vector3<T> min(const Vector3<T>& a, const Vector3<T>& b)
+    {
+        return Vector3<T>{ min(a.x, b.x), min(a.y, b.y), min(a.z, b.z) };
+    }
+
+    template<typename T>
+    Vector3<T> max(const Vector3<T>& a, const Vector3<T>& b)
+    {
+        return Vector3<T>{ max(a.x, b.x), max(a.y, b.y), max(a.z, b.z) };
+    }
 
     // ---------- vec4 ----------
 
@@ -536,8 +562,10 @@ namespace zec
 
     struct OBB
     {
-        // These are vec4 because we use them in clip space
-        vec4 corners[8];
+        vec3 center = {};
+        vec3 extents = {};
+        // Orthonormal basis
+        vec3 axes[3] = {};
     };
 
     struct Plane
@@ -558,6 +586,4 @@ namespace zec
     {
         return min_val <= x && x <= max_val;
     };
-
-    bool obb_in_frustum(const OBB& obb);
 }

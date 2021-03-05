@@ -57,7 +57,7 @@ namespace clustered
     private:
         enum struct Slots : u32
         {
-            LIGHT_GRID_CONSTANTS = 0,
+            CLUSTER_GRID_CONSTANTS = 0,
             VIEW_CONSTANTS,
             SCENE_CONSTANTS,
             READ_BUFFERS_TABLE,
@@ -71,7 +71,7 @@ namespace clustered
             POINT_LIGHT_INDICES,
         };
 
-        struct BinningConstants
+        struct ClusterGridConstants
         {
             ClusterGridSetup setup;
             u32 spot_light_indices_list_idx;
@@ -83,7 +83,7 @@ namespace clustered
         zec::PipelineStateHandle point_light_pso = {};        
         zec::BufferHandle binning_cb = {};
 
-        BinningConstants binning_constants = {};
+        ClusterGridConstants binning_constants = {};
 
         static constexpr zec::CommandQueueType command_queue_type = zec::CommandQueueType::GRAPHICS;
         static constexpr char pass_name[] = "Light Binning Pass";

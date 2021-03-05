@@ -205,8 +205,8 @@ namespace zec
                         };
 
                         out_context.aabbs.push_back({
-                            .max = aabb_max,
                             .min = aabb_min,
+                            .max = aabb_max,
                             });
 
                     }

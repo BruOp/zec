@@ -92,13 +92,13 @@ namespace clustered
             BUFFERS_DESCRIPTORS,
             VIEW_CONSTANT_BUFFER,
             SCENE_CONSTANT_BUFFER,
-            LIGHT_GRID_CONSTANTS,
+            CLUSTER_GRID_CONSTANTS,
             RAW_BUFFERS_TABLE,
             TEXTURE_2D_TABLE,
             TEXTURE_CUBE_TABLE,
         };
 
-        struct BinningConstants
+        struct ClusterGridConstants
         {
             ClusterGridSetup setup;
             u32 spot_light_indices_list_idx;
@@ -109,7 +109,7 @@ namespace clustered
         zec::PipelineStateHandle pso = {};
         zec::BufferHandle binning_cb = {};
 
-        BinningConstants binning_constants = {};
+        ClusterGridConstants binning_constants = {};
 
     };
 }

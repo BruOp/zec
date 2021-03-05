@@ -42,13 +42,14 @@ namespace clustered
             material_instances.size * sizeof(MaterialData));
     }
 
-    void Renderables::push_renderable(const u32 material_idx, const MeshHandle mesh_handle, const VertexShaderData& vs_data)
+    void Renderables::push_renderable(const u32 material_idx, const MeshHandle mesh_handle, const VertexShaderData& vs_data, const AABB& aabb)
     {
         ASSERT(num_entities < max_num_entities);
         num_entities++;
         material_indices.push_back(material_idx);
         meshes.push_back(mesh_handle);
         vertex_shader_data.push_back(vs_data);
+        aabb_soa.push_back(aabb);
         ASSERT(meshes.size == vertex_shader_data.size && meshes.size == num_entities);
     }
 
