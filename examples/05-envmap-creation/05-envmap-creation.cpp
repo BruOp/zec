@@ -3,7 +3,6 @@
 #include "utils/exceptions.h"
 #include "camera.h"
 #include "gltf_loading.h"
-#include "gfx/d3d12/globals.h"
 
 #include <imgui-filebrowser/imfilebrowser.h>
 
@@ -112,11 +111,11 @@ void issue_commands(PrefilterEnvMapTask& task, const PrefilterEnvMapDesc desc)
 
     CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::ASYNC_COMPUTE);
 
-    gfx::cmd::set_active_resource_layout(cmd_ctx, task.layout);
-    gfx::cmd::set_pipeline_state(cmd_ctx, task.pso);
+    gfx::cmd::set_compute_resource_layout(cmd_ctx, task.layout);
+    gfx::cmd::set_compute_pipeline_state(cmd_ctx, task.pso);
 
-    gfx::cmd::bind_resource_table(cmd_ctx, 1);
-    gfx::cmd::bind_resource_table(cmd_ctx, 2);
+    gfx::cmd::bind_compute_resource_table(cmd_ctx, 1);
+    gfx::cmd::bind_compute_resource_table(cmd_ctx, 2);
     TextureInfo texture_info = gfx::textures::get_texture_info(task.out_texture);
 
     for (u32 mip_idx = 0; mip_idx < texture_info.num_mips; mip_idx++) {
@@ -130,7 +129,7 @@ void issue_commands(PrefilterEnvMapTask& task, const PrefilterEnvMapDesc desc)
             .mip_idx = mip_idx,
             .img_width = texture_info.width,
         };
-        gfx::cmd::bind_constant(cmd_ctx, &prefilter_constants, 4, 0);
+        gfx::cmd::bind_compute_constants(cmd_ctx, &prefilter_constants, 4, 0);
 
         const u32 dispatch_size = max(1u, mip_width / 8u);
 
@@ -164,10 +163,12 @@ void handle_transition(PrefilterEnvMapTask& task, const CommandContextHandle cmd
 
 void load_src_envmap(PrefilterEnvMapTask& prefiltering_task, const char* file_path)
 {
-    gfx::begin_upload();
-    TextureHandle input_envmap = gfx::textures::load_from_file(file_path);
-    CmdReceipt receipt = gfx::end_upload();
-    gfx::cmd::gpu_wait(CommandQueueType::COMPUTE, receipt);
+    CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
+
+    TextureHandle input_envmap = gfx::textures::create_from_file(copy_ctx, file_path);
+    
+    CmdReceipt receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
+    gfx::cmd::gpu_wait(CommandQueueType::GRAPHICS, receipt);
     issue_commands(prefiltering_task, { .src_texture = input_envmap, .out_texture_width = 512 });
 }
 
@@ -183,7 +184,7 @@ public:
     };
 
     PerspectiveCamera camera = {};
-    OrbitCameraController camera_controller = OrbitCameraController{};
+    OrbitCameraController camera_controller = OrbitCameraController{ input_manager };
 
     PrefilterEnvMapTask prefiltering_task;
 
@@ -261,7 +262,7 @@ protected:
 
         ::init(prefiltering_task);
 
-        gfx::begin_upload();
+        CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
 
         constexpr float fullscreen_positions[] = {
              1.0f,  3.0f, 1.0f,
@@ -282,33 +283,32 @@ protected:
         fullscreen_desc.index_buffer_desc.type = BufferType::DEFAULT;
         fullscreen_desc.index_buffer_desc.byte_size = sizeof(fullscreen_indices);
         fullscreen_desc.index_buffer_desc.stride = sizeof(fullscreen_indices[0]);
-        fullscreen_desc.index_buffer_desc.data = (void*)fullscreen_indices;
+        fullscreen_desc.index_buffer_data = fullscreen_indices;
 
         fullscreen_desc.vertex_buffer_descs[0] = {
             .usage = RESOURCE_USAGE_VERTEX,
             .type = BufferType::DEFAULT,
             .byte_size = sizeof(fullscreen_positions),
             .stride = 3 * sizeof(fullscreen_positions[0]),
-            .data = (void*)(fullscreen_positions)
         };
+        fullscreen_desc.vertex_buffer_data[0] = fullscreen_positions;
         fullscreen_desc.vertex_buffer_descs[1] = {
            .usage = RESOURCE_USAGE_VERTEX,
            .type = BufferType::DEFAULT,
            .byte_size = sizeof(fullscreen_uvs),
            .stride = 2 * sizeof(fullscreen_uvs[0]),
-           .data = (void*)(fullscreen_uvs)
         };
+        fullscreen_desc.vertex_buffer_data[1] = fullscreen_uvs;
 
-        fullscreen_mesh = gfx::meshes::create(fullscreen_desc);
+        fullscreen_mesh = gfx::meshes::create(copy_ctx, fullscreen_desc);
 
-        gfx::end_upload();
+        auto receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
 
         BufferDesc cb_desc = {
             .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
             .type = BufferType::DEFAULT,
             .byte_size = sizeof(ViewConstantData),
             .stride = 0,
-            .data = nullptr,
         };
         view_cb_handle = gfx::buffers::create(cb_desc);
 
@@ -324,6 +324,7 @@ protected:
             .initial_state = RESOURCE_USAGE_SHADER_READABLE,
         };
 
+        gfx::cmd::cpu_wait(receipt);
     }
 
     void shutdown() override final
@@ -332,7 +333,7 @@ protected:
     void update(const zec::TimeData& time_data) override final
     {
         if (is_valid(prefiltering_task.out_texture)) {
-            TextureInfo& texture_info = gfx::textures::get_texture_info(prefiltering_task.out_texture);
+            const TextureInfo& texture_info = gfx::textures::get_texture_info(prefiltering_task.out_texture);
 
             camera_controller.update(time_data.delta_seconds_f);
             view_constant_data.invVP = invert(camera.projection * mat4(to_mat3(camera.view), {}));
@@ -422,13 +423,13 @@ protected:
         case PrefilterEnvMapTask::TaskState::REQUIRES_TRANSITION:
             handle_transition(prefiltering_task, cmd_ctx);
         case PrefilterEnvMapTask::TaskState::COMPLETED:
-            gfx::cmd::set_active_resource_layout(cmd_ctx, background_pass_layout);
-            gfx::cmd::set_pipeline_state(cmd_ctx, background_pass_pso);
+            gfx::cmd::set_graphics_resource_layout(cmd_ctx, background_pass_layout);
+            gfx::cmd::set_graphics_pipeline_state(cmd_ctx, background_pass_pso);
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
-            gfx::cmd::bind_resource_table(cmd_ctx, 1);
+            gfx::cmd::bind_graphics_resource_table(cmd_ctx, 1);
 
-            gfx::cmd::bind_constant_buffer(cmd_ctx, view_cb_handle, 0);
+            gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, view_cb_handle, 0);
             gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
             break;
         }

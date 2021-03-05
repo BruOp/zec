@@ -59,7 +59,7 @@ namespace zec::gfx
         const TextureInfo& get_texture_info(const TextureHandle texture_handle);
 
         TextureHandle create_from_file(CommandContextHandle cmd_ctx, const char* file_path);
-        /*void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);*/
+        void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);
     }
 
     namespace cmd

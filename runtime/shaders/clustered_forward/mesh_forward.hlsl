@@ -118,7 +118,7 @@ float3 perturb_normal(Texture2D normal_map, float3 N, float3 V, float2 texcoord)
     // V, the view vector (vertex to eye)
     float3 map = normal_map.Sample(default_sampler, texcoord).xyz * 2.0 - 1.0;
     map.z = sqrt(1. - dot(map.xy, map.xy));
-    float3x3 TBN = cotangent_frame(N, -V, texcoord);
+    float3x3 TBN = cotangent_frame(N, V, texcoord);
     return normalize(mul(map, TBN));
 }
 
@@ -318,34 +318,34 @@ float4 PSMain(PSInput input) : SV_TARGET
     // Analytic integration constant, see RTR
     color += light_out * PI;
 
-    // if (irradiance_map_idx != INVALID_TEXTURE_IDX && radiance_map_idx != INVALID_TEXTURE_IDX)
-    // {
-    //     Texture2D brdf_lut = tex2D_table[brdf_lut_idx];
-    //     TextureCube radiance_map = tex_cube_table[radiance_map_idx];
-    //     TextureCube irradiance_map = tex_cube_table[irradiance_map_idx];
+    if (irradiance_map_idx != INVALID_TEXTURE_IDX && radiance_map_idx != INVALID_TEXTURE_IDX)
+    {
+        Texture2D brdf_lut = tex2D_table[brdf_lut_idx];
+        TextureCube radiance_map = tex_cube_table[radiance_map_idx];
+        TextureCube irradiance_map = tex_cube_table[irradiance_map_idx];
 
-    //     float NoV = clamp(dot(normal, view_dir), 0.00005, 1.0);
-    //     float2 f_ab = brdf_lut.Sample(default_sampler, float2(NoV, roughness)).rg;
-    //     float3 sample_dir = reflect(-view_dir, normal);
-    //     float num_env_levels, width, height;
-    //     radiance_map.GetDimensions(0, width, height, num_env_levels);
-    //     float3 radiance = radiance_map.SampleLevel(default_sampler, sample_dir, roughness * num_env_levels).rgb;
-    //     float3 irradiance = irradiance_map.Sample(default_sampler, sample_dir).rgb;
+        float NoV = clamp(dot(normal, view_dir), 0.00005, 1.0);
+        float2 f_ab = brdf_lut.Sample(default_sampler, float2(NoV, roughness)).rg;
+        float3 sample_dir = reflect(-view_dir, normal);
+        float num_env_levels, width, height;
+        radiance_map.GetDimensions(0, width, height, num_env_levels);
+        float3 radiance = radiance_map.SampleLevel(default_sampler, sample_dir, roughness * num_env_levels).rgb;
+        float3 irradiance = irradiance_map.Sample(default_sampler, sample_dir).rgb;
 
-    //     // Multiple scattering, from Fdez-Aguera
-    //     // See https://bruop.github.io/ibl/ for additional explanation
-    //     //float3 Fr = max(float3_splat(1.0 - roughness), f0) - f0;
-    //     //float3 k_S = f0 + Fr * pow(1.0 - NoV, 5.0);
-    //     //float3 FssEss = k_S * f_ab.x + f_ab.y;
-    //     // Typically, simply:
-    //     float3 FssEss = f0 * f_ab.x + f_ab.y;
-    //     float Ems = (1.0 - (f_ab.x + f_ab.y));
-    //     float3 f_avg = f0 + (1.0 - f0) / 21.0;
-    //     float3 FmsEms = Ems * FssEss * f_avg / (1.0 - f_avg * Ems);
-    //     float3 k_D = base_color.rgb * (1.0 - FssEss - FmsEms);
+         // Multiple scattering, from Fdez-Aguera
+         // See https://bruop.github.io/ibl/ for additional explanation
+         //float3 Fr = max(float3_splat(1.0 - roughness), f0) - f0;
+         //float3 k_S = f0 + Fr * pow(1.0 - NoV, 5.0);
+         //float3 FssEss = k_S * f_ab.x + f_ab.y;
+         // Typically, simply:
+        float3 FssEss = f0 * f_ab.x + f_ab.y;
+        float Ems = (1.0 - (f_ab.x + f_ab.y));
+        float3 f_avg = f0 + (1.0 - f0) / 21.0;
+        float3 FmsEms = Ems * FssEss * f_avg / (1.0 - f_avg * Ems);
+        float3 k_D = base_color.rgb * (1.0 - FssEss - FmsEms);
 
-    //     color += occlusion * (FssEss * radiance + base_color.rgb * irradiance);
-    // }
+        color += occlusion * (FssEss * radiance + base_color.rgb * irradiance);
+    }
 
     return float4(color, 1.0);
 }

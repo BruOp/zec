@@ -1372,9 +1372,24 @@ namespace zec::gfx
             return texture_handle;
         }
 
-        /*TextureHandle load_from_file(const char* file_path, const bool force_srgb = false);
-        void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);*/
+        
+        void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage)
+        {
+            DirectX::ScratchImage scratch{ };
+            const TextureInfo& texture_info = get_texture_info(texture_handle);
+            ID3D12Resource* resource = g_context.textures.resources[texture_handle];
+            ID3D12CommandQueue* gfx_queue = g_context.command_queues[CommandQueueType::GRAPHICS].queue;
+            DXCall(DirectX::CaptureTexture(
+                gfx_queue,
+                resource,
+                texture_info.is_cubemap,
+                scratch,
+                dx12::to_d3d_resource_state(current_usage),
+                dx12::to_d3d_resource_state(current_usage)
+            ));
 
+            DXCall(DirectX::SaveToDDSFile(scratch.GetImages(), scratch.GetImageCount(), scratch.GetMetadata(), DirectX::DDS_FLAGS_NONE, file_path));    
+        }
     }
 
     namespace cmd
