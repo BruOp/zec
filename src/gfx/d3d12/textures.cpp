@@ -16,7 +16,7 @@ namespace zec::gfx::dx12
         render_target_infos.push_back(texture.render_target_info);
 
         if (is_valid(texture.dsv)) {
-            dsv_infos.push_back({ handle, texture.dsv });
+            dsvs.set(handle, texture.dsv);
         };
 
         return handle;
@@ -52,27 +52,10 @@ namespace zec::gfx::dx12
         uavs.empty();
         rtvs.empty();
 
-        for (size_t i = 0; i < dsv_infos.data.size; ++i) {
-            descriptor_destruction_callback(dsv_infos.data[i].dsv);
+        for (auto [ handle, dsv] : dsvs) {
+            descriptor_destruction_callback(dsv);
         }
-        dsv_infos.data.empty();
+        dsvs.empty();
         count = 0;
-    }
-
-    DescriptorRangeHandle& DSVStore::operator[](const TextureHandle handle)
-    {
-        for (size_t i = 0; i < data.size; i++) {
-            auto& dsv_info = data[i];
-            if (dsv_info.handle == handle) { return dsv_info.dsv; }
-        }
-        throw std::runtime_error("This texture was not created as a depth stencil buffer");
-    }
-    const DescriptorRangeHandle& DSVStore::operator[](const TextureHandle handle) const
-    {
-        for (size_t i = 0; i < data.size; i++) {
-            const auto& dsv_info = data[i];
-            if (dsv_info.handle == handle) { return dsv_info.dsv; }
-        }
-        throw std::runtime_error("This texture was not created as a depth stencil buffer");
     }
 }

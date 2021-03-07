@@ -1602,7 +1602,7 @@ namespace zec::gfx
         void clear_depth_target(const CommandContextHandle ctx, const TextureHandle depth_stencil_buffer, const float depth_value, const u8 stencil_value)
         {
             ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
-            const DescriptorRangeHandle dsv = g_context.textures.dsv_infos[depth_stencil_buffer];
+            const DescriptorRangeHandle dsv = g_context.textures.dsvs[depth_stencil_buffer];
             // TODO: Descriptors
             auto cpu_handle = g_context.descriptor_heap_manager.get_cpu_descriptor_handle(dsv);
             // I don't actually think this will clear stencil. We should probably change that.
@@ -1639,7 +1639,7 @@ namespace zec::gfx
             D3D12_CPU_DESCRIPTOR_HANDLE dsv;
             D3D12_CPU_DESCRIPTOR_HANDLE* dsv_ptr = nullptr;
             if (is_valid(depth_target)) {
-                DescriptorRangeHandle descriptor_handle = g_context.textures.dsv_infos[depth_target];
+                DescriptorRangeHandle descriptor_handle = g_context.textures.dsvs[depth_target];
                 dsv = g_context.descriptor_heap_manager.get_cpu_descriptor_handle(descriptor_handle);
                 dsv_ptr = &dsv;
             }

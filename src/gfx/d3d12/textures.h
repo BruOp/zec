@@ -12,6 +12,21 @@ namespace D3D12MA
 }
 
 
+namespace std
+{
+    template<>
+    struct hash<zec::TextureHandle>
+    {
+        std::size_t operator()(const zec::TextureHandle texture_handle) const
+        {
+            u32 x = ((texture_handle.idx >> 16) ^ texture_handle.idx) * 0x45d9f3b;
+            x = ((x >> 16) ^ x) * 0x45d9f3b;
+            x = (x >> 16) ^ x;
+            return std::size_t(x);
+        };
+    };
+}
+
 namespace zec::gfx::dx12
 {
     struct RenderTargetInfo
@@ -32,24 +47,48 @@ namespace zec::gfx::dx12
         RenderTargetInfo render_target_info = {};
     };
 
-    struct DepthStencilInfo
-    {
-        TextureHandle handle;
-        DescriptorRangeHandle dsv;
-    };
-
     class DSVStore
     {
     public:
-        size_t push_back(const DepthStencilInfo depth_stencil_info)
+        void empty()
         {
-            return data.push_back(depth_stencil_info);
+            internal_map.clear();
         }
 
-        DescriptorRangeHandle& operator[](const TextureHandle handle);
-        const DescriptorRangeHandle& operator[](const TextureHandle handle) const;
+        void set(const TextureHandle handle, const DescriptorRangeHandle dsv)
+        {
+            internal_map[handle] = dsv;
+        }
 
-        Array<DepthStencilInfo> data;
+        DescriptorRangeHandle& operator[](const TextureHandle handle) { 
+            return internal_map.at(handle);
+        };
+        const DescriptorRangeHandle& operator[](const TextureHandle handle) const
+        {
+            return internal_map.at(handle);
+        };
+
+        std::unordered_map<TextureHandle, DescriptorRangeHandle>::iterator begin()
+        {
+            return internal_map.begin();
+        }
+
+        std::unordered_map<TextureHandle, DescriptorRangeHandle>::const_iterator begin() const
+        {
+            return internal_map.begin();
+        }
+
+        std::unordered_map<TextureHandle, DescriptorRangeHandle>::iterator end()
+        {
+            return internal_map.end();
+        }
+
+        std::unordered_map<TextureHandle, DescriptorRangeHandle>::const_iterator end() const
+        {
+            return internal_map.end();
+        }
+
+        std::unordered_map<TextureHandle, DescriptorRangeHandle> internal_map;
     };
 
     // This is really just a data repository
@@ -85,6 +124,6 @@ namespace zec::gfx::dx12
         // Note, this is not 1-1 like other arrays in this structure.
         // Instead, we loop through and find the dsv_info with matching TextureHandle.
         // Since we have so few DSVs, this should be pretty cheap.
-        DSVStore dsv_infos = {};
+        DSVStore dsvs = {};
     };
 }
