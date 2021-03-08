@@ -2,10 +2,8 @@
 
 static const uint INVALID_TEXTURE_IDX = 0xffffffff;
 static const float DIELECTRIC_SPECULAR = 0.04;
-static const float MIN_ROUGHNESS = 0.045;
-static const float PI = 3.141592653589793;
-static const float INV_PI = 0.318309886;
 
+#include "ggx_helpers.hlsl"
 #include "light_helpers.hlsl"
 #include "cluster_helpers.hlsl"
 
@@ -73,6 +71,7 @@ cbuffer clustered_lighting_constants : register(b4)
 };
 
 SamplerState default_sampler : register(s0);
+SamplerState brdf_sampler : register(s1);
 
 ByteAddressBuffer buffers_table[4096] : register(t0, space1);
 Texture2D tex2D_table[4096] : register(t0, space2);
@@ -122,31 +121,6 @@ float3 perturb_normal(Texture2D normal_map, float3 N, float3 V, float2 texcoord)
     return normalize(mul(map, TBN));
 }
 
-
-float D_GGX(float NoH, float roughness)
-{
-    float alpha = roughness * roughness;
-    float a = NoH * alpha;
-    float k = alpha / (1.0 - NoH * NoH + a * a);
-    return k * k * (1.0 / PI);
-}
-
-float3 F_Schlick(float VoH, float3 f0)
-{
-    float f = pow(1.0 - VoH, 5.0);
-    return f + f0 * (1.0 - f);
-}
-
-// From the filament docs. Geometric Shadowing function
-// https://google.github.io/filament/Filament.html#toc4.4.2
-float V_SmithGGXCorrelated(float NoV, float NoL, float roughness)
-{
-    float a2 = pow(roughness, 4.0);
-    float GGXV = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
-    float GGXL = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
-    return 0.5 / (GGXV + GGXL);
-}
-
 float3 calc_diffuse(float3 base_color, float metallic)
 {
     return base_color * (1.0 - DIELECTRIC_SPECULAR) * (1.0 - metallic);
@@ -162,9 +136,9 @@ float3 calc_specular(float3 light_dir, float3 view_dir, float3 f0, float3 normal
 
     // Needs to be a uniform
 
-    float D = D_GGX(NoH, roughness);
-    float3 F = F_Schlick(VoH, f0);
-    float V = V_SmithGGXCorrelated(NoV, NoL, roughness);
+    float D = D_ggx(NoH, roughness);
+    float3 F = F_schlick(VoH, f0);
+    float V = V_smith_ggx_correlated(NoV, NoL, roughness);
     return D * V * F;
 }
 
@@ -325,7 +299,7 @@ float4 PSMain(PSInput input) : SV_TARGET
         TextureCube irradiance_map = tex_cube_table[irradiance_map_idx];
 
         float NoV = clamp(dot(normal, view_dir), 0.00005, 1.0);
-        float2 f_ab = brdf_lut.Sample(default_sampler, float2(NoV, roughness)).rg;
+        float2 f_ab = brdf_lut.Sample(brdf_sampler, float2(NoV, roughness)).rg;
         float3 sample_dir = reflect(-view_dir, normal);
         float num_env_levels, width, height;
         radiance_map.GetDimensions(0, width, height, num_env_levels);
@@ -344,7 +318,7 @@ float4 PSMain(PSInput input) : SV_TARGET
         float3 FmsEms = Ems * FssEss * f_avg / (1.0 - f_avg * Ems);
         float3 k_D = base_color.rgb * (1.0 - FssEss - FmsEms);
 
-        color += occlusion * (FssEss * radiance + base_color.rgb * irradiance);
+        color += occlusion * (FssEss * radiance + (FmsEms + k_D) * irradiance);
     }
 
     return float4(color, 1.0);

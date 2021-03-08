@@ -31,8 +31,14 @@ namespace clustered
                     .wrap_v = SamplerWrapMode::WRAP,
                     .binding_slot = 0,
                 },
+                {
+                    .filtering = SamplerFilterType::MIN_LINEAR_MAG_LINEAR_MIP_POINT,
+                    .wrap_u = SamplerWrapMode::CLAMP,
+                    .wrap_v = SamplerWrapMode::CLAMP,
+                    .binding_slot = 1,
+                },
             },
-            .num_static_samplers = 1,
+            .num_static_samplers = 2,
         };
 
         resource_layout = gfx::pipelines::create_resource_layout(layout_desc);

@@ -1,5 +1,7 @@
 #pragma pack_matrix( row_major )
 
+#include "ggx_helpers.hlsl"
+
 static const uint NUM_SAMPLES = 1024;
 static const float TWO_PI = 6.283185307179586;
 
@@ -9,16 +11,6 @@ cbuffer pass_constants : register(b0)
 };
 
 RWTexture2D<float2> rw_tex2D_table[4096] : register(u0, space1);
-
-// From the filament docs. Geometric Shadowing function
-// https://google.github.io/filament/Filament.html#toc4.4.2
-float V_smith_correlated_ggx(float NoV, float NoL, float roughness)
-{
-    float a2 = pow(roughness, 4.0);
-    float GGXV = NoL * sqrt(NoV * NoV * (1.0 - a2) + a2);
-    float GGXL = NoV * sqrt(NoL * NoL * (1.0 - a2) + a2);
-    return 0.5 / (GGXV + GGXL);
-}
 
 // Taken from https://github.com/SaschaWillems/Vulkan-glTF-PBR/blob/master/data/shaders/genbrdflut.frag
 // Based on http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
@@ -63,15 +55,15 @@ float2 integrateBRDF(float roughness, float NoV)
 
     // N points straight upwards for this integration
     const float3 N = float3(0.0, 0.0, 1.0);
+    float alpha = roughness * roughness;
 
     float A = 0.0;
     float B = 0.0;
-
     for (uint i = 0u; i < NUM_SAMPLES; i++)
     {
         float2 Xi = hammersley(i, NUM_SAMPLES);
         // Sample microfacet direction
-        float3 H = importance_sample_GGX(Xi, roughness * roughness, N);
+        float3 H = importance_sample_GGX(Xi, alpha, N);
 
         // Get the light direction
         float3 L = 2.0 * dot(V, H) * H - V;
@@ -83,7 +75,7 @@ float2 integrateBRDF(float roughness, float NoV)
         if (NoL > 0.0)
         {
             // Terms besides V are from the GGX PDF we're dividing by
-            float V_pdf = V_smith_correlated_ggx(NoV, NoL, roughness) * VoH * NoL / NoH;
+            float V_pdf = V_smith_ggx_correlated(NoV, NoL, roughness) * VoH * NoL / NoH;
             float Fc = pow(1.0 - VoH, 5.0);
             A += (1.0 - Fc) * V_pdf;
             B += Fc * V_pdf;
@@ -105,10 +97,10 @@ void CSMain(
     float2 dims;
     out_texture.GetDimensions(dims.x, dims.y);
     // Normalized pixel coordinates (from 0 to 1)
-    float2 uv = (float2(dispatch_id.xy) + 0.5) / dims;
+    float2 uv = (float2(dispatch_id.xy)) / dims;
     float NoV = uv.x;
-    float roughness = uv.y;
-
+    float roughness = max(uv.y, MIN_ROUGHNESS);
+    
     float2 res = integrateBRDF(roughness, NoV);
 
     // Scale and Bias for F0 (as per Karis 2014)
