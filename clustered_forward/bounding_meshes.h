@@ -1,6 +1,5 @@
 #include "core/array.h"
 #include "core/zec_math.h"
-#include "utils/exceptions.h"
 
 namespace zec::geometry
 {

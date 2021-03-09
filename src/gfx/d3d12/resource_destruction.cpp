@@ -1,11 +1,16 @@
-#include "pch.h"
 #include "resource_destruction.h"
 #include "dx_helpers.h"
 #include "command_context.h"
-#include "D3D12MemAlloc/D3D12MemAlloc.h"
 
 namespace zec::gfx::dx12
 {
+    ResourceDestructionQueue::~ResourceDestructionQueue()
+    {
+        for (size_t i = 0; i < std::size(internal_queues); i++) {
+            ASSERT(internal_queues[i].size == 0);
+        }
+    }
+    
     void ResourceDestructionQueue::process(const u64 current_frame_idx)
     {
         ASSERT(current_frame_idx < RENDER_LATENCY);
@@ -67,7 +72,7 @@ namespace zec::gfx::dx12
 
     void ResourceDestructionQueue::flush()
     {
-        for (size_t i = 0; i < ARRAY_SIZE(internal_queues); i++) {
+        for (size_t i = 0; i < std::size(internal_queues); i++) {
             process(i);
         }
     }

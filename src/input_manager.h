@@ -1,5 +1,6 @@
 #pragma once
-#include "pch.h"
+
+#include "core/zec_types.h"
 #include "utils/assert.h"
 #include "timer.h"
 #include "gainput/gainput.h"

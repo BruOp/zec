@@ -1,6 +1,7 @@
-#include "pch.h"
 #include "gltf_loading.h"
+#include <string>
 #include <filesystem>
+#include "utils/utils.h"
 
 #define TINYGLTF_IMPLEMENTATION
 #define TINYGLTF_NO_STB_IMAGE
@@ -133,9 +134,9 @@ namespace zec
         }
 
 
-        void process_textures(const tinygltf::Model& model, CommandContextHandle cmd_ctx, const std::string& gltf_file, Context& out_context)
+        void process_textures(const tinygltf::Model& model, CommandContextHandle cmd_ctx, const char* gltf_file_path, Context& out_context)
         {
-            const std::filesystem::path file_path{ gltf_file };
+            const std::filesystem::path file_path{ gltf_file_path };
             const std::filesystem::path folder_path = file_path.parent_path();
 
             const size_t num_textures = model.textures.size();
@@ -211,7 +212,7 @@ namespace zec
 
                     }
 
-                    for (size_t i = 0; i < ARRAY_SIZE(attr_names); ++i) {
+                    for (size_t i = 0; i < std::size(attr_names); ++i) {
                         const auto& attr_idx = attributes.at(attr_names[i]);
                         const auto& accessor = model.accessors[attr_idx];
                         const auto& buffer_view = model.bufferViews[accessor.bufferView];
@@ -341,7 +342,7 @@ namespace zec
             }
         }
 
-        void load_gltf_file(const std::string& gltf_file, CommandContextHandle cmd_ctx, Context& out_context, const LoaderFlags flags)
+        void load_gltf_file(const char* gltf_file_path, CommandContextHandle cmd_ctx, Context& out_context, const LoaderFlags flags)
         {
             tinygltf::TinyGLTF loader;
             loader.SetImageLoader(loadImageDataCallback, nullptr);
@@ -351,10 +352,10 @@ namespace zec
 
             bool res = false;
             if (flags & GLTF_LOADING_BINARY_FORMAT) {
-                res = loader.LoadBinaryFromFile(&model, &err, &warn, gltf_file);
+                res = loader.LoadBinaryFromFile(&model, &err, &warn, gltf_file_path);
             }
             else {
-                res = loader.LoadASCIIFromFile(&model, &err, &warn, gltf_file);
+                res = loader.LoadASCIIFromFile(&model, &err, &warn, gltf_file_path);
             }
 
             if (!warn.empty()) {
@@ -382,7 +383,7 @@ namespace zec
             // todo: Mark Joint Nodes?
 
             // Process Textures
-            process_textures(model, cmd_ctx, gltf_file, out_context);
+            process_textures(model, cmd_ctx, gltf_file_path, out_context);
 
             // Process Primitives
             Array<MeshArrayView> mesh_to_mesh_mapping = {};

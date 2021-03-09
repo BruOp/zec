@@ -1,5 +1,5 @@
 #pragma once
-#include "pch.h"
+
 #include "core/array.h"
 #include "core/zec_math.h"
 #include "camera.h"
@@ -33,7 +33,7 @@ namespace zec
 
     void matrix_mul_sse(const mat4& lhs, const mat4& rhs, mat4& dest)
     {
-        for (size_t i = 0; i < ARRAY_SIZE(lhs.rows); i++) {
+        for (size_t i = 0; i < std::size(lhs.rows); i++) {
             __m128 v_x = _mm_broadcast_ss(static_cast<const float*>(&lhs.rows[i].x));
             __m128 v_y = _mm_broadcast_ss(static_cast<const float*>(&lhs.rows[i].y));
             __m128 v_z = _mm_broadcast_ss(static_cast<const float*>(&lhs.rows[i].z));
@@ -248,7 +248,7 @@ namespace zec
         OBB obb;
 
         // Transform corners
-        for (size_t corner_idx = 0; corner_idx < ARRAY_SIZE(ms_corners); corner_idx++) {
+        for (size_t corner_idx = 0; corner_idx < std::size(ms_corners); corner_idx++) {
             obb.corners[corner_idx] = transform * ms_corners[corner_idx];
         }
 

@@ -1,5 +1,4 @@
 #pragma once
-#include "pch.h"
 #include "imgui/imgui.h"
 #include "window.h"
 #include "gfx/public_resources.h"

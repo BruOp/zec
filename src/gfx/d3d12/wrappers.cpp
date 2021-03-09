@@ -1,6 +1,7 @@
-#include "pch.h"
 #include "wrappers.h"
 #include "dx_utils.h"
+
+#include "optick/optick.h"
 
 namespace zec::gfx::dx12
 {

@@ -25,9 +25,10 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "PCH.h"
-
+#include "core/zec_types.h"
 #include "assert.h"
+#include <stdio.h>
+#include <window.h>
 
 namespace pow2
 {

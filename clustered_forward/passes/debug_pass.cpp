@@ -26,19 +26,22 @@ void DebugPass::setup()
 
         // Create the Pipeline State Object
         PipelineStateObjectDesc pipeline_desc = {
+            .resource_layout = resource_layout,
             .input_assembly_desc = { { } },
-
+            .depth_stencil_state = {
+                .depth_cull_mode = ComparisonFunc::GREATER,
+                .depth_write = false,
+            },
+            .raster_state_desc = {
+                .fill_mode = FillMode::WIREFRAME,
+                .cull_mode = CullMode::NONE,
+                .flags = DEPTH_CLIP_ENABLED,
+            },
+            .depth_buffer_format = BufferFormat::D32,
+            .used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL,
+            .shader_file_path = L"shaders/clustered_forward/spot_light_debug.hlsl",
         };
-        pipeline_desc.shader_file_path = L"shaders/clustered_forward/spot_light_debug.hlsl";
         pipeline_desc.rtv_formats[0] = pass_outputs[0].texture_desc.format;
-        pipeline_desc.depth_buffer_format = BufferFormat::D32;
-        pipeline_desc.resource_layout = resource_layout;
-        pipeline_desc.raster_state_desc.cull_mode = CullMode::NONE;
-        pipeline_desc.raster_state_desc.fill_mode = FillMode::WIREFRAME;
-        pipeline_desc.raster_state_desc.flags |= DEPTH_CLIP_ENABLED;
-        pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::GREATER;
-        pipeline_desc.depth_stencil_state.depth_write = FALSE;
-        pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
 
         pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
         gfx::set_debug_name(pso, L"Debug Pipeline");

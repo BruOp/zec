@@ -14,8 +14,8 @@
 // This version only supports UNICODE.
 
 #pragma once
-
-#include "pch.h"
+#include "core/zec_types.h"
+#include <windows.h>
 
 //--------------------------------------------------------------------------------------
 // DXGetErrorString

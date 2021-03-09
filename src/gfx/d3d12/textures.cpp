@@ -1,5 +1,5 @@
-#include "pch.h"
 #include "textures.h"
+#include "D3D12MemAlloc/D3D12MemAlloc.h"
 
 namespace zec::gfx::dx12
 {

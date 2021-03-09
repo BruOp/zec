@@ -1,8 +1,10 @@
 
 #pragma once
-#include "pch.h"
+#include <malloc.h>
+#include <string.h>
 #include "utils/assert.h"
 #include "utils/sys_info.h"
+#include "core/zec_types.h"
 
 namespace zec
 {
@@ -10,8 +12,8 @@ namespace zec
     {
         enum struct AllocationType : u32
         {
-            COMMIT = MEM_COMMIT,
-            RESERVE = MEM_RESERVE
+            COMMIT = 0,
+            RESERVE = 1
         };
 
         inline void* alloc(size_t size)
@@ -26,28 +28,19 @@ namespace zec
             ::free(ptr);
         };
 
-        inline void* virtual_alloc(void* ptr, size_t byte_size, AllocationType alloc_type)
-        {
-            const SysInfo& sys_info = get_sys_info();
-            ASSERT(u64(ptr) % sys_info.page_size == 0);
-            ASSERT(byte_size % sys_info.page_size == 0);
-            return VirtualAlloc(ptr, byte_size, DWORD(alloc_type), PAGE_READWRITE);
-        }
+        void* virtual_alloc(void* ptr, size_t byte_size, AllocationType alloc_type);
 
         inline void* virtual_reserve(void* ptr, size_t byte_size)
         {
             return virtual_alloc(ptr, byte_size, AllocationType::RESERVE);
-        }
+        };
 
         inline void* virtual_commit(void* ptr, size_t byte_size)
         {
             return virtual_alloc(ptr, byte_size, AllocationType::COMMIT);
-        }
+        };
 
-        inline void virtual_free(void* ptr)
-        {
-            VirtualFree(ptr, 0, MEM_RELEASE);
-        }
+        void virtual_free(void* ptr);
 
         inline void* copy(void* dest, const void* src, size_t size)
         {

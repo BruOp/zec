@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "descriptor_heap.h"
 #include "dx_utils.h"
 

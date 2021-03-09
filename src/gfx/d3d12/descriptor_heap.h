@@ -1,5 +1,7 @@
 #pragma once
-#include "pch.h"
+#include <stdexcept>
+#include <d3d12.h>
+
 #include "core/array.h"
 #include "core/ring_buffer.h"
 #include "gfx/public_resources.h"

@@ -1,5 +1,4 @@
 #pragma once
-#include "pch.h"
 #include "core/array.h"
 #include "gfx/public_resources.h"
 #include "wrappers.h"
@@ -18,12 +17,7 @@ namespace zec::gfx::dx12
 
     public:
         ResourceDestructionQueue() = default;
-        ~ResourceDestructionQueue()
-        {
-            for (size_t i = 0; i < ARRAY_SIZE(internal_queues); i++) {
-                ASSERT(internal_queues[i].size == 0);
-            }
-        }
+        ~ResourceDestructionQueue();
 
         UNCOPIABLE(ResourceDestructionQueue);
         UNMOVABLE(ResourceDestructionQueue);

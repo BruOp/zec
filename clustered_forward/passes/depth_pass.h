@@ -43,7 +43,7 @@ namespace clustered
         {
             return {
                 .ptr = pass_outputs,
-                .count = ARRAY_SIZE(pass_outputs),
+                .count = std::size(pass_outputs),
             };
         }
 

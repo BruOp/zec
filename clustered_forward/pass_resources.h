@@ -1,5 +1,4 @@
 #pragma once
-#include "pch.h"
 #include "utils/crc_hash.h"
 
 #define PASS_RESOURCE_IDENTIFIER(x) { .id = ctcrc32(x), .name = x }

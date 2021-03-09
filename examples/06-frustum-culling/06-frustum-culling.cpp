@@ -687,7 +687,7 @@ protected:
         };
         render_pass_system::RenderPassListDesc render_list_desc = {
             .render_pass_descs = render_pass_descs,
-            .num_render_passes = ARRAY_SIZE(render_pass_descs),
+            .num_render_passes = std::size(render_pass_descs),
             .resource_to_use_as_backbuffer = ResourceNames::SDR_BUFFER,
         };
 

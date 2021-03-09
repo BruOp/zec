@@ -1,5 +1,6 @@
-#include "pch.h"
 #include "sys_info.h"
+#include <windows.h>
+#include "core/zec_types.h"
 
 namespace zec
 {

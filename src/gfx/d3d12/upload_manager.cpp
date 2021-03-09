@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "upload_manager.h"
 
 #include "D3D12MemAlloc/D3D12MemAlloc.h"

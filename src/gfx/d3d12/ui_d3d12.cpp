@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "gfx/ui.h"
 #include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui_impl_dx12.h"

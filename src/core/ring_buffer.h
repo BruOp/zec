@@ -1,5 +1,4 @@
 #pragma once
-#include "pch.h"
 #include "array.h"
 
 namespace zec

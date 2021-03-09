@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "utils/utils.h"
 #include "zec_math.h"
 
@@ -49,7 +48,7 @@ namespace zec
         };
     }
 
-    boolean operator==(const mat3& m1, const mat3& m2)
+    bool operator==(const mat3& m1, const mat3& m2)
     {
         for (size_t i = 0; i < 3; i++) {
             for (size_t j = 0; j < 3; j++) {

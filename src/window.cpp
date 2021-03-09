@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "window.h"
 
 namespace zec
@@ -42,15 +41,15 @@ namespace zec
         }
     }
 
-    boolean Window::is_alive() const
+    bool Window::is_alive() const
     {
-        return static_cast<boolean>(::IsWindow(hwnd));
+        return static_cast<bool>(::IsWindow(hwnd));
     }
 
-    boolean Window::is_minimized() const
+    bool Window::is_minimized() const
     {
         // what
-        return static_cast<boolean>(::IsIconic(hwnd));
+        return static_cast<bool>(::IsIconic(hwnd));
     }
 
     void Window::show(bool to_show)

@@ -21,7 +21,6 @@
 //
 
 #pragma once
-#include "pch.h"
 
 /** \mainpage D3D12 Memory Allocator
 

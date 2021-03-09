@@ -1,5 +1,4 @@
 #pragma once
-#include "pch.h"
 #include "input_manager.h"
 #include "core/zec_math.h"
 

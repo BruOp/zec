@@ -1,11 +1,10 @@
-
 #pragma once
-#include "pch.h"
+
 #include "constants.h"
+#include "core/zec_types.h"
 
 namespace zec
 {
-
     // ---------- Constants ----------
 
     constexpr u32 k_invalid_handle = UINT32_MAX;
@@ -277,12 +276,15 @@ namespace zec
         X8,
     };
 
+    // Foward declaration
+    class Window;
+
     // ---------- Creation Descriptions ---------- 
     struct RendererDesc
     {
         u32 width = 0;
         u32 height = 0;
-        HWND window = {};
+        Window* window = {};
         bool fullscreen = false;
         bool vsync = true;
         MSAASetting msaa = MSAASetting::OFF;
@@ -468,7 +470,7 @@ namespace zec
         BufferFormat depth_buffer_format = BufferFormat::INVALID;
         TopologyType topology_type = TopologyType::TRIANGLE;
         u8 used_stages = PIPELINE_STAGE_INVALID;
-        std::wstring shader_file_path = L"";
+        wchar shader_file_path[128] = L"";
     };
 
     // ---------- Other Descriptions ----------

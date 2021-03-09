@@ -8,44 +8,21 @@
 //=================================================================================================
 
 #pragma once
+#include <string>
+#include <windows.h>
 
-#include "pch.h"
+#include "core/zec_types.h"
 #include "assert.h"
+
+typedef int BOOL;
+typedef unsigned long DWORD;
 
 namespace zec
 {
     // Error string functions
-    inline std::wstring GetWin32ErrorString(DWORD errorCode)
-    {
-        wchar errorString[MAX_PATH];
-        ::FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
-            0,
-            errorCode,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            errorString,
-            MAX_PATH,
-            NULL);
+    std::wstring GetWin32ErrorString(DWORD errorCode);
 
-        std::wstring message = L"Win32 Error: ";
-        message += errorString;
-        return message;
-    }
-
-    inline std::string GetWin32ErrorStringAnsi(DWORD errorCode)
-    {
-        char errorString[MAX_PATH];
-        ::FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
-            0,
-            errorCode,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            errorString,
-            MAX_PATH,
-            NULL);
-
-        std::string message = "Win32 Error: ";
-        message += errorString;
-        return message;
-    }
+    std::string GetWin32ErrorStringAnsi(DWORD errorCode);
 
     // Generic exception, used as base class for other types
     class Exception
@@ -59,12 +36,7 @@ namespace zec
         Exception(const std::wstring& exceptionMessage) : message(exceptionMessage)
         { }
 
-        Exception(const std::string& exceptionMessage)
-        {
-            wchar buffer[512];
-            MultiByteToWideChar(CP_ACP, 0, exceptionMessage.c_str(), -1, buffer, 512);
-            message = std::wstring(buffer);
-        }
+        Exception(const std::string& exceptionMessage);
 
         // Retrieve that error message
         const std::wstring& GetMessage() const throw()
@@ -72,10 +44,7 @@ namespace zec
             return message;
         }
 
-        void ShowErrorMessage() const throw()
-        {
-            MessageBox(NULL, message.c_str(), L"Error", MB_OK | MB_ICONERROR);
-        }
+        void ShowErrorMessage() const throw();
 
     protected:
         std::wstring message; // The error message
@@ -87,22 +56,7 @@ namespace zec
 
     public:
         // Obtains a string for the specified Win32 error code
-        Win32Exception(DWORD code, const wchar* msgPrefix = nullptr) : errorCode(code)
-        {
-            wchar errorString[MAX_PATH];
-            ::FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
-                0,
-                errorCode,
-                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                errorString,
-                MAX_PATH,
-                NULL);
-
-            message = L"Win32 Error: ";
-            if (msgPrefix)
-                message += msgPrefix;
-            message += errorString;
-        }
+        Win32Exception(DWORD code, const wchar* msgPrefix = nullptr);
 
         // Retrieve the error code
         DWORD GetErrorCode() const throw()
@@ -118,7 +72,6 @@ namespace zec
     // Error-handling functions
 
 #if USE_ASSERTS
-
 #define Win32Call(x)                                                        \
   do                                                                        \
   {                                                                         \

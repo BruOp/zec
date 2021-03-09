@@ -1,6 +1,9 @@
+#include <string>
+#include <random>
+#include <functional>
 
-#include "pch.h"
 #include "app.h"
+
 #include "core/zec_math.h"
 #include "utils/exceptions.h"
 #include "camera.h"
@@ -22,7 +25,6 @@
 #include "compute_tasks/brdf_lut_creator.h"
 #include "compute_tasks/irradiance_map_creator.h"
 
-#include <random>
 
 static constexpr u32 DESCRIPTOR_TABLE_SIZE = 4096;
 static constexpr size_t MAX_NUM_OBJECTS = 16384;
@@ -139,8 +141,12 @@ namespace clustered
 
             TextureHandle radiance_map = gfx::textures::create_from_file(copy_ctx, "textures/prefiltered_paper_mill.dds");
 
+            renderable_scene.scene_constant_data.brdf_lut_idx = gfx::textures::get_shader_readable_index(brdf_lut_map);
+            renderable_scene.scene_constant_data.irradiance_map_idx = gfx::textures::get_shader_readable_index(irradiance_map);
+            renderable_scene.scene_constant_data.radiance_map_idx = gfx::textures::get_shader_readable_index(radiance_map);
+
             gltf::Context gltf_context{};
-            gltf::load_gltf_file("models/Sponza/Sponza.gltf", copy_ctx, gltf_context, gltf::GLTF_LOADING_FLAG_NONE);
+            gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", copy_ctx, gltf_context, gltf::GLTF_LOADING_FLAG_NONE);
             CmdReceipt receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
 
             gfx::cmd::gpu_wait(CommandQueueType::GRAPHICS, receipt);
@@ -171,7 +177,7 @@ namespace clustered
                         .after = RESOURCE_USAGE_SHADER_READABLE,
                     },
                 };
-                gfx::cmd::transition_resources(graphics_ctx, transition_descs, ARRAY_SIZE(transition_descs));
+                gfx::cmd::transition_resources(graphics_ctx, transition_descs, std::size(transition_descs));
             }
 
             receipt = gfx::cmd::return_and_execute(&graphics_ctx, 1);
@@ -223,7 +229,7 @@ namespace clustered
 
                 // Transform corners
                 // This only translates to our OBB if our transform is affine
-                for (size_t corner_idx = 0; corner_idx < ARRAY_SIZE(corners); corner_idx++) {
+                for (size_t corner_idx = 0; corner_idx < std::size(corners); corner_idx++) {
                     vec3 corner = (model_transform * corners[corner_idx]).xyz;
                     scene_aabb.min = min(corner, scene_aabb.min);
                     scene_aabb.max = max(corner, scene_aabb.max);
@@ -254,7 +260,7 @@ namespace clustered
                 constexpr u32 grid_size_y = 4;
                 constexpr u32 grid_size_z = 4;
 
-                constexpr size_t num_lights = grid_size_x * grid_size_y * grid_size_z;
+                constexpr size_t num_lights = 0; // grid_size_x* grid_size_y* grid_size_z;
                 for (size_t idx = 0; idx < num_lights; ++idx) {
                     float coeff = float(idx) / float(num_lights - 1);
                     float phase = k_2_pi * coeff;
@@ -276,7 +282,7 @@ namespace clustered
                         });
                 }
 
-                constexpr size_t num_point_lights = 1024;
+                constexpr size_t num_point_lights = 0;
                 for (size_t idx = 0; idx < num_point_lights; ++idx) {
                     vec3 position = scene_origin + scene_dims * vec3{ random_generator(), random_generator(), random_generator() };
                     // Set positions in Cartesian
@@ -317,7 +323,7 @@ namespace clustered
                 &render_passes.light_binning,
                 //&render_passes.cluster_debug,
                 &render_passes.forward,
-                //&render_passes.background,
+                &render_passes.background,
                 &render_passes.tone_mapping,
                 //&render_passes.debug_pass,
             };

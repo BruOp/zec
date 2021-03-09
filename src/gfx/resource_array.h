@@ -1,6 +1,6 @@
 #pragma once
-#include "pch.h"
 #include "core/array.h"
+#include "core/zec_types.h"
 
 namespace zec
 {

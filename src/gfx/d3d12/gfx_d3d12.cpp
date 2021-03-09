@@ -1,17 +1,24 @@
 #pragma once
-#include "pch.h"
+#include <filesystem>
+#include <string>
+
+#include "core/zec_types.h"
 #include "core/zec_math.h"
 #include "gfx/public_resources.h"
 #include "gfx/gfx.h"
+#include "window.h"
 
 #include "shader_utils.h"
 #include "render_context.h"
 #include "upload_manager.h"
 #include "meshes.h"
 
+#include "dx_utils.h"
+#include "utils/utils.h"
+#include <d3dx12/d3dx12.h>
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 #include "DirectXTex.h"
-#include <filesystem>
+#include "optick/optick.h"
 
 #if _DEBUG
 #define USE_DEBUG_DEVICE 1
@@ -218,7 +225,7 @@ namespace zec::gfx
                 D3D_FEATURE_LEVEL_12_1,
             };
             D3D12_FEATURE_DATA_FEATURE_LEVELS feature_levels = { };
-            feature_levels.NumFeatureLevels = ARRAY_SIZE(feature_levels_arr);
+            feature_levels.NumFeatureLevels = std::size(feature_levels_arr);
             feature_levels.pFeatureLevelsRequested = feature_levels_arr;
             DXCall(g_context.device->CheckFeatureSupport(
                 D3D12_FEATURE_FEATURE_LEVELS,
@@ -255,7 +262,7 @@ namespace zec::gfx
             };
 
             D3D12_INFO_QUEUE_FILTER filter = { };
-            filter.DenyList.NumIDs = ARRAY_SIZE(disabledMessages);
+            filter.DenyList.NumIDs = std::size(disabledMessages);
             filter.DenyList.pIDList = disabledMessages;
             infoQueue->AddStorageFilterEntries(&filter);
             infoQueue->Release();
@@ -310,7 +317,7 @@ namespace zec::gfx
             swap_chain_desc.height = renderer_desc.height;
             swap_chain_desc.fullscreen = renderer_desc.fullscreen;
             swap_chain_desc.vsync = renderer_desc.vsync;
-            swap_chain_desc.output_window = renderer_desc.window;
+            swap_chain_desc.output_window = renderer_desc.window->get_hwnd();
             swap_chain_desc.format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 
             g_context.adapter->EnumOutputs(0, &g_context.swap_chain.output);
@@ -559,9 +566,9 @@ namespace zec::gfx
             ASSERT(desc.num_constant_buffers < MAX_DWORDS_IN_RS / 2);
             ASSERT(desc.num_resource_tables < MAX_DWORDS_IN_RS);
 
-            ASSERT(desc.num_constants < ARRAY_SIZE(desc.constants));
-            ASSERT(desc.num_constant_buffers < ARRAY_SIZE(desc.constant_buffers));
-            ASSERT(desc.num_resource_tables < ARRAY_SIZE(desc.tables));
+            ASSERT(desc.num_constants < std::size(desc.constants));
+            ASSERT(desc.num_constant_buffers < std::size(desc.constant_buffers));
+            ASSERT(desc.num_resource_tables < std::size(desc.tables));
 
             i8 remaining_dwords = i8(MAX_DWORDS_IN_RS);
             D3D12_ROOT_SIGNATURE_DESC root_signature_desc{};
@@ -661,7 +668,7 @@ namespace zec::gfx
             }
 
             ASSERT(remaining_dwords > 0);
-            D3D12_STATIC_SAMPLER_DESC static_sampler_descs[ARRAY_SIZE(desc.static_samplers)] = { };
+            D3D12_STATIC_SAMPLER_DESC static_sampler_descs[4] = { };
 
             for (size_t i = 0; i < desc.num_static_samplers; i++) {
                 const auto& sampler_desc = desc.static_samplers[i];
@@ -721,7 +728,7 @@ namespace zec::gfx
             if (desc.used_stages & PIPELINE_STAGE_COMPUTE) {
                 ASSERT(desc.used_stages == PIPELINE_STAGE_COMPUTE);
 
-                IDxcBlob* compute_shader = shader_utils::compile_shader(desc.shader_file_path.c_str(), PIPELINE_STAGE_COMPUTE);
+                IDxcBlob* compute_shader = shader_utils::compile_shader(desc.shader_file_path, PIPELINE_STAGE_COMPUTE);
 
                 D3D12_COMPUTE_PIPELINE_STATE_DESC pso_desc{};
                 pso_desc.CS.BytecodeLength = compute_shader->GetBufferSize();
@@ -802,7 +809,7 @@ namespace zec::gfx
             if (desc.depth_buffer_format != BufferFormat::INVALID) {
                 pso_desc.DSVFormat = to_d3d_format(desc.depth_buffer_format);
             }
-            for (size_t i = 0; i < ARRAY_SIZE(desc.rtv_formats); i++) {
+            for (size_t i = 0; i < std::size(desc.rtv_formats); i++) {
                 if (desc.rtv_formats[i] == BufferFormat::INVALID) break;
                 pso_desc.RTVFormats[i] = to_d3d_format(desc.rtv_formats[i]);
                 pso_desc.NumRenderTargets = i + 1;
@@ -811,12 +818,12 @@ namespace zec::gfx
             IDxcBlob* vertex_shader = nullptr;
             IDxcBlob* pixel_shader = nullptr;
             if (desc.used_stages & PIPELINE_STAGE_VERTEX) {
-                vertex_shader = shader_utils::compile_shader(desc.shader_file_path.c_str(), PIPELINE_STAGE_VERTEX);
+                vertex_shader = shader_utils::compile_shader(desc.shader_file_path, PIPELINE_STAGE_VERTEX);
                 pso_desc.VS.BytecodeLength = vertex_shader->GetBufferSize();
                 pso_desc.VS.pShaderBytecode = vertex_shader->GetBufferPointer();
             }
             if (desc.used_stages & PIPELINE_STAGE_PIXEL) {
-                pixel_shader = shader_utils::compile_shader(desc.shader_file_path.c_str(), PIPELINE_STAGE_PIXEL);
+                pixel_shader = shader_utils::compile_shader(desc.shader_file_path, PIPELINE_STAGE_PIXEL);
                 pso_desc.PS.BytecodeLength = pixel_shader->GetBufferSize();
                 pso_desc.PS.pShaderBytecode = pixel_shader->GetBufferPointer();
             }

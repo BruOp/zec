@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "camera.h"
 #include "utils/utils.h"
 

@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "app.h"
 #include "gfx/gfx.h"
 #include "gfx/profiling_utils.h"
@@ -83,7 +82,7 @@ namespace zec
         renderer_desc.height = height;
         renderer_desc.fullscreen = false;
         renderer_desc.vsync = true;
-        renderer_desc.window = window.hwnd;
+        renderer_desc.window = &window;
         gfx::init_renderer(renderer_desc);
 
         ui::initialize(window);

@@ -1,5 +1,6 @@
-#include "pch.h"
 #include "meshes.h"
+#include <dxgi1_6.h>
+
 #include "gfx/gfx.h"
 #include "render_context.h"
 
@@ -71,7 +72,7 @@ namespace zec::gfx::meshes
             mesh.index_count = mesh_desc.index_buffer_desc.byte_size / mesh_desc.index_buffer_desc.stride;
         }
 
-        for (size_t i = 0; i < ARRAY_SIZE(mesh_desc.vertex_buffer_descs); i++) {
+        for (size_t i = 0; i < std::size(mesh_desc.vertex_buffer_descs); i++) {
             const BufferDesc& attr_desc = mesh_desc.vertex_buffer_descs[i];
             if (attr_desc.usage == RESOURCE_USAGE_UNUSED) break;
 

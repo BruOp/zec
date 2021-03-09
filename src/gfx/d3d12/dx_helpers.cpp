@@ -1,5 +1,6 @@
-#include "pch.h"
 #include "dx_helpers.h"
+#include <stdexcept>
+#include <d3dx12/d3dx12.h>
 
 namespace zec::gfx::dx12
 {

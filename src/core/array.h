@@ -1,10 +1,7 @@
-
 #pragma once
-#include "pch.h"
-#include "utils/utils.h"
+#include <math.h>
+#include "utils/assert.h"
 #include "utils/memory.h"
-
-#include <type_traits>
 
 namespace zec
 {
@@ -27,8 +24,11 @@ namespace zec
 
         FixedArray() = default;
 
-        UNCOPIABLE(FixedArray);
-        UNMOVABLE(FixedArray);
+        FixedArray(FixedArray& other) = delete;
+        FixedArray& operator=(FixedArray& other) = delete;
+        
+        FixedArray(FixedArray&& other) = delete;
+        FixedArray& operator=(FixedArray&& other) = delete;
 
         T* begin()
         {
@@ -126,8 +126,11 @@ namespace zec
         T* end() { return data + size; }
         const T* end() const { return data + size; }
 
-        UNCOPIABLE(Array);
-        UNMOVABLE(Array);
+        Array(Array& other) = delete;
+        Array& operator=(Array& other) = delete;
+
+        Array(Array&& other) = delete;
+        Array& operator=(Array&& other) = delete;
 
         inline T& operator[](size_t idx)
         {
@@ -182,7 +185,7 @@ namespace zec
         size_t reserve(size_t new_capacity)
         {
             if (new_capacity < capacity) {
-                debug_print(L"Array can only grow at the moment!");
+                // Array can only grow at the moment!
                 return capacity;
             }
 
@@ -265,8 +268,11 @@ namespace zec
             return data + size;
         }
 
-        UNCOPIABLE(ManagedArray);
-        UNMOVABLE(ManagedArray);
+        ManagedArray(ManagedArray& other) = delete;
+        ManagedArray& operator=(ManagedArray& other) = delete;
+
+        ManagedArray(ManagedArray&& other) = delete;
+        ManagedArray& operator=(ManagedArray&& other) = delete;
 
         inline T& operator[](size_t idx)
         {
@@ -326,7 +332,7 @@ namespace zec
         size_t reserve(size_t new_capacity)
         {
             if (new_capacity < capacity) {
-                debug_print(L"Array can only grow at the moment!");
+                // Array can only grow at the moment!
                 return capacity;
             }
 

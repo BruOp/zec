@@ -1,6 +1,6 @@
 #pragma once
-#include "pch.h"
 #include "utils/memory.h"
+#include <math.h>
 
 /// <summary>
 /// Vectors are _column-major_ and we use _post-multiplication_
@@ -14,11 +14,11 @@
 
 namespace zec
 {
-    constexpr float k_pi = M_PI;
-    constexpr float k_half_pi = M_PI_2;
-    constexpr float k_quarter_pi = M_PI_4;
-    constexpr float k_inv_pi = M_1_PI;
-    constexpr float k_2_pi = M_PI * 2.0f;
+    constexpr float k_pi = 3.14159265358979323846;
+    constexpr float k_half_pi = 1.57079632679489661923;
+    constexpr float k_quarter_pi = 0.785398163397448309616;
+    constexpr float k_inv_pi = 0.318309886183790671538;
+    constexpr float k_2_pi = k_pi * 2.0f;
 
     constexpr float deg_to_rad(const float degrees)
     {
@@ -255,11 +255,6 @@ namespace zec
         }
     };
 
-    inline std::ostream& operator<<(std::ostream& os, const vec4& v)
-    {
-        return os << v.x << ' ' << v.y << ' ' << v.z << ' ' << v.w;
-    };
-
     inline bool operator==(const vec4& v1, const vec4& v2)
     {
         return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z && v1.w == v2.w;
@@ -356,18 +351,7 @@ namespace zec
 
     mat3 transpose(const mat3& m);
 
-    inline std::ostream& operator<<(std::ostream& os, const mat3& m)
-    {
-        for (size_t i = 0; i < 3; i++) {
-            for (size_t j = 0; j < 3; j++) {
-                os << m[i][j] << ' ';
-            }
-            os << '\n';
-        }
-        return os;
-    };
-
-    boolean operator==(const mat3& m1, const mat3& m2);
+    bool operator==(const mat3& m1, const mat3& m2);
 
     vec3 operator*(const mat3& m, const vec3& v);
     mat3 operator*(const mat3& m1, const mat3& m2);
@@ -429,14 +413,6 @@ namespace zec
     bool operator==(const mat4& m1, const mat4& m2);
     mat4 operator*(const mat4& m1, const mat4& m2);
     mat4& operator/=(mat4& m, const float s);
-
-    inline std::ostream& operator<<(std::ostream& os, const mat4& mat)
-    {
-        for (size_t i = 0; i < 4; i++) {
-            os << mat.rows[i] << '\n';
-        }
-        return os;
-    };
 
     vec4 operator*(const mat4& m, const vec4& v);
 

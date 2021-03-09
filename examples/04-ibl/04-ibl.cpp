@@ -705,7 +705,7 @@ protected:
         };
         render_pass_system::RenderPassListDesc render_list_desc = {
             .render_pass_descs = render_pass_descs,
-            .num_render_passes = ARRAY_SIZE(render_pass_descs),
+            .num_render_passes = std::size(render_pass_descs),
             .resource_to_use_as_backbuffer = ResourceNames::SDR_BUFFER,
         };
 
@@ -743,7 +743,7 @@ protected:
                     .after = RESOURCE_USAGE_SHADER_READABLE
                 },
             };
-            gfx::cmd::transition_resources(cmd_ctx, transitions, ARRAY_SIZE(transitions));
+            gfx::cmd::transition_resources(cmd_ctx, transitions, std::size(transitions));
 
             CmdReceipt receipt = gfx::cmd::return_and_execute(&cmd_ctx, 1);
             gfx::cmd::cpu_wait(receipt);

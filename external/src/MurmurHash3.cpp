@@ -8,7 +8,6 @@
 // non-native version will be less than optimal.
 
 
-#include "pch.h"
 #include "murmur/MurmurHash3.h"
 
 #pragma warning( push )

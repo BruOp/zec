@@ -27,18 +27,19 @@ namespace clustered
         gfx::set_debug_name(resource_layout, L"Forward Pass Layout");
 
         // Create the Pipeline State Object
-        PipelineStateObjectDesc pipeline_desc = {};
+        PipelineStateObjectDesc pipeline_desc = {
+            .shader_file_path = L"shaders/clustered_forward/depth_pass.hlsl",
+        };
         pipeline_desc.input_assembly_desc = { {
             { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
         } };
-        pipeline_desc.shader_file_path = L"shaders/clustered_forward/depth_pass.hlsl";
         //pipeline_desc.rtv_formats[0] = BufferFormat::R16G16B16A16_FLOAT;
         pipeline_desc.depth_buffer_format = BufferFormat::D32;
         pipeline_desc.resource_layout = resource_layout;
         pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CCW;
         pipeline_desc.raster_state_desc.flags |= DEPTH_CLIP_ENABLED;
         pipeline_desc.depth_stencil_state.depth_cull_mode = ComparisonFunc::GREATER;
-        pipeline_desc.depth_stencil_state.depth_write = TRUE;
+        pipeline_desc.depth_stencil_state.depth_write = true;
         pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX;
 
         pso = gfx::pipelines::create_pipeline_state_object(pipeline_desc);

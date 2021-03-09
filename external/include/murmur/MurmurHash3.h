@@ -5,8 +5,6 @@
 #ifndef _MURMURHASH3_H_
 #define _MURMURHASH3_H_
 
-#include "pch.h"
-
 //-----------------------------------------------------------------------------
 // Platform-specific functions and macros
 

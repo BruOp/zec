@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "pch.h"
+#include <windows.h>
 
 #include "utils/exceptions.h"
 #include "core/array.h"
@@ -41,8 +41,8 @@ namespace zec
         //HINSTANCE get_hinstance() const;
         void message_loop();
 
-        boolean is_alive() const;
-        boolean is_minimized() const;
+        bool is_alive() const;
+        bool is_minimized() const;
         //BOOL has_focus() const;
         //LONG_PTR get_window_style() const;
         //LONG_PTR get_extended_style() const;
@@ -65,6 +65,7 @@ namespace zec
 
         void register_message_callback(MsgFunction msgFunction, void* context);
 
+        HWND get_hwnd() { return hwnd; }
         operator HWND() { return hwnd; }		//conversion operator
 
         HWND hwnd;			        // The window handle

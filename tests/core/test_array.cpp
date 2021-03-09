@@ -7,7 +7,7 @@ struct Vector
     u32 y = 0;
     u32 z = 0;
 };
-static boolean operator==(const Vector& left, const Vector& right)
+static bool operator==(const Vector& left, const Vector& right)
 {
     return left.x == right.x && left.y == right.y && left.z == right.z;
 }

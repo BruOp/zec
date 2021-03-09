@@ -1,7 +1,9 @@
-#include "pch.h"
 #include "dx_utils.h"
-#include "render_context.h"
+
+#include <d3d12.h>
 #include <dxcompiler/dxcapi.h>
+#include "render_context.h"
+#include "utils/utils.h"
 
 #if USE_ASSERTS
 #else // USE_ASSERTS

@@ -6,7 +6,7 @@ namespace zec::geometry
     {
         in_positions.reserve(8u);
 
-        const float tan_fov = tan(0.5f * vertical_fov);
+        const float tan_fov = tanf(0.5f * vertical_fov);
 
         // These represent two different corners of our full frustum
         vec3 cl_left_bot_near = vec3{

@@ -1,4 +1,5 @@
 #pragma once
+
 #include "core/array.h"
 #include "core/zec_math.h"
 #include "gfx/public_resources.h"
@@ -55,6 +56,6 @@ namespace zec
             Array<DrawCall> draw_calls = {};
         };
 
-        void load_gltf_file(const std::string& gltf_file, CommandContextHandle cmd_ctx, Context& context, const LoaderFlags flags = GLTF_LOADING_FLAG_NONE);
+        void load_gltf_file(const char* gltf_file_path, CommandContextHandle cmd_ctx, Context& context, const LoaderFlags flags = GLTF_LOADING_FLAG_NONE);
     };
 }

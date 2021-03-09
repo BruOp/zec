@@ -4,6 +4,32 @@
 
 using namespace zec;
 
+namespace zec
+{
+    inline std::ostream& operator<<(std::ostream& os, const vec4& v)
+    {
+        return os << v.x << ' ' << v.y << ' ' << v.z << ' ' << v.w;
+    };
+
+    inline std::ostream& operator<<(std::ostream& os, const mat3& m)
+    {
+        for (size_t i = 0; i < 3; i++) {
+            for (size_t j = 0; j < 3; j++) {
+                os << m[i][j] << ' ';
+            }
+            os << '\n';
+        }
+        return os;
+    };
+    
+    inline std::ostream& operator<<(std::ostream& os, const mat4& mat)
+    {
+        for (size_t i = 0; i < 4; i++) {
+            os << mat.rows[i] << '\n';
+        }
+        return os;
+    };
+}
 
 TEST_CASE("3x3 Matricies can be multiplied")
 {

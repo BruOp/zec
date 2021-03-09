@@ -1,5 +1,4 @@
 #pragma once
-#include "pch.h"
 #include "gfx/public_resources.h"
 #include "gfx/constants.h"
 #include "dx_helpers.h"

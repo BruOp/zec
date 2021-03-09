@@ -1,5 +1,5 @@
 #pragma once
-#include "pch.h"
+#include "core/zec_types.h"
 #include "core/zec_math.h"
 #include "public_resources.h"
 

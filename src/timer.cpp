@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "timer.h"
 #include "utils/utils.h"
 

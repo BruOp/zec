@@ -1,7 +1,7 @@
 #pragma once
-#include "pch.h"
 #include "utils/exceptions.h"
 #include "DXErr.h"
+#include <d3dcommon.h>
 
 struct IDxcBlobUtf8;
 

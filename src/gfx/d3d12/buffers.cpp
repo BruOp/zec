@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "gfx/gfx.h"
 #include "buffers.h"
 #include "dx_utils.h"

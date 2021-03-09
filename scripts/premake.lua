@@ -47,6 +47,20 @@ workspace "zec"
     "_CRT_SECURE_NO_WARNINGS",
     "_CRT_SECURE_NO_DEPRECATE",
     -- "_ITERATOR_DEBUG_LEVEL=0",
+    -- Use the C++ standard templated min/max
+    "NOMINMAX",
+    -- // DirectX apps don't need GDI
+    "NODRAWTEXT",
+    "NOGDI",
+    "NOBITMAP",
+    -- // Include <mcx.h> if you need this
+    "NOMCX",
+    -- // Include <winsvc.h> if you need this
+    "NOSERVICE",
+    -- // WinHelp is deprecated
+    "NOHELP",
+    "WIN32_LEAN_AND_MEAN", -- // Exclude rarely-used stuff from Windows headers
+    "STRICT",              --// Use strict declarations for Windows types"
     "USE_D3D_RENDERER",
   }
   linkoptions {
@@ -114,8 +128,6 @@ project("zec_lib")
     EXTERNAL_DIR,
   }
 
-  pchheader "pch.h"
-  pchsource (path.join(ZEC_SRC_DIR, "pch.cpp"))
 
   links {
     "dxgi",

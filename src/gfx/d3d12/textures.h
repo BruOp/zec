@@ -1,8 +1,10 @@
 #pragma once
-#include "pch.h"
+#include <unordered_map>
+
+#include "core/zec_types.h"
 #include "gfx/public_resources.h"
-#include "dx_helpers.h"
 #include "gfx/resource_array.h"
+#include "dx_helpers.h"
 // TODO: Remove this
 #include "descriptor_heap.h"
 
@@ -10,7 +12,6 @@ namespace D3D12MA
 {
     class Allocation;
 }
-
 
 namespace std
 {

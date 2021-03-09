@@ -1,6 +1,13 @@
 #pragma once
-#include "pch.h"
+#include <d3d12.h>
+
 #include "gfx/gfx.h"
+
+// Pix for Windows
+#define USE_PIX
+#include "pix3.h"
+
+#include "optick/optick.h"
 
 #define ZEC_CONCAT_IMPL(x, y) x##y
 #define ZEC_CONCAT(x, y) ZEC_CONCAT_IMPL(x, y)

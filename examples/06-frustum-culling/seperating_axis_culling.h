@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "core/array.h"
 #include "core/zec_math.h"
 #include "camera.h"
@@ -73,7 +72,7 @@ namespace zec
 
         // Transform corners
         // This only translates to our OBB if our transform is affine
-        for (size_t corner_idx = 0; corner_idx < ARRAY_SIZE(corners); corner_idx++) {
+        for (size_t corner_idx = 0; corner_idx < std::size(corners); corner_idx++) {
             corners[corner_idx] = (vs_transform * corners[corner_idx]).xyz;
         }
 
@@ -124,7 +123,7 @@ namespace zec
                 { 0.0, -z_near, y_near }, // Top plane
                 { 0.0, z_near, y_near }, // Bottom plane
             };
-            for (size_t m = 0; m < ARRAY_SIZE(M); m++) {
+            for (size_t m = 0; m < std::size(M); m++) {
                 float MoX = fabsf(M[m].x);
                 float MoY = fabsf(M[m].y);
                 float MoZ = M[m].z;
@@ -158,7 +157,7 @@ namespace zec
 
         // OBB Axes
         {
-            for (size_t m = 0; m < ARRAY_SIZE(obb.axes); m++) {
+            for (size_t m = 0; m < std::size(obb.axes); m++) {
                 const vec3& M = obb.axes[m];
                 float MoX = fabsf(M.x);
                 float MoY = fabsf(M.y);
@@ -191,7 +190,7 @@ namespace zec
         // Now let's perform each of the cross products between the edges
         // First R x A_i
         {
-            for (size_t m = 0; m < ARRAY_SIZE(obb.axes); m++) {
+            for (size_t m = 0; m < std::size(obb.axes); m++) {
                 const vec3 M = { 0.0f, -obb.axes[m].z, obb.axes[m].y };
                 float MoX = 0.0f;
                 float MoY = fabsf(M.y);
@@ -226,7 +225,7 @@ namespace zec
 
         // U x A_i
         {
-            for (size_t m = 0; m < ARRAY_SIZE(obb.axes); m++) {
+            for (size_t m = 0; m < std::size(obb.axes); m++) {
                 const vec3 M = { obb.axes[m].z, 0.0f, -obb.axes[m].x };
                 float MoX = fabsf(M.x);
                 float MoY = 0.0f;
@@ -261,7 +260,7 @@ namespace zec
 
         // Frustum Edges X Ai
         {
-            for (size_t obb_edge_idx = 0; obb_edge_idx < ARRAY_SIZE(obb.axes); obb_edge_idx++) {
+            for (size_t obb_edge_idx = 0; obb_edge_idx < std::size(obb.axes); obb_edge_idx++) {
                 const vec3 M[] = {
                     cross({-x_near, 0.0f, z_near}, obb.axes[obb_edge_idx]), // Left Plane
                     cross({ x_near, 0.0f, z_near }, obb.axes[obb_edge_idx]), // Right plane
@@ -269,7 +268,7 @@ namespace zec
                     cross({ 0.0, -y_near, z_near }, obb.axes[obb_edge_idx]) // Bottom plane
                 };
 
-                for (size_t m = 0; m < ARRAY_SIZE(M); m++) {
+                for (size_t m = 0; m < std::size(M); m++) {
                     float MoX = fabsf(M[m].x);
                     float MoY = fabsf(M[m].y);
                     float MoZ = M[m].z;

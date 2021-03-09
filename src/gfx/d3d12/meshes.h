@@ -1,5 +1,6 @@
 #pragma once
-#include "pch.h"
+#include <d3d12.h>
+
 #include "gfx/public_resources.h"
 #include "gfx/resource_array.h"
 
