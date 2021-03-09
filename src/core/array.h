@@ -1,5 +1,6 @@
 #pragma once
 #include <math.h>
+#include <type_traits>
 #include "utils/assert.h"
 #include "utils/memory.h"
 
@@ -26,7 +27,7 @@ namespace zec
 
         FixedArray(FixedArray& other) = delete;
         FixedArray& operator=(FixedArray& other) = delete;
-        
+
         FixedArray(FixedArray&& other) = delete;
         FixedArray& operator=(FixedArray&& other) = delete;
 
@@ -102,6 +103,9 @@ namespace zec
         - ONLY FOR POD TYPES! We don't initialize or destroy the elements and use things like memcpy for copies
         - it's guaranteed to never move since we're using virtual alloc to allocate about 1 GB per array (in Virtual memory)
         */
+
+        static_assert(std::is_trivially_copyable<T>::value);
+        static_assert(std::is_trivially_destructible<T>::value);
     public:
         T* data = nullptr;
         size_t capacity = 0;
@@ -129,8 +133,8 @@ namespace zec
         Array(Array& other) = delete;
         Array& operator=(Array& other) = delete;
 
-        Array(Array&& other) = delete;
-        Array& operator=(Array&& other) = delete;
+        Array(Array&& other) = default;
+        Array& operator=(Array&& other) = default;
 
         inline T& operator[](size_t idx)
         {
@@ -308,7 +312,7 @@ namespace zec
             if (size >= capacity) {
                 reserve(capacity + 1);
             }
-            data[size] = new(data + size) T{ args... };
+            new(data + size) T{ args... };
             return size++;
         };
 
@@ -320,7 +324,7 @@ namespace zec
                 reserve(new_size);
             }
             for (size_t i = size; i < new_size; i++) {
-                data[i] = new(data + i) T();
+                new(data + i) T();
             }
             size = new_size;
             return size;

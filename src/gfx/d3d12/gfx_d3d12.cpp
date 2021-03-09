@@ -832,7 +832,7 @@ namespace zec::gfx
 
             if (vertex_shader != nullptr) vertex_shader->Release();
             if (pixel_shader != nullptr) pixel_shader->Release();
-
+            pipeline->SetName(desc.shader_file_path);
             return { g_context.pipelines.push_back(pipeline) };
 
         };

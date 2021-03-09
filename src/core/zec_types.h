@@ -15,6 +15,12 @@ typedef intptr_t intptr;
 typedef uintptr_t uintptr;
 typedef wchar_t wchar;
 
+enum struct ZecResult : u8
+{
+    SUCCESS = 0,
+    FAILURE,
+    WARNING
+};
 
 #define UNCOPIABLE( T ) \
         T(const T&) = delete; \

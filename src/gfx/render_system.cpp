@@ -17,8 +17,6 @@ namespace zec::render_pass_system
         u32 last_written_to_by_pass_idx;
     };
 
-    constexpr size_t GRAPH_DEPTH_LIMIT = 16; //totally arbitrary
-
     void RenderPassList::compile(RenderPassListDesc& render_list_desc)
     {
         IRenderPass** in_render_passes = render_list_desc.render_passes;

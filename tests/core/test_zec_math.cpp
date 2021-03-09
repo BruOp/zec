@@ -101,7 +101,10 @@ TEST_CASE("Can apply rotation to a matrix using a quaternion")
 
     vec4 output = m * vec4{ 1.0f, 0.0f, 0.0f, 1.0f };
     vec4 expected = { cosf(angle), 0.0f, -sinf(angle), 1.0f };
-    REQUIRE(output == expected);
+    for (size_t i = 0; i < 4; i++) 		{
+        REQUIRE(output[i] >= expected[i] - FLT_EPSILON);
+        REQUIRE(output[i] <= expected[i] + FLT_EPSILON);
+    }
 
 }
 

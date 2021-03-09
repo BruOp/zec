@@ -2,25 +2,28 @@
 #include <random>
 #include <functional>
 
+#include <ftl/task_scheduler.h>
+
 #include "app.h"
+#include "utils/utils.h"
 
 #include "core/zec_math.h"
 #include "utils/exceptions.h"
 #include "camera.h"
 #include "gltf_loading.h"
-#include "gfx/render_system.h"
+#include "gfx/render_task_system.h"
 
 #include "pass_resources.h"
 #include "bounding_meshes.h"
 #include "renderable_scene.h"
 
 #include "passes/depth_pass.h"
-#include "passes/forward_pass.h"
-#include "passes/background_pass.h"
-#include "passes/tone_mapping_pass.h"
+//#include "passes/forward_pass.h"
+//#include "passes/background_pass.h"
+//#include "passes/tone_mapping_pass.h"
 #include "passes/light_binning_pass.h"
 #include "passes/cluster_debug_pass.h"
-#include "passes/debug_pass.h"
+//#include "passes/debug_pass.h"
 
 #include "compute_tasks/brdf_lut_creator.h"
 #include "compute_tasks/irradiance_map_creator.h"
@@ -56,17 +59,6 @@ namespace clustered
 
     class ClusteredForward : public zec::App
     {
-        struct Passes
-        {
-        public:
-            DepthPass depth_prepass = {};
-            LightBinningPass light_binning = { CLUSTER_SETUP };
-            ClusterDebugPass cluster_debug = { CLUSTER_SETUP };
-            ForwardPass forward = {};
-            DebugPass debug_pass = {};
-            BackgroundPass background = {};
-            ToneMappingPass tone_mapping = {};
-        };
 
     public:
         ClusteredForward() : App{ L"Clustered Forward Rendering" } { }
@@ -82,9 +74,9 @@ namespace clustered
         // Rendering Data
         RenderableScene renderable_scene;
         RenderableCamera renderable_camera;
-        Passes render_passes{ };
-        render_pass_system::RenderPassList render_list;
 
+        RenderTaskSystem render_task_system = {};
+        RenderTaskListHandle complete_task_list = {};
 
     protected:
         void init() override final
@@ -150,7 +142,7 @@ namespace clustered
             CmdReceipt receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
 
             gfx::cmd::gpu_wait(CommandQueueType::GRAPHICS, receipt);
-            
+
             CommandContextHandle graphics_ctx = gfx::cmd::provision(CommandQueueType::GRAPHICS);
 
             // Compute BRDF and Irraadiance maps
@@ -214,7 +206,7 @@ namespace clustered
                         .normal_transform = gltf_context.scene_graph.normal_transforms[draw_call.scene_node_idx],
                     },
                     aabb
-                );
+                    );
 
                 vec3 corners[] = {
                             aabb.min,
@@ -294,55 +286,58 @@ namespace clustered
                 }
             }
 
-            render_passes.light_binning.view_cb_handle = renderable_camera.view_constant_buffer;
-            render_passes.light_binning.scene_constants_buffer = renderable_scene.scene_constants;
-            render_passes.light_binning.camera = &camera;
+            {
+                size_t num_clusters = CLUSTER_SETUP.width * CLUSTER_SETUP.height * (CLUSTER_SETUP.pre_mid_depth + CLUSTER_SETUP.post_mid_depth);
+                auto spot_light_indices_desc = PassResources::SPOT_LIGHT_INDICES;
+                auto point_light_indices_desc = PassResources::POINT_LIGHT_INDICES;
+                spot_light_indices_desc.desc.byte_size = num_clusters * (ClusterGridSetup::MAX_LIGHTS_PER_BIN + 1) * sizeof(u32);
+                point_light_indices_desc.desc.byte_size = num_clusters * (ClusterGridSetup::MAX_LIGHTS_PER_BIN + 1) * sizeof(u32);
 
-            render_passes.depth_prepass.view_cb_handle = renderable_camera.view_constant_buffer;
-            render_passes.depth_prepass.scene_renderables = &renderable_scene.renderables;
+                BufferPassResourceDesc buffer_resources[] = {
+                    spot_light_indices_desc,
+                    point_light_indices_desc,
+                };
+                render_task_system.register_buffer_resources(buffer_resources, std::size(buffer_resources));
+            }
 
-            render_passes.cluster_debug.view_cb_handle = renderable_camera.view_constant_buffer;
-            render_passes.cluster_debug.scene_renderables = &renderable_scene.renderables;
-            render_passes.cluster_debug.scene_constants_buffer = renderable_scene.scene_constants;
-            render_passes.cluster_debug.camera = &camera;
-
-            render_passes.debug_pass.view_cb_handle = renderable_camera.view_constant_buffer;
-            render_passes.debug_pass.renderable_scene = &renderable_scene;
-
-            render_passes.forward.camera = &camera;
-            render_passes.forward.view_cb_handle = renderable_camera.view_constant_buffer;
-            render_passes.forward.scene_renderables = &renderable_scene.renderables;
-            render_passes.forward.scene_constants_buffer = renderable_scene.scene_constants;
-            render_passes.forward.cluster_grid_setup = CLUSTER_SETUP;
-
-            render_passes.background.view_cb_handle = renderable_camera.view_constant_buffer;
-            render_passes.background.cube_map_buffer = radiance_map;
-
-            render_pass_system::IRenderPass* pass_ptrs[] = {
-                &render_passes.depth_prepass,
-                &render_passes.light_binning,
-                //&render_passes.cluster_debug,
-                &render_passes.forward,
-                &render_passes.background,
-                &render_passes.tone_mapping,
-                //&render_passes.debug_pass,
+            TexturePassResourceDesc texture_resources[] = {
+                PassResources::DEPTH_TARGET,
+                PassResources::HDR_TARGET,
             };
-            render_pass_system::RenderPassListDesc render_list_desc = {
-                .render_passes = pass_ptrs,
-                .num_render_passes = std::size(pass_ptrs),
-                .resource_to_use_as_backbuffer = PassResources::SDR_TARGET.id,
+            render_task_system.register_texture_resources(texture_resources, std::size(texture_resources));
+
+            RenderPassTaskDesc render_pass_task_descs[] = {
+                    depth_pass_desc,
+                    light_binning_desc,
+                    cluster_debug_desc,
+            };
+            RenderTaskListDesc task_list_desc = {
+                .backbuffer_resource_id = PassResources::SDR_TARGET.identifier,
+                .render_pass_task_descs = render_pass_task_descs,
+            };
+            std::vector<std::string> errors{};
+            complete_task_list = render_task_system.create_render_task_list(task_list_desc, errors);
+
+
+            for (const auto& error : errors) {
+                write_log(error.c_str());
+            }
+            if (errors.size() != 0) {
+                throw std::runtime_error("Render Pass Task List was invalid :(");
             };
 
-            render_list.compile(render_list_desc);
-            render_list.setup();
+            render_task_system.complete_setup();
+
+            render_task_system.set_setting(Settings::cluster_grid_setup.identifier, CLUSTER_SETUP);
+            render_task_system.set_setting(Settings::main_pass_view_cb.identifier, renderable_camera.view_constant_buffer);
+            render_task_system.set_setting(Settings::renderable_scene_ptr.identifier, &renderable_scene);
 
             gfx::cmd::cpu_wait(receipt);
-
         }
 
         void shutdown() override final
         {
-            render_list.shutdown();
+            //render_task_system.shutdown();
         }
 
         void update(const zec::TimeData& time_data) override final
@@ -356,12 +351,12 @@ namespace clustered
 
             renderable_scene.copy(spot_lights, point_lights);
 
-            render_list.copy();
+            // Make sure the relevant settings are updated
         }
 
         void render() override final
         {
-            render_list.execute();
+            render_task_system.execute(complete_task_list);
         }
 
         void before_reset() override final
