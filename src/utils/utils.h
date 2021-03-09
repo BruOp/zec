@@ -100,5 +100,4 @@ namespace zec
         ASSERT(alignment > 0);
         return ((num + alignment - 1) / alignment) * alignment;
     }
-
 } // namespace zec

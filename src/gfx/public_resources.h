@@ -352,7 +352,7 @@ namespace zec
         SamplerWrapMode wrap_u = SamplerWrapMode::CLAMP;
         SamplerWrapMode wrap_v = SamplerWrapMode::CLAMP;
         SamplerWrapMode wrap_w = SamplerWrapMode::CLAMP;
-        u32 binding_slot;
+        u32 binding_slot = UINT32_MAX;
     };
 
     struct ResourceTableEntryDesc

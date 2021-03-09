@@ -49,7 +49,7 @@ TEST_CASE("An ring buffer will double in size when full")
 {
     zec::RingBuffer<uint32_t> ring{ 8 };
     size_t old_capacity = ring.capacity;
-    for (size_t i = 0; i < ring.capacity; i++) {
+    for (size_t i = 0; i <= old_capacity; i++) {
         ring.push_back(i + 1);
     }
     REQUIRE(ring.capacity == old_capacity * 2);

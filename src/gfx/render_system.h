@@ -14,12 +14,6 @@ namespace zec::render_pass_system
         ABSOLUTE,
     };
 
-    enum struct PassAccess : u8
-    {
-        UNUSED = 0,
-        READ = 1 << 0,
-        WRITE = 1 << 1,
-    };
     enum struct PassResourceType : u8
     {
         INVALID = 0,

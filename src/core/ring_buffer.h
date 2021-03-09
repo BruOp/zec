@@ -91,7 +91,7 @@ namespace zec
         void push_back(T item)
         {
             if (write_idx - read_idx >= capacity) {
-                grow(capacity != 0 ? 2 * capacity : 16);
+                grow(capacity != 0 ? capacity : 1);
             };
             const u64 idx = (write_idx) % capacity;
             data[idx] = item;
