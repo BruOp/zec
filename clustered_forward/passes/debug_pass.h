@@ -13,8 +13,7 @@ namespace clustered
         RenderableScene* renderable_scene = nullptr;
         zec::BufferHandle view_cb_handle = {};
 
-        DebugPass()
-        { }
+        virtual ~DebugPass() = default;
 
         virtual void setup() final;
 

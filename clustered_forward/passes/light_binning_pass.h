@@ -18,6 +18,7 @@ namespace clustered
         ClusterGridSetup cluster_grid_setup = {};
 
         LightBinningPass(const ClusterGridSetup cluster_grid_setup);
+        virtual ~LightBinningPass() = default;
 
         void set_output_dimensions(const ClusterGridSetup cluster_grid_setup);
 

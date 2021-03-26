@@ -17,6 +17,8 @@ namespace clustered
         // Settings
         float exposure = 1.0f;
 
+        virtual ~ToneMappingPass() = default;
+
         void setup() override final;
 
         void copy() override final { };

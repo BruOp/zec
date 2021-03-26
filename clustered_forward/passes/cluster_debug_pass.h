@@ -18,6 +18,8 @@ namespace clustered
         ClusterDebugPass(const ClusterGridSetup grid_setup) : cluster_grid_setup{ grid_setup }
         { }
 
+        virtual ~ClusterDebugPass() = default;
+
         virtual void setup() final;
 
         void copy() override final

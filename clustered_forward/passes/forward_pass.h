@@ -10,6 +10,8 @@ namespace clustered
     class ForwardPass : public zec::render_pass_system::IRenderPass
     {
     public:
+        virtual ~ForwardPass() = default;
+
         zec::PerspectiveCamera* camera = nullptr;
         Renderables* scene_renderables = nullptr;
         zec::BufferHandle scene_constants_buffer = {};

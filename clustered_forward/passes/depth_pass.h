@@ -12,6 +12,8 @@ namespace clustered
         Renderables* scene_renderables = nullptr;
         zec::BufferHandle view_cb_handle = {};
 
+        virtual ~DepthPass() = default;
+
         virtual void setup() final;
 
         void copy() override final

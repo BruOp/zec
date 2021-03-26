@@ -146,7 +146,7 @@ namespace clustered
             renderable_scene.scene_constant_data.radiance_map_idx = gfx::textures::get_shader_readable_index(radiance_map);
 
             gltf::Context gltf_context{};
-            gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", copy_ctx, gltf_context, gltf::GLTF_LOADING_FLAG_NONE);
+            gltf::load_gltf_file("models/Sponza/Sponza.gltf", copy_ctx, gltf_context, gltf::GLTF_LOADING_FLAG_NONE);
             CmdReceipt receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
 
             gfx::cmd::gpu_wait(CommandQueueType::GRAPHICS, receipt);
@@ -260,7 +260,7 @@ namespace clustered
                 constexpr u32 grid_size_y = 4;
                 constexpr u32 grid_size_z = 4;
 
-                constexpr size_t num_lights = 0; // grid_size_x* grid_size_y* grid_size_z;
+                constexpr size_t num_lights = grid_size_x* grid_size_y* grid_size_z;
                 for (size_t idx = 0; idx < num_lights; ++idx) {
                     float coeff = float(idx) / float(num_lights - 1);
                     float phase = k_2_pi * coeff;
@@ -282,7 +282,7 @@ namespace clustered
                         });
                 }
 
-                constexpr size_t num_point_lights = 0;
+                constexpr size_t num_point_lights = 1024;
                 for (size_t idx = 0; idx < num_point_lights; ++idx) {
                     vec3 position = scene_origin + scene_dims * vec3{ random_generator(), random_generator(), random_generator() };
                     // Set positions in Cartesian

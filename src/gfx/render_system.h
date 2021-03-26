@@ -122,6 +122,8 @@ namespace zec::render_pass_system
             u32 count;
         };
 
+        virtual ~IRenderPass() = default;
+
         virtual void setup() = 0;
         virtual void copy() = 0;
         virtual void record(const ResourceMap& resource_map, CommandContextHandle cmd_context) = 0;

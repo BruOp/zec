@@ -8,6 +8,8 @@ namespace clustered
     class BackgroundPass : public zec::render_pass_system::IRenderPass
     {
     public:
+        virtual ~BackgroundPass() = default;
+
         zec::BufferHandle view_cb_handle = {};
         zec::TextureHandle cube_map_buffer = {};
         float mip_level = 1.0f;
