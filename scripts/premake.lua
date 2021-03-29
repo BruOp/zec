@@ -28,8 +28,8 @@ workspace "zec"
   filter { }
 
   nuget {
-    "directxtex_desktop_win10:2020.8.15.1",
-    "WinPixEventRuntime:1.0.200127001"
+    "directxtex_desktop_win10:2021.1.10.2",
+    "WinPixEventRuntime:1.0.210209001"
   }
 
   targetdir (BUILD_DIR .. "bin/%{cfg.longname}/%{prj.name}")
@@ -113,6 +113,7 @@ project("zec_lib")
     path.join(ZEC_SRC_DIR, "**.cpp"),
     path.join(ZEC_SRC_DIR, "**.h"),
     path.join(ZEC_DIR, "external/src/*.cpp"),
+    path.join(ZEC_DIR, "external/src/*.c"),
   }
 
   filter { "files:**.hlsl" }

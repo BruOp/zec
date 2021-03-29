@@ -169,9 +169,16 @@ namespace zec
         float data[64];
     };
 
+    struct RenderPassContext;
+
+    typedef void(*RenderPassSetupFn)(PerPassData* per_pass_data);
+    typedef void(*RenderPassExecuteFn)(const RenderPassContext* context);
+    typedef void(*RenderPassTeardownFn)(PerPassData* per_pass_data);
+
     struct RenderPassContext
     {
-        std::string_view name;
+        std::string_view name = {};
+        RenderPassExecuteFn execute_fn = nullptr;
         ResourceMap* resource_map = nullptr;
         SettingsData* settings = nullptr;
         std::unordered_map<u32, ResourceLayoutHandle>* resource_layouts = nullptr;
@@ -192,10 +199,6 @@ namespace zec
         u32 resource_layout_id = UINT32_MAX;
         PipelineStateObjectDesc pipeline_desc = {};
     };
-
-    typedef void(*RenderPassSetupFn)(PerPassData* per_pass_data);
-    typedef void(*RenderPassExecuteFn)(const RenderPassContext* context);
-    typedef void(*RenderPassTeardownFn)(PerPassData* per_pass_data);
 
     struct RenderPassTaskDesc
     {
@@ -293,7 +296,7 @@ namespace zec
 
         void complete_setup();
 
-        void execute(const RenderTaskListHandle list);
+        void execute(const RenderTaskListHandle list, ftl::TaskScheduler* task_scheduler);
 
         ManagedArray<RenderTaskList> render_task_lists = {};
         Array<ResourceState> resource_states;
