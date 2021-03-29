@@ -2,6 +2,7 @@
 #include "utils/utils.h"
 #include "gfx/profiling_utils.h"
 #include <ftl/task_scheduler.h>
+#include <ftl/task_counter.h>
 #include <sstream>
 
 namespace zec
@@ -90,9 +91,9 @@ namespace zec
 
             render_pass_tasks[pass_idx] = RenderPassTask{
                 .name = task_desc.name,
-                .setup_fn= task_desc.setup_fn,
+                .setup_fn = task_desc.setup_fn,
                 .execute_fn = task_desc.execute_fn,
-                .teardown_fn= task_desc.teardown_fn,
+                .teardown_fn = task_desc.teardown_fn,
                 .command_queue_type = task_desc.command_queue_type,
                 .resource_transitions_view = {
                     .offset = u32(resource_transition_descs.size()),
@@ -250,7 +251,7 @@ namespace zec
                     .type = PassResourceType::TEXTURE,
                     .last_usages = { texture_desc.initial_state, texture_desc.initial_state },
             };
-            
+
             if (texture_resource_desc.sizing == Sizing::RELATIVE_TO_SWAP_CHAIN) {
                 texture_desc.width = config_state.width;
                 texture_desc.height = config_state.height;
@@ -276,7 +277,7 @@ namespace zec
         }
     }
 
-    void RenderTaskSystem::execute(const RenderTaskListHandle list)
+    void RenderTaskSystem::execute(const RenderTaskListHandle list, ftl::TaskScheduler* task_scheduler)
     {
         RenderTaskList& render_task_list = render_task_lists[list.idx];
 
@@ -285,84 +286,110 @@ namespace zec
         // Alias the backbuffer as the resource;
         resource_map.set_backbuffer_resource(render_task_list.backbuffer_resource_id);
 
-
         // --------------- RECORD --------------- 
 
         constexpr size_t MAX_CMD_LIST_SUMISSIONS = 8; // Totally arbitrary
         // Each render_pass gets a command context
 
         const auto& render_passes = render_task_list.render_pass_tasks;
-        // Can be parallelized!
-        for (size_t pass_idx = 0; pass_idx < render_passes.size(); ++pass_idx) {
-            const RenderPassTask& render_pass = render_passes[pass_idx];
-            const RenderPassTask& render_pass_task = render_task_list.render_pass_tasks[pass_idx];
 
-            CommandContextHandle cmd_ctx = gfx::cmd::provision(render_pass_task.command_queue_type);
-            render_task_list.cmd_contexts[pass_idx] = cmd_ctx;
+        std::vector<RenderPassContext> task_contexts(render_passes.size());
+        std::vector<ftl::Task> ftl_tasks(render_passes.size());
 
-            RenderPassContext task_context{
-                .name = render_pass.name,
-                .resource_map=&resource_map,
-                .settings = &settings,
-                .resource_layouts = &resource_layouts,
-                .pipeline_states = &pipelines,
-                .cmd_context = cmd_ctx,
-                .per_pass_data = &render_task_list.per_pass_data[pass_idx]
-            };
+        {
+            PROFILE_EVENT("Creating Task Contexts");
 
+            // Can be parallelized!
+            for (size_t pass_idx = 0; pass_idx < render_passes.size(); ++pass_idx) {
+                const RenderPassTask& render_pass = render_passes[pass_idx];
 
-            // Transition Resources
-            {
-                const size_t offset = render_pass_task.resource_transitions_view.offset;
-                const size_t size = render_pass_task.resource_transitions_view.size;
-                size_t num_recorded_transitions = 0;
-                ASSERT(size < 15);
-                ResourceTransitionDesc transition_descs[16] = {};
-                // Submit any resource barriers
-                for (size_t transition_idx = 0; transition_idx < size; transition_idx++) {
-                    PassResourceTransitionDesc& transition_desc = render_task_list.resource_transition_descs[transition_idx + offset];
-                    u64 current_frame_idx = get_current_frame_idx();
-                    ResourceState& resource_state = resource_map.at(transition_desc.resource_id);
+                CommandContextHandle cmd_ctx = gfx::cmd::provision(render_pass.command_queue_type);
+                render_task_list.cmd_contexts[pass_idx] = cmd_ctx;
 
-                    if (transition_desc.usage == resource_state.last_usages[current_frame_idx]) continue;
+                // Transition Resources
+                {
+                    const size_t offset = render_pass.resource_transitions_view.offset;
+                    const size_t size = render_pass.resource_transitions_view.size;
+                    size_t num_recorded_transitions = 0;
+                    ASSERT(size < 15);
+                    ResourceTransitionDesc transition_descs[16] = {};
+                    // Submit any resource barriers
+                    for (size_t transition_idx = 0; transition_idx < size; transition_idx++) {
+                        PassResourceTransitionDesc& transition_desc = render_task_list.resource_transition_descs[transition_idx + offset];
+                        u64 current_frame_idx = get_current_frame_idx();
+                        ResourceState& resource_state = resource_map.at(transition_desc.resource_id);
 
-                    if (transition_desc.type == ResourceTransitionType::BUFFER) {
-                        transition_descs[num_recorded_transitions] = {
-                            .type = transition_desc.type,
-                            .buffer = resource_state.buffers[current_frame_idx],
-                            .before = resource_state.last_usages[current_frame_idx],
-                            .after = transition_desc.usage
-                        };
+                        if (transition_desc.usage == resource_state.last_usages[current_frame_idx]) continue;
+
+                        if (transition_desc.type == ResourceTransitionType::BUFFER) {
+                            transition_descs[num_recorded_transitions] = {
+                                .type = transition_desc.type,
+                                .buffer = resource_state.buffers[current_frame_idx],
+                                .before = resource_state.last_usages[current_frame_idx],
+                                .after = transition_desc.usage
+                            };
+                        }
+                        else {
+                            transition_descs[num_recorded_transitions] = {
+                                .type = transition_desc.type,
+                                .texture = resource_state.textures[current_frame_idx],
+                                .before = resource_state.last_usages[current_frame_idx],
+                                .after = transition_desc.usage
+                            };
+                        }
+                        num_recorded_transitions++;
+                        resource_state.last_usages[current_frame_idx] = transition_desc.usage;
                     }
-                    else {
-                        transition_descs[num_recorded_transitions] = {
-                            .type = transition_desc.type,
-                            .texture = resource_state.textures[current_frame_idx],
-                            .before = resource_state.last_usages[current_frame_idx],
-                            .after = transition_desc.usage
-                        };
+                    if (num_recorded_transitions > 0) {
+                        gfx::cmd::transition_resources(cmd_ctx, transition_descs, num_recorded_transitions);
                     }
-                    num_recorded_transitions++;
-                    resource_state.last_usages[current_frame_idx] = transition_desc.usage;
                 }
-                if (num_recorded_transitions > 0) {
-                    gfx::cmd::transition_resources(cmd_ctx, transition_descs, num_recorded_transitions);
-                }
-            }
 
-            PROFILE_GPU_EVENT(task_context.name.data(), cmd_ctx);
-            render_pass.execute_fn(&task_context);
+                constexpr auto task_execution_fn = [](ftl::TaskScheduler* task_scheduler, void* arg) {
+                    (void)task_scheduler;
 
-            // Transition backbuffer
-            if (pass_idx == render_passes.size() - 1) {
-                ResourceTransitionDesc transition_desc{
-                    .type = ResourceTransitionType::TEXTURE,
-                    .texture = backbuffer,
-                    .before = RESOURCE_USAGE_RENDER_TARGET,
-                    .after = RESOURCE_USAGE_PRESENT,
+                    const RenderPassContext* task_context = reinterpret_cast<RenderPassContext*>(arg);
+                    PROFILE_GPU_EVENT(task_context->name.data(), task_context->cmd_context);
+
+                    task_context->execute_fn(task_context);
                 };
-                gfx::cmd::transition_resources(cmd_ctx, &transition_desc, 1);
+
+                task_contexts[pass_idx] = {
+                    .name = render_pass.name,
+                    .execute_fn = render_pass.execute_fn,
+                    .resource_map = &resource_map,
+                    .settings = &settings,
+                    .resource_layouts = &resource_layouts,
+                    .pipeline_states = &pipelines,
+                    .cmd_context = cmd_ctx,
+                    .per_pass_data = &render_task_list.per_pass_data[pass_idx]
+                };
+
+                ftl_tasks[pass_idx] = {
+                    .Function = task_execution_fn,
+                    .ArgData = &task_contexts[pass_idx]
+                };
             }
+        }
+
+        {
+            PROFILE_EVENT("MT Pass Recording");
+
+            ftl::TaskCounter counter{ task_scheduler };
+            task_scheduler->AddTasks(ftl_tasks.size(), ftl_tasks.data(), ftl::TaskPriority::High, &counter);
+
+            task_scheduler->WaitForCounter(&counter, true);
+        }
+
+        // Transition backbuffer
+        {
+            ResourceTransitionDesc transition_desc{
+                .type = ResourceTransitionType::TEXTURE,
+                .texture = backbuffer,
+                .before = RESOURCE_USAGE_RENDER_TARGET,
+                .after = RESOURCE_USAGE_PRESENT,
+            };
+            gfx::cmd::transition_resources(task_contexts[task_contexts.size() - 1].cmd_context, &transition_desc, 1);
         }
 
         // --------------- SUBMIT --------------- 

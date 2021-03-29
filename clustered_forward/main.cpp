@@ -78,9 +78,13 @@ namespace clustered
         RenderTaskSystem render_task_system = {};
         RenderTaskListHandle complete_task_list = {};
 
+        ftl::TaskScheduler task_scheduler{};
+
     protected:
         void init() override final
         {
+            task_scheduler.Init();
+
             camera = create_camera(float(width) / float(height), VERTICAL_FOV, CAMERA_NEAR, CAMERA_FAR, CAMERA_CREATION_FLAG_REVERSE_Z);
             camera.position = vec3{ -5.5f, 4.4f, -0.2f };
 
@@ -356,7 +360,7 @@ namespace clustered
 
         void render() override final
         {
-            render_task_system.execute(complete_task_list);
+            render_task_system.execute(complete_task_list, &task_scheduler);
         }
 
         void before_reset() override final
