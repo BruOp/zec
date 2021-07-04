@@ -30,6 +30,24 @@ namespace clustered
             .name = "Cluster Grid Setup",
             .byte_size = sizeof(ClusterGridSetup),
         };
+        
+        constexpr zec::SettingsDesc background_cube_map = {
+            .identifier = ctcrc32("Background Cube Map"),
+            .name = "Background Cube Map",
+            .byte_size = sizeof(zec::TextureHandle),
+        };
+        
+        constexpr zec::SettingsDesc fullscreen_quad = {
+            .identifier = ctcrc32("Fullscreen Quad Mesh"),
+            .name = "Fullscreen Quad Mesh",
+            .byte_size = sizeof(zec::MeshHandle),
+        };
+
+        constexpr zec::SettingsDesc exposure = {
+            .identifier = ctcrc32("Tone Mapping Exposure"),
+            .name = "ToneMapping Exposure",
+            .byte_size = sizeof(float),
+        };
     }
 
     namespace PassResources
