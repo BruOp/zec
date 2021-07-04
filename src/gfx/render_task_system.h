@@ -19,13 +19,10 @@
 //      - Pass system could then provide a single access point for updating/changing that data
 // 
 
-namespace ftl
-{
-    class TaskScheduler;
-}
-
 namespace zec
 {
+    class TaskScheduler;
+
     enum struct Sizing : u8
     {
         RELATIVE_TO_SWAP_CHAIN = 0,
@@ -296,7 +293,7 @@ namespace zec
 
         void complete_setup();
 
-        void execute(const RenderTaskListHandle list, ftl::TaskScheduler* task_scheduler);
+        void execute(const RenderTaskListHandle list, TaskScheduler& task_scheduler);
 
         ManagedArray<RenderTaskList> render_task_lists = {};
         Array<ResourceState> resource_states;

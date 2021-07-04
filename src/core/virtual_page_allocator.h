@@ -32,8 +32,9 @@ namespace zec
                 memory::virtual_commit(current_end, page_size * num_additional_pages);
                 num_pages_allocated += num_additional_pages;
             }
+            u8* ptr = data + bytes_provided;
             bytes_provided += byte_size;
-            return data + bytes_provided;
+            return ptr;
         }
 
         u8* data = nullptr;

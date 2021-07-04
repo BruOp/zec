@@ -22,6 +22,7 @@ namespace clustered
     {
         BufferHandle cluster_grid_cb;
     };
+
     static_assert(sizeof(ClusterDebugPassData) < sizeof(PerPassData));
 
     struct ClusterGridConstants
@@ -31,7 +32,7 @@ namespace clustered
         u32 point_light_indices_list_idx;
     };
 
-    constexpr RenderPassResourceUsage inputs[] = {
+    static constexpr RenderPassResourceUsage inputs[] = {
         {
             .identifier = PassResources::DEPTH_TARGET.identifier,
             .type = PassResourceType::TEXTURE,
@@ -52,7 +53,7 @@ namespace clustered
         }
     };
 
-    constexpr RenderPassResourceUsage outputs[] = {
+    static constexpr RenderPassResourceUsage outputs[] = {
         {
             .identifier = PassResources::SDR_TARGET.identifier,
             .type = PassResourceType::TEXTURE,
@@ -61,7 +62,7 @@ namespace clustered
         },
     };
 
-    constexpr RenderPassResourceLayoutDesc resource_layout_descs[] = { {
+    static constexpr RenderPassResourceLayoutDesc resource_layout_descs[] = { {
         .identifier = ctcrc32("cluster debug layout"),
         .resource_layout_desc = {
             .constants = {
@@ -114,13 +115,13 @@ namespace clustered
         CLUSTER_GRID_SETUP = Settings::cluster_grid_setup.identifier,
     };
 
-    constexpr SettingsDesc settings[] = {
+    static constexpr SettingsDesc settings[] = {
         Settings::main_pass_view_cb,
         Settings::renderable_scene_ptr,
         Settings::cluster_grid_setup,
     };
 
-    void setup(PerPassData* per_pass_data)
+    static void setup(PerPassData* per_pass_data)
     {
         ClusterDebugPassData* pass_data = reinterpret_cast<ClusterDebugPassData*>(per_pass_data);
         pass_data->cluster_grid_cb = gfx::buffers::create({
@@ -131,7 +132,7 @@ namespace clustered
         gfx::set_debug_name(pass_data->cluster_grid_cb, L"ClusterDebugPass Binning Constants");
     }
 
-    void cluster_debug_execution(const RenderPassContext* context)
+    static void cluster_debug_execution(const RenderPassContext* context)
     {
         const CommandContextHandle cmd_ctx = context->cmd_context;
         const ResourceMap& resource_map = *context->resource_map;

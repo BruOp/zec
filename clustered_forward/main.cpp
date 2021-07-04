@@ -2,8 +2,6 @@
 #include <random>
 #include <functional>
 
-#include <ftl/task_scheduler.h>
-
 #include "app.h"
 #include "utils/utils.h"
 
@@ -18,9 +16,9 @@
 #include "renderable_scene.h"
 
 #include "passes/depth_pass.h"
-//#include "passes/forward_pass.h"
-//#include "passes/background_pass.h"
-//#include "passes/tone_mapping_pass.h"
+#include "passes/forward_pass.h"
+#include "passes/background_pass.h"
+#include "passes/tone_mapping_pass.h"
 #include "passes/light_binning_pass.h"
 #include "passes/cluster_debug_pass.h"
 //#include "passes/debug_pass.h"
@@ -28,6 +26,7 @@
 #include "compute_tasks/brdf_lut_creator.h"
 #include "compute_tasks/irradiance_map_creator.h"
 
+#include "cpu_tasks.h"
 
 static constexpr u32 DESCRIPTOR_TABLE_SIZE = 4096;
 static constexpr size_t MAX_NUM_OBJECTS = 16384;
@@ -67,6 +66,9 @@ namespace clustered
 
         PerspectiveCamera camera;
         PerspectiveCamera debug_camera;
+
+        MeshHandle fullscreen_mesh;
+
         // Scene data
         Array<SpotLight> spot_lights;
         Array<PointLight> point_lights;
@@ -78,12 +80,12 @@ namespace clustered
         RenderTaskSystem render_task_system = {};
         RenderTaskListHandle complete_task_list = {};
 
-        ftl::TaskScheduler task_scheduler{};
+        TaskScheduler task_scheduler{};
 
     protected:
         void init() override final
         {
-            task_scheduler.Init();
+            task_scheduler.init();
 
             camera = create_camera(float(width) / float(height), VERTICAL_FOV, CAMERA_NEAR, CAMERA_FAR, CAMERA_CREATION_FLAG_REVERSE_Z);
             camera.position = vec3{ -5.5f, 4.4f, -0.2f };
@@ -104,6 +106,38 @@ namespace clustered
                 });
 
             CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
+
+            // Create fullscreen quad
+            {
+                MeshDesc fullscreen_desc{
+                    .index_buffer_desc = {
+                        .usage = RESOURCE_USAGE_INDEX,
+                        .type = BufferType::DEFAULT,
+                        .byte_size = sizeof(geometry::k_fullscreen_indices),
+                        .stride = sizeof(geometry::k_fullscreen_indices[0]),
+                    },
+                    .vertex_buffer_descs = {
+                        {
+                            .usage = RESOURCE_USAGE_VERTEX,
+                            .type = BufferType::DEFAULT,
+                            .byte_size = sizeof(geometry::k_fullscreen_positions),
+                            .stride = 3 * sizeof(geometry::k_fullscreen_positions[0]),
+                        },
+                        {
+                            .usage = RESOURCE_USAGE_VERTEX,
+                            .type = BufferType::DEFAULT,
+                            .byte_size = sizeof(geometry::k_fullscreen_uvs),
+                            .stride = 2 * sizeof(geometry::k_fullscreen_uvs[0]),
+                        },
+                    },
+                    .index_buffer_data = geometry::k_fullscreen_indices,
+                    .vertex_buffer_data = {
+                        geometry::k_fullscreen_positions,
+                        geometry::k_fullscreen_uvs
+                    }
+                };
+                fullscreen_mesh = gfx::meshes::create(copy_ctx, fullscreen_desc);
+            }
 
             TextureDesc brdf_lut_desc{
                 .width = 256,
@@ -256,7 +290,7 @@ namespace clustered
                 constexpr u32 grid_size_y = 4;
                 constexpr u32 grid_size_z = 4;
 
-                constexpr size_t num_lights = grid_size_x* grid_size_y* grid_size_z;
+                constexpr size_t num_lights = grid_size_x * grid_size_y * grid_size_z;
                 for (size_t idx = 0; idx < num_lights; ++idx) {
                     float coeff = float(idx) / float(num_lights - 1);
                     float phase = k_2_pi * coeff;
@@ -313,7 +347,9 @@ namespace clustered
             RenderPassTaskDesc render_pass_task_descs[] = {
                     depth_pass_desc,
                     light_binning_desc,
-                    cluster_debug_desc,
+                    background_pass_desc,
+                    forward_pass_desc,
+                    tone_mapping_pass_desc,
             };
             RenderTaskListDesc task_list_desc = {
                 .backbuffer_resource_id = PassResources::SDR_TARGET.identifier,
@@ -331,7 +367,10 @@ namespace clustered
             };
 
             render_task_system.complete_setup();
-
+            // TODO: Make validation ensure these have already been set rather than relying on us to define them.
+            render_task_system.set_setting(Settings::exposure.identifier, 1.0f);
+            render_task_system.set_setting(Settings::background_cube_map.identifier, radiance_map);
+            render_task_system.set_setting(Settings::fullscreen_quad.identifier, fullscreen_mesh);
             render_task_system.set_setting(Settings::cluster_grid_setup.identifier, CLUSTER_SETUP);
             render_task_system.set_setting(Settings::main_pass_view_cb.identifier, renderable_camera.view_constant_buffer);
             render_task_system.set_setting(Settings::renderable_scene_ptr.identifier, &renderable_scene);
@@ -360,7 +399,7 @@ namespace clustered
 
         void render() override final
         {
-            render_task_system.execute(complete_task_list, &task_scheduler);
+            render_task_system.execute(complete_task_list, task_scheduler);
         }
 
         void before_reset() override final

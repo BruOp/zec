@@ -1,8 +1,7 @@
 #include "render_task_system.h"
 #include "utils/utils.h"
 #include "gfx/profiling_utils.h"
-#include <ftl/task_scheduler.h>
-#include <ftl/task_counter.h>
+#include "cpu_tasks.h"
 #include <sstream>
 
 namespace zec
@@ -277,7 +276,7 @@ namespace zec
         }
     }
 
-    void RenderTaskSystem::execute(const RenderTaskListHandle list, ftl::TaskScheduler* task_scheduler)
+    void RenderTaskSystem::execute(const RenderTaskListHandle list, TaskScheduler& task_scheduler)
     {
         RenderTaskList& render_task_list = render_task_lists[list.idx];
 
@@ -294,7 +293,7 @@ namespace zec
         const auto& render_passes = render_task_list.render_pass_tasks;
 
         std::vector<RenderPassContext> task_contexts(render_passes.size());
-        std::vector<ftl::Task> ftl_tasks(render_passes.size());
+        std::vector<Task> cpu_tasks(render_passes.size());
 
         {
             PROFILE_EVENT("Creating Task Contexts");
@@ -345,7 +344,7 @@ namespace zec
                     }
                 }
 
-                constexpr auto task_execution_fn = [](ftl::TaskScheduler* task_scheduler, void* arg) {
+                constexpr auto task_execution_fn = [](TaskScheduler* task_scheduler, void* arg) {
                     (void)task_scheduler;
 
                     const RenderPassContext* task_context = reinterpret_cast<RenderPassContext*>(arg);
@@ -365,9 +364,9 @@ namespace zec
                     .per_pass_data = &render_task_list.per_pass_data[pass_idx]
                 };
 
-                ftl_tasks[pass_idx] = {
-                    .Function = task_execution_fn,
-                    .ArgData = &task_contexts[pass_idx]
+                cpu_tasks[pass_idx] = {
+                    .function = task_execution_fn,
+                    .arg = &task_contexts[pass_idx]
                 };
             }
         }
@@ -375,10 +374,10 @@ namespace zec
         {
             PROFILE_EVENT("MT Pass Recording");
 
-            ftl::TaskCounter counter{ task_scheduler };
-            task_scheduler->AddTasks(ftl_tasks.size(), ftl_tasks.data(), ftl::TaskPriority::High, &counter);
+            TaskCounter counter{ task_scheduler };
+            task_scheduler.add_tasks(cpu_tasks.size(), cpu_tasks.data(), counter);
 
-            task_scheduler->WaitForCounter(&counter, true);
+            task_scheduler.wait_on_counter(counter);
         }
 
         // Transition backbuffer
