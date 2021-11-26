@@ -24,13 +24,13 @@
 
 #pragma once
 
+#include "ftl/callbacks.h"
 #include "ftl/fiber.h"
 #include "ftl/task.h"
 #include "ftl/thread_abstraction.h"
 #include "ftl/wait_free_queue.h"
 
 #include <atomic>
-#include <climits>
 #include <condition_variable>
 #include <mutex>
 #include <vector>
@@ -43,9 +43,6 @@ class AtomicFlag;
 class FullAtomicCounter;
 
 enum class EmptyQueueBehavior {
-	// Fixing this will break api.
-	// ReSharper disable CppInconsistentNaming
-
 	// Spin in a loop, actively searching for tasks
 	Spin,
 	// Same as spin, except yields to the OS after each round of searching
@@ -62,8 +59,8 @@ struct TaskSchedulerInitOptions {
 	unsigned ThreadPoolSize = 0;
 	/* The behavior of the threads after they have no work to do */
 	EmptyQueueBehavior Behavior = EmptyQueueBehavior::Spin;
-	/* Callback to run on thread start */
-	void (*ThreadStartCallback)() = nullptr;
+	/* Callbacks to run at various points to allow for e.g. hooking a profiler to fiber states */
+	EventCallbacks Callbacks;
 };
 
 /**
@@ -83,35 +80,7 @@ public:
 	~TaskScheduler();
 
 private:
-	constexpr static size_t kInvalidIndex = std::numeric_limits<size_t>::max();
-	constexpr static size_t kNoThreadPinning = std::numeric_limits<size_t>::max();
-
-	size_t m_numThreads{0};
-	ThreadType *m_threads{nullptr};
-
-	size_t m_fiberPoolSize{0};
-	/* The backing storage for the fiber pool */
-	Fiber *m_fibers{nullptr};
-	/**
-	 * An array of atomics, which signify if a fiber is available to be used. The indices of m_waitingFibers
-	 * correspond 1 to 1 with m_fibers. So, if m_freeFibers[i] == true, then m_fibers[i] can be used.
-	 * Each atomic acts as a lock to ensure that threads do not try to use the same fiber at the same time
-	 */
-	std::atomic<bool> *m_freeFibers{nullptr};
-
-	Fiber *m_quitFibers{nullptr};
-
-	std::atomic<bool> m_initialized{false};
-	std::atomic<bool> m_quit{false};
-	std::atomic<size_t> m_quitCount{0};
-
-	std::atomic<EmptyQueueBehavior> m_emptyQueueBehavior{EmptyQueueBehavior::Spin};
-	/**
-	* This lock is used with the CV below to put threads to sleep when there
-	* is no work to do.
-	*/
-	std::mutex ThreadSleepLock;
-	std::condition_variable ThreadSleepCV;
+	// Inner struct definitions
 
 	enum class FiberDestination {
 		None = 0,
@@ -129,20 +98,12 @@ private:
 	};
 
 	struct ReadyFiberBundle {
+		ReadyFiberBundle() = default;
+
 		// The fiber
-		size_t FiberIndex;
+		unsigned FiberIndex;
 		// A flag used to signal if the fiber has been successfully switched out of and "cleaned up". See @CleanUpOldFiber()
 		std::atomic<bool> FiberIsSwitched;
-	};
-
-	struct PinnedWaitingFiberBundle {
-		PinnedWaitingFiberBundle(size_t const fiberIndex, TaskCounter *const counter, unsigned const targetValue)
-		        : FiberIndex(fiberIndex), Counter(counter), TargetValue(targetValue) {
-		}
-
-		size_t FiberIndex;
-		TaskCounter *Counter;
-		unsigned TargetValue;
 	};
 
 	struct alignas(kCacheLineSize) ThreadLocalStorage {
@@ -151,6 +112,18 @@ private:
 		}
 
 	public:
+		// NOTE: The order of these variables may seem odd / jumbled. However, it is to optimize the padding required
+
+		/* The queue of high priority waiting tasks. This also contains the ready waiting fibers, which are differentiated by the Task function == ReadyFiberDummyTask */
+		WaitFreeQueue<TaskBundle> HiPriTaskQueue;
+		/* The queue of high priority waiting tasks */
+		WaitFreeQueue<TaskBundle> LoPriTaskQueue;
+
+		std::atomic<bool> *OldFiberStoredFlag{nullptr};
+
+		/* The queue of ready waiting Fibers that were pinned to this thread */
+		std::vector<ReadyFiberBundle *> PinnedReadyFibers;
+
 		/**
 		 * The current fiber implementation requires that fibers created from threads finish on the same thread where
 		 * they started
@@ -161,29 +134,73 @@ private:
 		 * safely clean up.
 		 */
 		Fiber ThreadFiber;
+
+		/* Lock protecting access to PinnedReadyFibers */
+		std::mutex PinnedReadyFibersLock;
+
 		/* The index of the current fiber in m_fibers */
-		size_t CurrentFiberIndex;
+		unsigned CurrentFiberIndex;
 		/* The index of the previously executed fiber in m_fibers */
-		size_t OldFiberIndex;
+		unsigned OldFiberIndex;
 		/* Where OldFiber should be stored when we call CleanUpPoolAndWaiting() */
 		FiberDestination OldFiberDestination{FiberDestination::None};
-		/* The queue of high priority waiting tasks. This also contains the ready waiting fibers, which are differentiated by the Task function == ReadyFiberDummyTask */
-		WaitFreeQueue<TaskBundle> HiPriTaskQueue;
-		/* The last high priority queue that we successfully stole from. This is an offset index from the current thread index */
-		size_t HiPriLastSuccessfulSteal{1};
-		/* The queue of high priority waiting tasks */
-		WaitFreeQueue<TaskBundle> LoPriTaskQueue;
-		/* The last high priority queue that we successfully stole from. This is an offset index from the current thread index */
-		size_t LoPriLastSuccessfulSteal{1};
 
-		std::atomic<bool> *OldFiberStoredFlag{nullptr};
-
-		/* The queue of ready waiting Fibers that were pinned to this thread */
-		std::vector<ReadyFiberBundle *> PinnedReadyFibers;
-		std::mutex PinnedReadyFibersLock;
+		/* The last high priority queue that we successfully stole from. This is an offset index from the current thread index */
+		unsigned HiPriLastSuccessfulSteal{1};
+		/* The last low priority queue that we successfully stole from. This is an offset index from the current thread index */
+		unsigned LoPriLastSuccessfulSteal{1};
 
 		unsigned FailedQueuePopAttempts{0};
 	};
+
+private:
+	// Member variables
+
+	constexpr static unsigned kInvalidIndex = std::numeric_limits<unsigned>::max();
+	constexpr static unsigned kNoThreadPinning = std::numeric_limits<unsigned>::max();
+
+	EventCallbacks m_callbacks;
+
+	unsigned m_numThreads{0};
+	ThreadType *m_threads{nullptr};
+
+	unsigned m_fiberPoolSize{0};
+	/* The backing storage for the fiber pool */
+	Fiber *m_fibers{nullptr};
+	/**
+	 * An array of atomics, which signify if a fiber is available to be used. The indices of m_waitingFibers
+	 * correspond 1 to 1 with m_fibers. So, if m_freeFibers[i] == true, then m_fibers[i] can be used.
+	 * Each atomic acts as a lock to ensure that threads do not try to use the same fiber at the same time
+	 */
+	std::atomic<bool> *m_freeFibers{nullptr};
+	/**
+	 * An array of ReadyFiberBundle which is used by @WaitForCounter()
+	 *
+	 * We don't technically need one per fiber. Only one per call to WaitForCounter()
+	 * In the past we would dynamically allocate this struct in WaitForCounter() and
+	 * then free it when we resumed the fiber.
+	 *
+	 * However, we want to avoid allocations during runtime. So we pre-allocate
+	 * them. At max, we can call WaitForCounter() for each fiber. So, to make things
+	 * simple, we pre-allocate one for each fiber. The struct is small, so this
+	 * preallocation isn't too bad
+	 */
+	ReadyFiberBundle *m_readyFiberBundles{nullptr};
+
+	Fiber *m_quitFibers{nullptr};
+
+	std::atomic<bool> m_initialized{false};
+	std::atomic<bool> m_quit{false};
+	std::atomic<unsigned> m_quitCount{0};
+
+	std::atomic<EmptyQueueBehavior> m_emptyQueueBehavior{EmptyQueueBehavior::Spin};
+	/**
+	* This lock is used with the CV below to put threads to sleep when there
+	* is no work to do.
+	*/
+	std::mutex ThreadSleepLock;
+	std::condition_variable ThreadSleepCV;
+
 	/**
 	 * c++ Thread Local Storage is, by definition, static/global. This poses some problems, such as multiple
 	 * TaskScheduler instances. In addition, with the current fiber implementation, we have no way of telling the
@@ -241,7 +258,6 @@ public:
 	 * Yields execution to another task until counter == 0
 	 *
 	 * @param counter             The counter to check
-	 * @param value               The value to wait for
 	 * @param pinToCurrentThread  If true, the task invoking this call will not resume on a different thread
 	 */
 	void WaitForCounter(TaskCounter *counter, bool pinToCurrentThread = false);
@@ -250,7 +266,6 @@ public:
 	 * Yields execution to another task until counter == 0
 	 *
 	 * @param counter             The counter to check
-	 * @param value               The value to wait for
 	 * @param pinToCurrentThread  If true, the task invoking this call will not resume on a different thread
 	 */
 	void WaitForCounter(AtomicFlag *counter, bool pinToCurrentThread = false);
@@ -275,14 +290,21 @@ public:
 	 *
 	 * @return    The index of the current thread
 	 */
-	FTL_NOINLINE size_t GetCurrentThreadIndex() const;
+	FTL_NOINLINE unsigned GetCurrentThreadIndex() const;
+
+	/**
+	* Gets the 0-based index of the current fiber.
+	* 
+	* NOTE: main fiber index is 0
+	*/
+	unsigned GetCurrentFiberIndex() const;
 
 	/**
 	 * Gets the amount of backing threads.
 	 *
 	 * @return    Backing thread count
 	 */
-	size_t GetThreadCount() const noexcept {
+	unsigned GetThreadCount() const noexcept {
 		return m_numThreads;
 	}
 
@@ -291,7 +313,7 @@ public:
 	 *
 	 * @return    Fiber pool size
 	 */
-	size_t GetFiberCount() const noexcept {
+	unsigned GetFiberCount() const noexcept {
 		return m_fiberPoolSize;
 	}
 
@@ -340,7 +362,7 @@ private:
 	 *
 	 * @return    The index of the next available fiber in the pool
 	 */
-	size_t GetNextFreeFiberIndex() const;
+	unsigned GetNextFreeFiberIndex() const;
 	/**
 	 * If necessary, moves the old fiber to the fiber pool or the waiting list
 	 * The old fiber is the last fiber to run on the thread before the current fiber
@@ -354,11 +376,10 @@ private:
 	 * for a new task
 	 *
 	 * @param pinnedThreadIndex    The index of the thread this fiber is pinned to. If not pinned, this will equal kNoThreadPinning
-	 * @param fiberIndex           The index of the fiber to add
-	 * @param fiberStoredFlag      A flag used to signal if the fiber has been successfully switched out of and "cleaned
+	 * @param bundle               The fiber bundle to add
 	 * up"
 	 */
-	void AddReadyFiber(size_t pinnedThreadIndex, ReadyFiberBundle *bundle);
+	void AddReadyFiber(unsigned pinnedThreadIndex, ReadyFiberBundle *bundle);
 
 	/**
 	 * The threadProc function for all worker threads

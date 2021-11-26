@@ -29,12 +29,20 @@
 namespace ftl {
 
 /**
- * FullAtomicCounter implements TaskCounter and adds the full function set
+ * FullAtomicCounter implements the full set of functions
  * of an atomic (with more overhead vs TaskCounter)
  */
 class FullAtomicCounter : public BaseCounter {
 public:
-	explicit FullAtomicCounter(TaskScheduler *taskScheduler, unsigned const initialValue = 0, size_t const fiberSlots = NUM_WAITING_FIBER_SLOTS)
+	/**
+	 * Creates a TaskCounter
+	 *
+	 * @param taskScheduler    The TaskScheduler this counter references
+	 * @param initialValue     The initial value of the counter
+	 * @param fiberSlots       This defines how many fibers can wait on this counter.
+	 *                         If fiberSlots == NUM_WAITING_FIBER_SLOTS, this constructor will *not* allocate memory
+	 */
+	explicit FullAtomicCounter(TaskScheduler *taskScheduler, unsigned const initialValue = 0, unsigned const fiberSlots = NUM_WAITING_FIBER_SLOTS)
 	        : BaseCounter(taskScheduler, initialValue, fiberSlots) {
 	}
 
@@ -42,6 +50,7 @@ public:
 	FullAtomicCounter(FullAtomicCounter &&) noexcept = delete;
 	FullAtomicCounter &operator=(FullAtomicCounter const &) = delete;
 	FullAtomicCounter &operator=(FullAtomicCounter &&) noexcept = delete;
+	~FullAtomicCounter() = default;
 
 public:
 	/**
@@ -137,11 +146,19 @@ public:
 };
 
 /**
- * AtomicFlag implements TaskCounter and adds Set/Clear
+ * AtomicFlag implements a simple Set/Clear counter
  */
 class AtomicFlag : public BaseCounter {
 public:
-	explicit AtomicFlag(TaskScheduler *taskScheduler, unsigned const initialValue = 0, size_t const fiberSlots = NUM_WAITING_FIBER_SLOTS)
+	/**
+	 * Creates an AtomicFlag
+	 *
+	 * @param taskScheduler    The TaskScheduler this flag references
+	 * @param initialValue     The initial value of the flag
+	 * @param fiberSlots       This defines how many fibers can wait on this counter.
+	 *                         If fiberSlots == NUM_WAITING_FIBER_SLOTS, this constructor will *not* allocate memory
+	 */
+	explicit AtomicFlag(TaskScheduler *taskScheduler, unsigned const initialValue = 0, unsigned const fiberSlots = NUM_WAITING_FIBER_SLOTS)
 	        : BaseCounter(taskScheduler, initialValue, fiberSlots) {
 	}
 
@@ -149,6 +166,7 @@ public:
 	AtomicFlag(AtomicFlag &&) noexcept = delete;
 	AtomicFlag &operator=(AtomicFlag const &) = delete;
 	AtomicFlag &operator=(AtomicFlag &&) noexcept = delete;
+	~AtomicFlag() = default;
 
 public:
 	bool Set(std::memory_order const memoryOrder = std::memory_order_seq_cst) {

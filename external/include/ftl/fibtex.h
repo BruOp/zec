@@ -27,15 +27,7 @@
 #include "ftl/atomic_counter.h"
 #include "ftl/task_scheduler.h"
 
-#include <cassert>
-#include <mutex>
-#include <system_error>
-
 namespace ftl {
-// Pull std helpers into ftl namespace
-using std::adopt_lock;
-using std::defer_lock;
-using std::try_to_lock;
 
 /**
  * A fiber aware mutex. Does not block in the traditional way. Methods do not follow the lowerCamelCase convention
@@ -46,8 +38,9 @@ public:
 	/**
 	 * All Fibtex's have to be aware of the task scheduler in order to yield.
 	 *
-	 * @param taskScheduler    ftl::TaskScheduler that will be using this mutex.
+	 * @param taskScheduler    The TaskScheduler that will be using this mutex.
 	 * @param fiberSlots       How many fibers can simultaneously wait on the mutex
+	 *                         If fiberSlots == NUM_WAITING_FIBER_SLOTS, this constructor will *not* allocate memory
 	 */
 	explicit Fibtex(TaskScheduler *taskScheduler, unsigned fiberSlots = NUM_WAITING_FIBER_SLOTS)
 	        : m_ableToSpin(taskScheduler->GetThreadCount() > 1), m_taskScheduler(taskScheduler),

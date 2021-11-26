@@ -26,55 +26,62 @@ namespace zec
 
     void set_camera_view(PerspectiveCamera& camera, const mat4& view);
 
+    struct CameraControllerSettings
+    {
+        float yaw_sensitivity = 5.0f;
+        float pitch_sensitivity = 5.0f;
+        float zoom_sensitivity = 0.02f;
+        float movement_sensitivity = 0.01f;
+    };
+
+    struct CameraControllerMapping
+    {
+        input::InputKey rotate_mode = input::InputKey::MOUSE_LEFT;
+        input::InputKey pan_mode = input::InputKey::MOUSE_RIGHT;
+        input::InputAxis yaw = input::InputAxis::MOUSE_X;
+        input::InputAxis pitch = input::InputAxis::MOUSE_Y;
+        input::InputAxis zoom = input::InputAxis::MOUSE_SCROLL;
+        input::InputKey translate_forward = input::InputKey::W;
+        input::InputKey translate_backward = input::InputKey::S;
+        input::InputKey translate_left = input::InputKey::A;
+        input::InputKey translate_right = input::InputKey::D;
+        input::InputKey translate_up = input::InputKey::E;
+        input::InputKey translate_down = input::InputKey::Q;
+    };
+
     class ICameraController
     {
     public:
-        virtual void update(const float deltaTime) = 0;
+        virtual void update(const PerspectiveCamera& camera, const input::InputState& input_state, const float deltaTime) = 0;
+        virtual void apply(PerspectiveCamera& camera) const = 0;
+
     };
 
     class OrbitCameraController : ICameraController
     {
     public:
-        OrbitCameraController(input::InputManager& input_manager) : input_map{ input::create_mapping(input_manager) }
-        { };
 
-        void init();
-        inline void set_camera(PerspectiveCamera* new_camera) { camera = new_camera; };
+        void update(const PerspectiveCamera& camera, const input::InputState& input_state, const float deltaTime) override final;
+        void apply(PerspectiveCamera& camera) const override final;
 
-        void update(const float deltaTime) override final;
-
-        float yaw_sensitivity = 5.0f;
-        float pitch_sensitivity = 5.0f;
-        float zoom_sensitivity = 0.1f;
-        float movement_sensitivity = 10.0f;
+        CameraControllerMapping mapping = {};
+        CameraControllerSettings settings = {};
         float pitch = k_half_pi;
         float yaw = k_half_pi;
         float radius = 1.0f;
         vec3 origin = {};
-    private:
-        PerspectiveCamera* camera = nullptr;
-        input::InputMapping input_map;
     };
 
     class FPSCameraController : ICameraController
     {
     public:
-        FPSCameraController(input::InputManager& input_manager) : input_map{ input::create_mapping(input_manager) }
-        { };
+        void update(const PerspectiveCamera& camera, const input::InputState& input_state, const float deltaTime) override final;
+        void apply(PerspectiveCamera& camera) const override final;
 
-        void init();
-        inline void set_camera(PerspectiveCamera* new_camera) { camera = new_camera; };
-
-        void update(const float deltaTime) override final;
-
-        float yaw_sensitivity = 5.0f;
-        float pitch_sensitivity = 5.0f;
-        float zoom_sensitivity = 0.1f;
-        float movement_sensitivity = 0.2f;
+        CameraControllerMapping mapping = {};
+        CameraControllerSettings settings = {};
         float pitch = k_half_pi;
         float yaw = k_half_pi;
-    private:
-        PerspectiveCamera* camera = nullptr;
-        input::InputMapping input_map;
+        vec3 displacement = {};
     };
 }

@@ -62,7 +62,7 @@ namespace clustered
     public:
         ClusteredForward() : App{ L"Clustered Forward Rendering" } { }
 
-        FPSCameraController camera_controller = { input_manager };
+        FPSCameraController camera_controller = {};
 
         PerspectiveCamera camera;
         PerspectiveCamera debug_camera;
@@ -90,11 +90,7 @@ namespace clustered
             camera = create_camera(float(width) / float(height), VERTICAL_FOV, CAMERA_NEAR, CAMERA_FAR, CAMERA_CREATION_FLAG_REVERSE_Z);
             camera.position = vec3{ -5.5f, 4.4f, -0.2f };
 
-            camera_controller.init();
             camera_controller.yaw = 0.0f;
-            camera_controller.set_camera(&camera);
-
-            //ClusterGridSetup cluster_grid_setup = calculate_cluster_grid(width, heigth, 32, tile)
 
             renderable_camera.initialize(L"Main camera view constant buffer", &camera);
 
@@ -176,7 +172,7 @@ namespace clustered
             renderable_scene.scene_constant_data.radiance_map_idx = gfx::textures::get_shader_readable_index(radiance_map);
 
             gltf::Context gltf_context{};
-            gltf::load_gltf_file("models/Sponza/Sponza.gltf", copy_ctx, gltf_context, gltf::GLTF_LOADING_FLAG_NONE);
+            gltf::load_gltf_file("models/flight_helmet/FlightHelmet.gltf", copy_ctx, gltf_context, gltf::GLTF_LOADING_FLAG_NONE);
             CmdReceipt receipt = gfx::cmd::return_and_execute(&copy_ctx, 1);
 
             gfx::cmd::gpu_wait(CommandQueueType::GRAPHICS, receipt);
@@ -312,7 +308,7 @@ namespace clustered
                         });
                 }
 
-                constexpr size_t num_point_lights = 1024;
+                constexpr size_t num_point_lights = 16;
                 for (size_t idx = 0; idx < num_point_lights; ++idx) {
                     vec3 position = scene_origin + scene_dims * vec3{ random_generator(), random_generator(), random_generator() };
                     // Set positions in Cartesian
@@ -385,7 +381,10 @@ namespace clustered
 
         void update(const zec::TimeData& time_data) override final
         {
-            camera_controller.update(time_data.delta_seconds_f);
+            zec::input::InputState input_state = input_manager.get_state();
+
+            camera_controller.update(camera, input_state, time_data.delta_seconds_f);
+            camera_controller.apply(camera);
         }
 
         void copy() override final

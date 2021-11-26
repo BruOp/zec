@@ -68,7 +68,7 @@ namespace clustered
             .raster_state_desc = {
                 .cull_mode = CullMode::NONE,
             },
-            .rtv_formats = {{ PassResources::HDR_TARGET.desc.format }},
+            .rtv_formats = {{ PassResources::SDR_TARGET.desc.format }},
             .used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL,
             .shader_file_path = L"shaders/clustered_forward/basic_tone_map.hlsl",
         }

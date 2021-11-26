@@ -28,8 +28,9 @@ workspace "zec"
   filter { }
 
   nuget {
-    "directxtex_desktop_win10:2021.1.10.2",
-    "WinPixEventRuntime:1.0.210209001"
+    "directxtex_desktop_win10:2021.8.2.1",
+    "directxtk12_desktop_2017:2021.10.19.1",
+    "WinPixEventRuntime:1.0.210818001"
   }
 
   targetdir (BUILD_DIR .. "bin/%{cfg.longname}/%{prj.name}")
@@ -147,25 +148,16 @@ project("zec_lib")
       "_ITERATOR_DEBUG_LEVEL=0"
     }
 
-    links {
-      "gainputstatic",
-      "boost_context",
-      "ftl",
-      "dxcompiler",
-    }
-
   configuration {"Debug"}
     libdirs { path.join(EXTERNAL_LIB_DIR, "debug") }
 
-    links {
-      "gainputstatic-d",
-      "boost_context",
-      "ftl",
-      "dxcompiler",
-    }
-
-
   configuration {}
+
+  links {
+    "boost_context",
+    "ftl",
+    "dxcompiler",
+  }
 
 include("./tests.lua")
 include("./clustered_forward.lua")

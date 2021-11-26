@@ -424,7 +424,7 @@ namespace zec::gfx
         g_context.async_destruction_queue.flush();
         dx_destroy(&g_context.allocator);
 
-    #ifdef USE_DEBUG_DEVICE 
+    #ifdef USE_DEBUG_DEVICE
         ID3D12DebugDevice* debug_device = nullptr;
         DXCall(g_context.device->QueryInterface(&debug_device));
         if (debug_device) {
@@ -1379,7 +1379,7 @@ namespace zec::gfx
             return texture_handle;
         }
 
-        
+
         void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage)
         {
             DirectX::ScratchImage scratch{ };
@@ -1395,7 +1395,7 @@ namespace zec::gfx
                 dx12::to_d3d_resource_state(current_usage)
             ));
 
-            DXCall(DirectX::SaveToDDSFile(scratch.GetImages(), scratch.GetImageCount(), scratch.GetMetadata(), DirectX::DDS_FLAGS_NONE, file_path));    
+            DXCall(DirectX::SaveToDDSFile(scratch.GetImages(), scratch.GetImageCount(), scratch.GetMetadata(), DirectX::DDS_FLAGS_NONE, file_path));
         }
     }
 
@@ -1415,7 +1415,7 @@ namespace zec::gfx
 
         CmdReceipt return_and_execute(CommandContextHandle* context_handles, const size_t num_contexts)
         {
-            constexpr size_t MAX_NUM_SIMULTANEOUS_COMMAND_LIST_EXECUTION = 128; // Arbitrary limit 
+            constexpr size_t MAX_NUM_SIMULTANEOUS_COMMAND_LIST_EXECUTION = 128; // Arbitrary limit
             ASSERT((num_contexts < MAX_NUM_SIMULTANEOUS_COMMAND_LIST_EXECUTION) && num_contexts > 0);
 
             ID3D12GraphicsCommandList** cmd_lists = static_cast<ID3D12GraphicsCommandList**>(_alloca(num_contexts * sizeof(ID3D12GraphicsCommandList*)));
@@ -1709,7 +1709,7 @@ namespace zec::gfx
             ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
             cmd_list->ResourceBarrier(u32(num_transitions), barriers);
         }
-        
+
         void compute_write_barrier(const CommandContextHandle ctx, BufferHandle buffer_handle)
         {
             ASSERT(is_valid(buffer_handle));

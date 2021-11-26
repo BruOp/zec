@@ -104,10 +104,10 @@ namespace zec
     {
         PROFILE_EVENT("App Update");
 
-        input_manager.update(time_data);
         update_time_data(time_data);
-
         update(time_data);
+
+        input_manager.update(time_data);
     }
 
     void App::render_internal()

@@ -35,7 +35,7 @@ namespace zec
 
         TimeData time_data = {};
         std::wstring app_name;
-        
+
         input::InputManager input_manager = {};
     private:
 

@@ -1,83 +1,92 @@
 #pragma once
 
+#include <memory>
+#include <bitset>
+
 #include "core/zec_types.h"
 #include "utils/assert.h"
 #include "timer.h"
-#include "gainput/gainput.h"
 
-namespace zec
+struct tagMSG;
+typedef tagMSG MSG;
+
+namespace DirectX
 {
-    namespace input
+    class Mouse;
+    class Keyboard;
+}
+
+namespace zec::input
+{
+    struct InputState;
+
+    enum struct InputKey : u32
     {
-        enum struct Key : u32
-        {
-            ESCAPE = gainput::KeyEscape,
-            UP = gainput::KeyUp,
-            DOWN = gainput::KeyDown,
-            LEFT = gainput::KeyLeft,
-            RIGHT = gainput::KeyRight,
-            W = gainput::KeyW,
-            S = gainput::KeyS,
-            A = gainput::KeyA,
-            D = gainput::KeyD,
-            E = gainput::KeyE,
-            Q = gainput::KeyQ,
-        };
+        ESCAPE = 0u,
+        LEFT_SHIFT,
+        UP,
+        DOWN,
+        LEFT,
+        RIGHT,
+        W,
+        S,
+        A,
+        D,
+        E,
+        Q,
+        MOUSE_LEFT,
+        MOUSE_RIGHT,
+        MOUSE_MIDDLE,
+        NUM_KEYS,
+        INVALID,
+    };
 
-        enum struct MouseInput : u32
-        {
-            LEFT = gainput::MouseButtonLeft,
-            RIGHT = gainput::MouseButtonRight,
-            MIDDLE = gainput::MouseButtonMiddle,
-            SCROLL_UP = gainput::MouseButton3,
-            SCROLL_DOWN = gainput::MouseButton4,
+    enum struct InputAxis: u8
+    {
+        MOUSE_X = 0u,
+        MOUSE_Y,
+        MOUSE_SCROLL,
+        NUM_AXES,
+    };
 
-            AXIS_X = gainput::MouseAxisX,
-            AXIS_Y = gainput::MouseAxisY,
-        };
+    enum struct AxisMode : u8
+    {
+        RELATIVE = 0u,
+        ABSOLUTE,
+        NUM_AXES_MODES,
+    };
 
-        class InputManager
-        {
-            friend class InputMapping;
-        public:
-            InputManager();
-            InputManager(const u32 width, const u32 height);
-            
-            void set_dimensions(const u32 width, const u32 height);
+    struct InputState
+    {
+        std::bitset<static_cast<size_t>(InputKey::NUM_KEYS)> data = {};
+        float axis_values[static_cast<size_t>(InputAxis::NUM_AXES)] = {};
+        AxisMode axis_modes[static_cast<size_t>(InputAxis::NUM_AXES)] = {};
 
-            void update(const TimeData& time_data);
+        bool button_is_down(const InputKey key) const { return data[static_cast<size_t>(key)]; };
+        float get_axis_value(const InputAxis axis) const { return axis_values[static_cast<size_t>(axis)]; };
+        AxisMode get_axis_mode(const InputAxis axis) const { return axis_modes[static_cast<size_t>(axis)]; };
+    };
 
-            void handle_msg(const MSG& msg);
+    class InputManager
+    {
+        friend class InputMapping;
+    public:
+        InputManager();
+        InputManager(const u32 width, const u32 height);
 
-        private:
-            gainput::InputManager internal_manager = {};
-            gainput::DeviceId keyboard_id = UINT32_MAX;
-            gainput::DeviceId mouse_id = UINT32_MAX;
-        };
+        void update(const TimeData& time_data);
+        void handle_msg(const MSG& msg);
 
-        class InputMapping
-        {
-        public:
-            InputMapping(InputManager* input_manager) :
-                input_manager{ input_manager },
-                internal_mapping{ input_manager->internal_manager }
-            {};
+        void set_dimensions(const u32 width, const u32 height);
+        void set_axis_mode(const InputAxis axis, const AxisMode mode);
 
-            void map_bool(const u32 user_button, const Key key);
-            void map_bool(const u32 user_button, const MouseInput key);
+        InputState get_state() const;
+    private:
+        void reset();
 
-            void map_float(const u32 user_button, const MouseInput axis);
-
-            bool button_is_down(const u32 user_button);
-
-            bool button_was_down(const u32 user_button);
-
-            float get_axis_delta(const u32 user_axis);
-        private:
-            InputManager* input_manager = nullptr;
-            gainput::InputMap internal_mapping;
-        };
-
-        InputMapping create_mapping(InputManager& input_manager);
-    }
+        u32 width = 0;
+        u32 height = 0;
+        InputState previous_state = {};
+        InputState pending_state = {};
+    };
 }

@@ -31,14 +31,14 @@ namespace zec
     {
     public:
         friend class TaskCounter;
-                
+
         // call this only from the Window thread!
         void init();
 
         void add_tasks(const size_t num_tasks, Task* tasks, TaskCounter& counter);
 
         void wait_on_counter(TaskCounter& task_counter);
-    
+
     private:
 
         DWORD window_thread_id = UINT32_MAX;

@@ -38,7 +38,15 @@ class TaskScheduler;
 class TaskCounter : public BaseCounter {
 
 public:
-	explicit TaskCounter(TaskScheduler *taskScheduler, unsigned const initialValue = 0, size_t const fiberSlots = NUM_WAITING_FIBER_SLOTS)
+	/**
+	 * Creates a TaskCounter
+	 *
+	 * @param taskScheduler    The TaskScheduler this counter references
+	 * @param initialValue     The initial value of the counter
+	 * @param fiberSlots       This defines how many fibers can wait on this counter.
+	 *                         If fiberSlots == NUM_WAITING_FIBER_SLOTS, this constructor will *not* allocate memory
+	 */
+	explicit TaskCounter(TaskScheduler *taskScheduler, unsigned const initialValue = 0, unsigned const fiberSlots = NUM_WAITING_FIBER_SLOTS)
 	        : BaseCounter(taskScheduler, initialValue, fiberSlots) {
 	}
 
@@ -46,6 +54,7 @@ public:
 	TaskCounter(TaskCounter &&) noexcept = delete;
 	TaskCounter &operator=(TaskCounter const &) = delete;
 	TaskCounter &operator=(TaskCounter &&) noexcept = delete;
+	~TaskCounter() = default;
 
 public:
 	/**

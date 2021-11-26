@@ -4,6 +4,8 @@
 namespace zec
 {
     vec3 k_up = { 0.0f, 1.0f, 0.0f };
+    vec3 k_right = { 1.0f, 0.0f, 0.0f };
+    vec3 k_forward = { 0.0f, 0.0f, -1.0f };
 
     mat4 perspective_projection(const float aspect_ratio, const float fov, const float z_near, const float z_far)
     {
@@ -152,9 +154,10 @@ namespace zec
         return { m[0][3], m[1][3], m[2][3] };
     }
 
-    mat4 look_at(const vec3& pos, const vec3& target, const vec3& world_up)
+    mat4 look_at(const vec3& pos, const vec3& target)
     {
         vec3 dir = normalize(pos - target);
+        const vec3& world_up = dir == k_up ? k_right : k_up;
         vec3 right = normalize(cross(world_up, dir));
         vec3 up = cross(dir, right);
 

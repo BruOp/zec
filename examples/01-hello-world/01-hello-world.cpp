@@ -132,7 +132,7 @@ protected:
         CmdReceipt receipt = gfx::cmd::return_and_execute(&cmd_ctx, 1);
 
         mesh_transform.model_transform = identity_mat4();
-        mesh_transform.view_transform = look_at({ 0.0f, 0.0f, -2.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f });
+        mesh_transform.view_transform = look_at({ 0.0f, 0.0f, -2.0f }, { 0.0f, 0.0f, 0.0f });
         mesh_transform.projection_matrix = perspective_projection(
             float(width) / float(height),
             deg_to_rad(65.0f),
