@@ -3,6 +3,7 @@
 #include "gfx/profiling_utils.h"
 #include "cpu_tasks.h"
 #include <sstream>
+#include <codecvt>
 
 namespace zec
 {
@@ -105,7 +106,6 @@ namespace zec
             for (size_t input_idx = 0; input_idx < task_desc.inputs.size(); ++input_idx) {
                 const RenderPassResourceUsage& input = task_desc.inputs[input_idx];
 
-
                 u32 input_id = input.identifier;
                 bool already_being_written_to = resources_last_written_by.contains(input_id);
 
@@ -174,11 +174,6 @@ namespace zec
             errors.push_back({ "No passes write to the resource identified as the backbuffer resource" });
         }
 
-        // Don't need to go through the pain of creating resource layouts and pipelines, etc. if there are already errors
-        if (errors.size() > 0) {
-            //return invalid handle
-            return RenderTaskListHandle{ k_invalid_handle };
-        }
 
         for (const auto& render_pass_desc : desc.render_pass_task_descs) {
             // Register resource layouts, pipeline states and settings
@@ -196,9 +191,31 @@ namespace zec
             // Register resource layouts, pipeline states and settings
             for (const auto& pipeline_desc : render_pass_desc.pipeline_descs) {
                 if (pipeline_state_descs.count(pipeline_desc.identifier) == 0) {
-                    pipeline_state_descs.insert({ pipeline_desc.identifier, pipeline_desc });
+                    RenderPassPipelineStateObjectDesc out_pipeline_desc = pipeline_desc;
+                    // Try to compile the shaders here
+                    {
+                        ShaderBlobsHandle shader_blobs;
+
+                        std::string shader_compilation_errors = {};
+                        ZecResult res = gfx::shader_compilation::compile_shaders(out_pipeline_desc.shader_compilation_desc, shader_blobs, shader_compilation_errors);
+                        if (res == ZecResult::FAILURE)
+                        {
+                            errors.push_back(std::move(shader_compilation_errors));
+                        }
+                        else {
+                            out_pipeline_desc.pipeline_desc.shader_blobs = shader_blobs;
+                        }
+                        // We'll insert either just so we don't repeatedly try to compile invalid shaders
+                        pipeline_state_descs.insert({ pipeline_desc.identifier, out_pipeline_desc});
+                    }
                 }
             }
+        }
+
+        // Don't need to go through the pain of creating resource layouts and pipelines, etc. if there are already errors
+        if (errors.size() > 0) {
+            //return invalid handle
+            return RenderTaskListHandle{ k_invalid_handle };
         }
 
         // Fill task list with relevant details
@@ -225,7 +242,7 @@ namespace zec
 
         for (auto& [_, desc] : pipeline_state_descs) {
             desc.pipeline_desc.resource_layout = resource_layouts.at(desc.resource_layout_id);
-            PipelineStateHandle pipeline_handle = gfx::pipelines::create_pipeline_state_object(desc.pipeline_desc);
+            PipelineStateHandle pipeline_handle = gfx::pipelines::create_pipeline_state_object(desc.pipeline_desc, desc.name.data());
             pipelines.insert({ desc.identifier, pipeline_handle });
         }
 
@@ -274,6 +291,11 @@ namespace zec
                 }
             }
         }
+
+        for (auto& [_, desc] : pipeline_state_descs)
+        {
+            shader_compilation::release_blobs(desc.pipeline_desc.shader_blobs);
+        }
     }
 
     void RenderTaskSystem::execute(const RenderTaskListHandle list, TaskScheduler& task_scheduler)
@@ -285,7 +307,7 @@ namespace zec
         // Alias the backbuffer as the resource;
         resource_map.set_backbuffer_resource(render_task_list.backbuffer_resource_id);
 
-        // --------------- RECORD --------------- 
+        // --------------- RECORD ---------------
 
         constexpr size_t MAX_CMD_LIST_SUMISSIONS = 8; // Totally arbitrary
         // Each render_pass gets a command context
@@ -391,7 +413,7 @@ namespace zec
             gfx::cmd::transition_resources(task_contexts[task_contexts.size() - 1].cmd_context, &transition_desc, 1);
         }
 
-        // --------------- SUBMIT --------------- 
+        // --------------- SUBMIT ---------------
         {
             PROFILE_EVENT("Render System Submission");
 
@@ -419,7 +441,7 @@ namespace zec
                 CommandStream& stream = render_pass_task.command_queue_type == CommandQueueType::ASYNC_COMPUTE ? async_compute_stream : gfx_stream;
                 stream.contexts_to_submit[stream.pending_count++] = render_task_list.cmd_contexts[pass_idx];
 
-                // If we've reached the max or need to flush at this pass (for synchronization 
+                // If we've reached the max or need to flush at this pass (for synchronization
                 // purposes), we submit our command contexts and store the receipt
                 if (stream.pending_count == MAX_CMD_LIST_SUMISSIONS) {
                     debug_print(L"We're hitting the max number of command context submissions, might want to investigate this!");

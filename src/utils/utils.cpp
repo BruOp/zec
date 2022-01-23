@@ -2,6 +2,11 @@
 
 namespace zec
 {
+    bool is_success(const ZecResult res)
+    {
+        return res == ZecResult::SUCCESS;
+    };
+
     std::wstring ansi_to_wstring(const char* ansiString)
     {
         wchar buffer[512];
@@ -69,7 +74,7 @@ namespace zec
         split(str, parts, delimiters);
         return parts;
     }
-    
+
     void write_log(const wchar* format, ...)
     {
         wchar buffer[1024] = { 0 };

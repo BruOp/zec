@@ -9,6 +9,7 @@
 #include "upload_manager.h"
 #include "command_context.h"
 #include "resource_destruction.h"
+#include "shader_blob_manager.h"
 
 namespace D3D12MA
 {
@@ -66,6 +67,7 @@ namespace zec::gfx::dx12
         Fence frame_fence = { };
 
         ResourceLayoutStore root_signatures = {};
+        ShaderBlobsManager shader_blob_manager = {};
         PipelineStateStore pipelines = {};
 
         BufferList buffers = {};

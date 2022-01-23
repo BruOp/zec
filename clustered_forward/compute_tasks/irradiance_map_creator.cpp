@@ -1,4 +1,5 @@
 #include "irradiance_map_creator.h"
+#include <utils/utils.h>
 
 using namespace zec;
 
@@ -35,13 +36,23 @@ namespace clustered
 
         resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
 
-        // Create the Pipeline State Object
-        PipelineStateObjectDesc pipeline_desc = {
-            .resource_layout = resource_layout,
+        ShaderCompilationDesc shader_compilation_desc = {
             .used_stages = PIPELINE_STAGE_COMPUTE,
             .shader_file_path = L"shaders/clustered_forward/env_map_irradiance.hlsl",
         };
-        pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+        std::string errors{};
+        ShaderBlobsHandle blobs = {};
+        ZecResult res = gfx::shader_compilation::compile_shaders(shader_compilation_desc, blobs, errors);
+        ASSERT_MSG(is_success(res), errors.c_str());
+
+        // Create the Pipeline State Object
+        PipelineStateObjectDesc pipeline_desc = {
+            .resource_layout = resource_layout,
+            .shader_blobs = blobs,
+        };
+        pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc, L"Irradiance map creator");
+
+        gfx::shader_compilation::release_blobs(blobs);
     }
 
     void IrradianceMapCreator::record(zec::CommandContextHandle cmd_ctx, const Settings& settings)

@@ -100,6 +100,10 @@ namespace clustered
     static constexpr RenderPassPipelineStateObjectDesc pipeline_descs[] = { {
         .identifier = ctcrc32("Forward pass opaque pipeline desc"),
         .resource_layout_id = resource_layout_descs[0].identifier,
+        .shader_compilation_desc = {
+            .used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL,
+            .shader_file_path = L"shaders/clustered_forward/mesh_forward.hlsl",
+        },
         .pipeline_desc = {
             .input_assembly_desc = { {
                 { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
@@ -116,8 +120,6 @@ namespace clustered
             },
             .rtv_formats = { BufferFormat::R16G16B16A16_FLOAT },
             .depth_buffer_format = BufferFormat::D32,
-            .used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL,
-            .shader_file_path = L"shaders/clustered_forward/mesh_forward.hlsl",
         }
     } };
 
@@ -190,7 +192,7 @@ namespace clustered
         gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::TEXTURE_CUBE_TABLE));
 
         const Renderables& renderables = scene_data->renderables;
-        
+
         u32 buffer_descriptors[2] = {
             gfx::buffers::get_shader_readable_index(renderables.vs_buffer),
             renderables.material_buffer_idx,

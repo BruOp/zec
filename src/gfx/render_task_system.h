@@ -17,7 +17,7 @@
 //      - It'd be great to have a model where the render task system fully owns the render task
 //      - It'd also be great for render tasks to "register" certain settings with the pass system
 //      - Pass system could then provide a single access point for updating/changing that data
-// 
+//
 
 namespace zec
 {
@@ -101,7 +101,7 @@ namespace zec
     {
         u32 identifier = UINT32_MAX;
         std::string_view name = "";
-        // If sizing == Sizing::RELATIVE_TO_SWAP_CHAIN, then the width and height in the texture_desc are 
+        // If sizing == Sizing::RELATIVE_TO_SWAP_CHAIN, then the width and height in the texture_desc are
         // ignored and instead, relative_width_factor * swap_chain.width is used instead. (Same for height)
         Sizing sizing = Sizing::ABSOLUTE;
         // Sizing factors are only used if sizing == Sizing::RELATIVE_TO_SWAP_CHAIN
@@ -192,8 +192,10 @@ namespace zec
 
     struct RenderPassPipelineStateObjectDesc
     {
+        std::wstring_view name = L"";
         u32 identifier = UINT32_MAX;
         u32 resource_layout_id = UINT32_MAX;
+        ShaderCompilationDesc shader_compilation_desc = {};
         PipelineStateObjectDesc pipeline_desc = {};
     };
 

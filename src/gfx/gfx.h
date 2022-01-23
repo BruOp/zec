@@ -3,6 +3,21 @@
 #include "core/zec_math.h"
 #include "public_resources.h"
 
+namespace std
+{
+    template <class _Elem>
+    class allocator;
+
+    template <class _Elem>
+    struct char_traits; // properties of a string or stream unknown element
+
+    template <class _Elem, class _Traits, class _Alloc>
+    class basic_string;
+
+    typedef basic_string<wchar_t, char_traits<wchar_t>, allocator<wchar_t>> wstring;
+    typedef basic_string<char, char_traits<char>, allocator<char>> string;
+}
+
 namespace zec::gfx
 {
     void init_renderer(const RendererDesc& renderer_desc);
@@ -24,10 +39,18 @@ namespace zec::gfx
 
     void on_window_resize(u32 width, u32 height);
 
+    namespace shader_compilation
+    {
+        // Please release the blobs after you've used them to create the pipeline
+        ZecResult compile_shaders(const ShaderCompilationDesc& shader_compilation_desc, ShaderBlobsHandle& inout_blobs, std::string& inout_errors);
+
+        void release_blobs(ShaderBlobsHandle& blobs);
+    }
+
     namespace pipelines
     {
         ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
-        PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc);
+        PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc, const wchar* name);
     }
 
     namespace buffers

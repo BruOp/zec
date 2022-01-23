@@ -46,6 +46,10 @@ namespace clustered
         {
             .identifier = ctcrc32("depth pipeline state object"),
             .resource_layout_id = resource_layout_descs[0].identifier,
+            .shader_compilation_desc = {
+                .used_stages = PIPELINE_STAGE_VERTEX,
+                .shader_file_path = L"shaders/clustered_forward/depth_pass.hlsl",
+            },
             .pipeline_desc = {
                 .input_assembly_desc = { {
                     { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
@@ -59,8 +63,6 @@ namespace clustered
                     .flags = DEPTH_CLIP_ENABLED,
                 },
                 .depth_buffer_format = BufferFormat::D32,
-                .used_stages = PIPELINE_STAGE_VERTEX,
-                .shader_file_path = L"shaders/clustered_forward/depth_pass.hlsl",
             }
         }
     };

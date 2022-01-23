@@ -43,8 +43,8 @@ namespace zec
 
     void OrbitCameraController::update(const PerspectiveCamera& camera, const input::InputState& input_state, const float delta_time)
     {
-        float delta_x = input_state.get_axis_value(mapping.yaw);
-        float delta_y = input_state.get_axis_value(mapping.pitch);
+        float delta_x = delta_time * input_state.get_axis_value(mapping.yaw);
+        float delta_y = delta_time * input_state.get_axis_value(mapping.pitch);
 
         if (input_state.button_is_down(mapping.rotate_mode)) {
             // Handle rotation
@@ -86,7 +86,7 @@ namespace zec
         set_camera_view(camera, look_at(camera.position, origin));
     }
 
-    void FPSCameraController::update(const PerspectiveCamera& camera, const input::InputState& input_state, const float deltaTime)
+    void FPSCameraController::update(const PerspectiveCamera& camera, const input::InputState& input_state, const float delta_time)
     {
         float delta_x = input_state.get_axis_value(mapping.yaw);
         float delta_y = input_state.get_axis_value(mapping.pitch);
@@ -136,7 +136,7 @@ namespace zec
         }
         float movement_distance = length(movement_vector);
         if (movement_distance != 0.0f) {
-            displacement = settings.movement_sensitivity * movement_vector / movement_distance;
+            displacement = delta_time * settings.movement_sensitivity * movement_vector / movement_distance;
         }
         else {
             displacement = { 0.f };

@@ -31,7 +31,7 @@ namespace zec
         float yaw_sensitivity = 5.0f;
         float pitch_sensitivity = 5.0f;
         float zoom_sensitivity = 0.02f;
-        float movement_sensitivity = 0.01f;
+        float movement_sensitivity = 1.0f;
     };
 
     struct CameraControllerMapping

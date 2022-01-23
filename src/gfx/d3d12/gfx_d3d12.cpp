@@ -557,6 +557,54 @@ namespace zec::gfx
 
     void on_window_resize(u32 width, u32 height) { };
 
+    namespace shader_compilation
+    {
+        ZecResult compile_shaders(const ShaderCompilationDesc& shader_compilation_desc, ShaderBlobsHandle& inout_blob_handle, std::string& errors)
+        {
+            ZecResult res = shader_compilation_desc.used_stages != 0 ? ZecResult::SUCCESS : ZecResult::FAILURE;
+            CompiledShaderBlobs blobs{};
+            if (shader_compilation_desc.used_stages & PIPELINE_STAGE_COMPUTE)
+            {
+                ASSERT(shader_compilation_desc.used_stages == PIPELINE_STAGE_COMPUTE);
+                IDxcBlob* compute_shader = { nullptr };
+                res = shader_utils::compile_shader(shader_compilation_desc.shader_file_path, PIPELINE_STAGE_COMPUTE, &compute_shader, errors);
+                blobs.compute_shader = { reinterpret_cast<void*>(compute_shader) };
+            }
+            else
+            {
+                if (res == ZecResult::SUCCESS && shader_compilation_desc.used_stages & PIPELINE_STAGE_VERTEX)
+                {
+                    IDxcBlob* vertex_shader = {nullptr};
+                    res = shader_utils::compile_shader(shader_compilation_desc.shader_file_path, PIPELINE_STAGE_VERTEX, &vertex_shader, errors);
+                    blobs.vertex_shader = { reinterpret_cast<void*>(vertex_shader) };
+                }
+                if (res == ZecResult::SUCCESS && shader_compilation_desc.used_stages & PIPELINE_STAGE_PIXEL)
+                {
+                    IDxcBlob* pixel_shader = nullptr;
+                    res = shader_utils::compile_shader(shader_compilation_desc.shader_file_path, PIPELINE_STAGE_PIXEL, &pixel_shader, errors);
+                    blobs.pixel_shader = { reinterpret_cast<void*>(pixel_shader) };
+                }
+            }
+
+            if (res == ZecResult::SUCCESS)
+            {
+                inout_blob_handle = g_context.shader_blob_manager.store_blobs(std::move(blobs));
+            }
+            else
+            {
+                inout_blob_handle = INVALID_HANDLE;
+            }
+
+            return res;
+        }
+
+        void release_blobs(ShaderBlobsHandle& blobs)
+        {
+            g_context.shader_blob_manager.release_blobs(blobs);
+            blobs = INVALID_HANDLE;
+        }
+    }
+
     namespace pipelines
     {
         ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc)
@@ -718,24 +766,23 @@ namespace zec::gfx
 
         };
 
-        PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc)
+        PipelineStateHandle create_pipeline_state_object(const PipelineStateObjectDesc& desc, const wchar* name)
         {
             ASSERT(is_valid(desc.resource_layout));
 
             ID3D12RootSignature* root_signature = g_context.root_signatures[desc.resource_layout];
             ID3D12PipelineState* pipeline = nullptr;
+            const CompiledShaderBlobs* shader_blobs = g_context.shader_blob_manager.get_blobs(desc.shader_blobs);
+            if (shader_blobs->compute_shader) {
+                ASSERT(!shader_blobs->vertex_shader && !shader_blobs->pixel_shader);
 
-            if (desc.used_stages & PIPELINE_STAGE_COMPUTE) {
-                ASSERT(desc.used_stages == PIPELINE_STAGE_COMPUTE);
-
-                IDxcBlob* compute_shader = shader_utils::compile_shader(desc.shader_file_path, PIPELINE_STAGE_COMPUTE);
+                IDxcBlob* compute_shader = cast_blob(shader_blobs->compute_shader);
 
                 D3D12_COMPUTE_PIPELINE_STATE_DESC pso_desc{};
                 pso_desc.CS.BytecodeLength = compute_shader->GetBufferSize();
                 pso_desc.CS.pShaderBytecode = compute_shader->GetBufferPointer();
                 pso_desc.pRootSignature = root_signature;
                 DXCall(g_context.device->CreateComputePipelineState(&pso_desc, IID_PPV_ARGS(&pipeline)));
-                compute_shader->Release();
 
                 return { g_context.pipelines.push_back(pipeline) };
             }
@@ -815,26 +862,21 @@ namespace zec::gfx
                 pso_desc.NumRenderTargets = i + 1;
             }
 
-            IDxcBlob* vertex_shader = nullptr;
-            IDxcBlob* pixel_shader = nullptr;
-            if (desc.used_stages & PIPELINE_STAGE_VERTEX) {
-                vertex_shader = shader_utils::compile_shader(desc.shader_file_path, PIPELINE_STAGE_VERTEX);
+            IDxcBlob* vertex_shader = cast_blob(shader_blobs->vertex_shader);
+            IDxcBlob* pixel_shader = cast_blob(shader_blobs->pixel_shader);
+            if (vertex_shader) {
                 pso_desc.VS.BytecodeLength = vertex_shader->GetBufferSize();
                 pso_desc.VS.pShaderBytecode = vertex_shader->GetBufferPointer();
             }
-            if (desc.used_stages & PIPELINE_STAGE_PIXEL) {
-                pixel_shader = shader_utils::compile_shader(desc.shader_file_path, PIPELINE_STAGE_PIXEL);
+            if (pixel_shader) {
                 pso_desc.PS.BytecodeLength = pixel_shader->GetBufferSize();
                 pso_desc.PS.pShaderBytecode = pixel_shader->GetBufferPointer();
             }
 
             DXCall(g_context.device->CreateGraphicsPipelineState(&pso_desc, IID_PPV_ARGS(&pipeline)));
 
-            if (vertex_shader != nullptr) vertex_shader->Release();
-            if (pixel_shader != nullptr) pixel_shader->Release();
-            pipeline->SetName(desc.shader_file_path);
+            pipeline->SetName(name);
             return { g_context.pipelines.push_back(pipeline) };
-
         };
     }
 

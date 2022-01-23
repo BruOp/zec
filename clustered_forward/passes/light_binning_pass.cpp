@@ -67,18 +67,20 @@ namespace clustered
         {
             .identifier = ctcrc32("spot light assighment pipeline state"),
             .resource_layout_id = resource_layout_descs[0].identifier,
-            .pipeline_desc = {
+            .shader_compilation_desc = {
                 .used_stages = PipelineStage::PIPELINE_STAGE_COMPUTE,
                 .shader_file_path = L"shaders/clustered_forward/spot_light_assignment.hlsl",
-            }
+            },
+            .pipeline_desc = {},
         },
         {
             .identifier = ctcrc32("point light assighment pipeline state"),
             .resource_layout_id = resource_layout_descs[0].identifier,
-            .pipeline_desc = {
+            .shader_compilation_desc = {
                 .used_stages = PipelineStage::PIPELINE_STAGE_COMPUTE,
                 .shader_file_path = L"shaders/clustered_forward/point_light_assignment.hlsl",
-            }
+            },
+            .pipeline_desc = {},
         }
     };
 

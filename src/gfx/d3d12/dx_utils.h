@@ -7,6 +7,9 @@ struct IDxcBlobUtf8;
 
 namespace zec::gfx::dx12
 {
+    std::string get_string(IDxcBlobUtf8* blob);
+    std::wstring get_wstring(IDxcBlobUtf8* blob);
+
     void print_blob(ID3DBlob* blob);
     void print_blob(IDxcBlobUtf8* blob);
 
@@ -26,6 +29,7 @@ namespace zec::gfx::dx12
         std::wstring errorString = GetDXErrorString(hr);
 
         std::string message;
+        message.reserve(errorString.length());
         for (u64 i = 0; i < errorString.length(); ++i)
             message.append(1, static_cast<char>(errorString[i]));
         return message;

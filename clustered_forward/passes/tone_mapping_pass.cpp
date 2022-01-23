@@ -55,8 +55,13 @@ namespace clustered
     } };
 
     static constexpr RenderPassPipelineStateObjectDesc pipeline_descs[] = { {
+        .name = L"Tone Mapping Pipeline",
         .identifier = ctcrc32("Tone Mapping Pipeline"),
         .resource_layout_id = resource_layout_descs[0].identifier,
+        .shader_compilation_desc = {
+            .used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL,
+            .shader_file_path = L"shaders/clustered_forward/basic_tone_map.hlsl",
+        },
         .pipeline_desc = {
             .input_assembly_desc = {{
                 { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
@@ -69,8 +74,6 @@ namespace clustered
                 .cull_mode = CullMode::NONE,
             },
             .rtv_formats = {{ PassResources::SDR_TARGET.desc.format }},
-            .used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL,
-            .shader_file_path = L"shaders/clustered_forward/basic_tone_map.hlsl",
         }
     } };
 
@@ -83,33 +86,37 @@ namespace clustered
     {
         const ResourceMap& resource_map = *context->resource_map;
 
-        TextureHandle hdr_buffer = resource_map.get_texture_resource(PassResources::HDR_TARGET.identifier);
-        TextureHandle sdr_buffer = resource_map.get_texture_resource(PassResources::SDR_TARGET.identifier);
-
-        const CommandContextHandle cmd_ctx = context->cmd_context;
-        gfx::cmd::set_render_targets(cmd_ctx, &sdr_buffer, 1);
-
-        const TextureInfo& texture_info = gfx::textures::get_texture_info(sdr_buffer);
-        Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
-        Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
-
-        const ResourceLayoutHandle resource_layout = context->resource_layouts->at(resource_layout_descs[0].identifier);
         const PipelineStateHandle pso = context->pipeline_states->at(pipeline_descs[0].identifier);
-        gfx::cmd::set_graphics_resource_layout(cmd_ctx, resource_layout);
-        gfx::cmd::set_graphics_pipeline_state(cmd_ctx, pso);
-        gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
-        gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
-        const float exposure = context->settings->get_settings<float>(Settings::exposure.identifier);
-        TonemapPassConstants tonemapping_constants = {
-            .src_texture = gfx::textures::get_shader_readable_index(hdr_buffer),
-            .exposure = exposure
-        };
-        gfx::cmd::bind_graphics_constants(cmd_ctx, &tonemapping_constants, 2, 0);
-        gfx::cmd::bind_graphics_resource_table(cmd_ctx, 1);
+        if (is_valid(pso))
+        {
+            TextureHandle hdr_buffer = resource_map.get_texture_resource(PassResources::HDR_TARGET.identifier);
+            TextureHandle sdr_buffer = resource_map.get_texture_resource(PassResources::SDR_TARGET.identifier);
 
-        const MeshHandle fullscreen_mesh = context->settings->get_settings<MeshHandle>(Settings::fullscreen_quad.identifier);
-        gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
+            const CommandContextHandle cmd_ctx = context->cmd_context;
+            gfx::cmd::set_render_targets(cmd_ctx, &sdr_buffer, 1);
+
+            const TextureInfo& texture_info = gfx::textures::get_texture_info(sdr_buffer);
+            Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
+            Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
+
+            const ResourceLayoutHandle resource_layout = context->resource_layouts->at(resource_layout_descs[0].identifier);
+            gfx::cmd::set_graphics_resource_layout(cmd_ctx, resource_layout);
+            gfx::cmd::set_graphics_pipeline_state(cmd_ctx, pso);
+            gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
+            gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
+
+            const float exposure = context->settings->get_settings<float>(Settings::exposure.identifier);
+            TonemapPassConstants tonemapping_constants = {
+                .src_texture = gfx::textures::get_shader_readable_index(hdr_buffer),
+                .exposure = exposure
+            };
+            gfx::cmd::bind_graphics_constants(cmd_ctx, &tonemapping_constants, 2, 0);
+            gfx::cmd::bind_graphics_resource_table(cmd_ctx, 1);
+
+            const MeshHandle fullscreen_mesh = context->settings->get_settings<MeshHandle>(Settings::fullscreen_quad.identifier);
+            gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
+        }
     }
 
     extern const RenderPassTaskDesc tone_mapping_pass_desc = {

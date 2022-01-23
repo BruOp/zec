@@ -10,7 +10,8 @@ namespace zec
         if (task_scheduler == nullptr) {
             task_scheduler = std::make_unique<ftl::TaskScheduler>();
             ftl::TaskSchedulerInitOptions options;
-            options.ThreadPoolSize = ftl::GetNumHardwareThreads() - 1;
+            options.ThreadPoolSize = ftl::GetNumHardwareThreads() - 2;
+            options.Behavior = ftl::EmptyQueueBehavior::Yield;
             task_scheduler->Init(options);
 
             window_thread_id = ftl::GetCurrentThread().Id;

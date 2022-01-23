@@ -88,6 +88,10 @@ namespace clustered
         {
             .identifier = ctcrc32("cluster debug pipeline state"),
             .resource_layout_id = resource_layout_descs[0].identifier,
+            .shader_compilation_desc = {
+                .used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL,
+                .shader_file_path = L"shaders/clustered_forward/cluster_debug.hlsl",
+            },
             .pipeline_desc = {
                 .input_assembly_desc = { {
                     { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
@@ -102,8 +106,6 @@ namespace clustered
                 },
                 .rtv_formats = { { PassResources::SDR_TARGET.desc.format } },
                 .depth_buffer_format = BufferFormat::D32,
-                .used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL,
-                .shader_file_path = L"shaders/clustered_forward/cluster_debug.hlsl",
             }
         }
     };

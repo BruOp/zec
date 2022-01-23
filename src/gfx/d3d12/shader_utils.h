@@ -9,25 +9,27 @@
 
 namespace zec::gfx::dx12::shader_utils
 {
-    IDxcBlob* compile_shader(const wchar* file_name, PipelineStage stage)
+    ZecResult compile_shader(const wchar* file_name, const PipelineStage stage, IDxcBlob** out_blob, std::string& errors)
     {
         Microsoft::WRL::ComPtr<IDxcUtils> dxc_utils;
         DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxc_utils));
 
-        //Microsoft::WRL::ComPtr<IDxcLibrary> library;
-        //DXCall(DxcCreateInstance(CLSID_DxcLibrary, IID_PPV_ARGS(&library)));
-
         Microsoft::WRL::ComPtr<IDxcCompiler3> compiler;
         DXCall(DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler)));
 
-        //
-        // Create default include handler. (You can create your own...)
-        //
         Microsoft::WRL::ComPtr<IDxcIncludeHandler> dxc_include_handler;
         dxc_utils->CreateDefaultIncludeHandler(&dxc_include_handler);
 
-        IDxcBlobEncoding* source_blob;
-        DXCall(dxc_utils->LoadFile(file_name, nullptr, &source_blob));
+        Microsoft::WRL::ComPtr<IDxcBlobEncoding> source_blob;
+        {
+            HRESULT hr = dxc_utils->LoadFile(file_name, nullptr, &source_blob);
+            if (FAILED(hr))
+            {
+                errors = GetDXErrorStringAnsi(hr);
+                return ZecResult::FAILURE;
+            }
+        }
+
         DxcBuffer source;
         source.Ptr = source_blob->GetBufferPointer();
         source.Size = source_blob->GetBufferSize();
@@ -78,43 +80,31 @@ namespace zec::gfx::dx12::shader_utils
             dxc_include_handler.Get(),
             IID_PPV_ARGS(compile_result.GetAddressOf())
         ); // ppResult
-        DXCall(hr);
-        //
-        // Print errors if present.
-        //
-        Microsoft::WRL::ComPtr<IDxcBlobUtf8> pErrors = nullptr;
-        compile_result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&pErrors), nullptr);
-        // Note that d3dcompiler would return null if no errors or warnings are present.  
-        // IDxcCompiler3::Compile will always return an error buffer, but its length will be zero if there are no warnings or errors.
-        if (pErrors != nullptr && pErrors->GetStringLength() != 0) {
-            print_blob(pErrors.Get());
+
+        if (FAILED(hr))
+        {
+            errors = GetDXErrorStringAnsi(hr);
+            return ZecResult::FAILURE;
         }
 
-        if (SUCCEEDED(hr))
-            compile_result->GetStatus(&hr);
+        Microsoft::WRL::ComPtr<IDxcBlobUtf8> pErrors = nullptr;
+        compile_result->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&pErrors), nullptr);
+        // Note that d3dcompiler would return null if no errors or warnings are present.
+        // IDxcCompiler3::Compile will always return an error buffer, but its length will be zero if there are no warnings or errors.
+        if (pErrors != nullptr && pErrors->GetStringLength() != 0) {
+            errors = get_string(pErrors.Get());
+            return ZecResult::FAILURE;
+        }
 
-        DXCall(hr);
-        ////
-        //// Save pdb.
-        ////
-        //Microsoft::WRL::ComPtr<IDxcBlob> pdb = nullptr;
-        //Microsoft::WRL::ComPtr<IDxcBlobUtf16> pdb_name = nullptr;
-        //compile_result->GetOutput(DXC_OUT_PDB, IID_PPV_ARGS(&pdb), &pdb_name);
-        //{
-        //    FILE* fp = NULL;
-        //    std::filesystem::path file_path{ L"../.build/bin/Debug/x64/clustered_forward/" };
-        //    file_path /= pdb_name->GetStringPointer();
-        //    // Note that if you don't specify -Fd, a pdb name will be automatically generated. Use this file name to save the pdb so that PIX can find it quickly.
-        //    _wfopen_s(&fp, file_path.c_str(), L"wb");
-        //    fwrite(pdb->GetBufferPointer(), pdb->GetBufferSize(), 1, fp);
-        //    fclose(fp);
-        //}
+        compile_result->GetStatus(&hr);
+        if (FAILED(hr))
+        {
+            errors = GetDXErrorStringAnsi(hr);
+            return ZecResult::FAILURE;
+        }
 
-        IDxcBlob* code;
-        compile_result->GetResult(&code);
+        compile_result->GetResult(out_blob);
 
-        source_blob->Release();
-
-        return code;
+        return ZecResult::SUCCESS;
     }
 }

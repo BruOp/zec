@@ -25,6 +25,22 @@ void DXCall(HRESULT hr)
 
 namespace zec::gfx::dx12
 {
+    std::string get_string(IDxcBlobUtf8* blob)
+    {
+        const char* blob_string = blob->GetStringPointer();
+        size_t len = blob->GetStringLength();
+        return std::string( blob_string, len );
+    };
+
+    std::wstring get_wstring(IDxcBlobUtf8* blob)
+    {
+        const char* blob_string = blob->GetStringPointer();
+        size_t len = blob->GetStringLength();
+        std::wstring wc(len, L'#');
+        mbstowcs(&wc[0], blob_string, len);
+        return wc;
+    };
+
     void print_blob(ID3DBlob* blob)
     {
         const char* blob_string = reinterpret_cast<char*>(blob->GetBufferPointer());
@@ -36,10 +52,7 @@ namespace zec::gfx::dx12
 
     void print_blob(IDxcBlobUtf8* blob)
     {
-        const char* blob_string = blob->GetStringPointer();
-        size_t len = blob->GetStringLength();
-        std::wstring wc(len, L'#');
-        mbstowcs(&wc[0], blob_string, len);
+        std::wstring wc = get_wstring(blob);
         debug_print(wc);
     };
 }

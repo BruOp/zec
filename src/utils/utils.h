@@ -17,6 +17,8 @@
 
 namespace zec
 {
+    bool is_success(const ZecResult res);
+
     // Converts an ANSI string to a std::wstring
     std::wstring ansi_to_wstring(const char* ansiString);
 

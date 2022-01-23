@@ -28,6 +28,7 @@ namespace zec
     RESOURCE_HANDLE(CommandContextPoolHandle);
     RESOURCE_HANDLE(CommandContextHandle);
     RESOURCE_HANDLE(UploadContextHandle);
+    RESOURCE_HANDLE(ShaderBlobsHandle);
 
     // ---------- Enums ----------
     enum ResourceUsage : u16
@@ -279,7 +280,7 @@ namespace zec
     // Foward declaration
     class Window;
 
-    // ---------- Creation Descriptions ---------- 
+    // ---------- Creation Descriptions ----------
     struct RendererDesc
     {
         u32 width = 0;
@@ -450,13 +451,19 @@ namespace zec
         RenderTargetBlendDesc render_target_blend_descs[8] = { };
     };
 
+    struct ShaderCompilationDesc
+    {
+        u8 used_stages = PIPELINE_STAGE_INVALID;
+        wchar shader_file_path[128] = L"";
+    };
+
     /// Can be used to create either a computer shader pipeline or a graphics pipeline
-    /// 
+    ///
     /// To create a Graphics pipeline, you probably just need to define the input assembly
     /// and set used_stages to PIXEL and/or VERTEX
-    /// 
+    ///
     /// To create a Compute pipeline, the used_stages must equel COMPUTE
-    /// 
+    ///
     /// In both cases, the shader file path and the resource layout handle must be set
     /// to appropriate values
     struct PipelineStateObjectDesc
@@ -469,8 +476,7 @@ namespace zec
         BufferFormat rtv_formats[8] = {};
         BufferFormat depth_buffer_format = BufferFormat::INVALID;
         TopologyType topology_type = TopologyType::TRIANGLE;
-        u8 used_stages = PIPELINE_STAGE_INVALID;
-        wchar shader_file_path[128] = L"";
+        ShaderBlobsHandle shader_blobs;
     };
 
     // ---------- Other Descriptions ----------
