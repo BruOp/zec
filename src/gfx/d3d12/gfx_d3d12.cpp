@@ -1266,11 +1266,16 @@ namespace zec::gfx
             else if (extension.compare(L".png") == 0 || extension.compare(L".PNG") == 0) {
                 DXCall(DirectX::LoadFromWICFile(path.c_str(), DirectX::WIC_FLAGS_NONE, nullptr, image));
             }
+            else if (extension.compare(L".tga") == 0 || extension.compare(L".TGA") == 0) {
+                DXCall(DirectX::LoadFromWICFile(path.c_str(), DirectX::WIC_FLAGS_NONE, nullptr, image));
+            }
             else {
                 throw std::runtime_error("Wasn't able to load file!");
             }
 
             const DirectX::TexMetadata meta_data = image.GetMetadata();
+
+            bool is_3d = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
             TextureDesc texture_desc{
                 .width = u32(meta_data.width),
                 .height = u32(meta_data.height),
@@ -1278,6 +1283,7 @@ namespace zec::gfx
                 .num_mips = u32(meta_data.mipLevels),
                 .array_size = u32(meta_data.arraySize),
                 .is_cubemap = u16(meta_data.IsCubemap()),
+                .is_3d = is_3d,
                 .format = from_d3d_format(meta_data.format),
                 .usage = RESOURCE_USAGE_SHADER_READABLE,
             };
@@ -1285,7 +1291,6 @@ namespace zec::gfx
             set_debug_name(texture_handle, path.c_str());
 
             ID3D12Resource* resource = g_context.textures.resources[texture_handle];
-            bool is_3d = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
             const D3D12_RESOURCE_DESC d3d_desc = {
                 .Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(meta_data.dimension),
                 .Alignment = 0,

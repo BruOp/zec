@@ -109,7 +109,7 @@ project("zec_lib")
   kind "StaticLib"
 
   files {
-    path.join(ZEC_SRC_DIR, "shaders/**.hlsl"),
+    path.join(ZEC_SRC_DIR, "shaders/**/*.hlsl"),
     path.join(ZEC_SRC_DIR, "**.cpp"),
     path.join(ZEC_SRC_DIR, "**.h"),
     path.join(ZEC_DIR, "external/src/*.cpp"),
@@ -177,5 +177,6 @@ exampleProject(
   "03-gltf-loading",
   "04-ibl",
   "05-envmap-creation",
-  "06-frustum-culling"
+  "06-frustum-culling",
+  "08-clouds"
 )

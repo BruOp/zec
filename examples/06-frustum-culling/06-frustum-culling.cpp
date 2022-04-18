@@ -49,9 +49,9 @@ struct Scene
 
 namespace DebugPass
 {
-    struct Settings
+    struct RenderPassSharedSettings
     {
-        Settings() = default;
+        RenderPassSharedSettings() = default;
 
         // Not owned
         bool active = true;
@@ -82,7 +82,7 @@ namespace DebugPass
 
     void* setup(void* context)
     {
-        Settings* pass_context = static_cast<Settings*>(context);
+        RenderPassSharedSettings* pass_context = static_cast<RenderPassSharedSettings*>(context);
         InternalState* state = new InternalState();
 
         state->debug_frustum_cb_handle = gfx::buffers::create({
@@ -161,7 +161,7 @@ namespace DebugPass
 
     void copy(void* context, void* internal_state)
     {
-        Settings* pass_context = static_cast<Settings*>(context);
+        RenderPassSharedSettings* pass_context = static_cast<RenderPassSharedSettings*>(context);
         InternalState* state = static_cast<InternalState*>(internal_state);
 
         FrustumDrawData frustum_draw_data = {
@@ -173,7 +173,7 @@ namespace DebugPass
     void record(const render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx, void* context, void* internal_state)
     {
         constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-        Settings* pass_context = static_cast<Settings*>(context);
+        RenderPassSharedSettings* pass_context = static_cast<RenderPassSharedSettings*>(context);
         InternalState* state = static_cast<InternalState*>(internal_state);
 
         if (!pass_context->active) return;
@@ -215,7 +215,7 @@ namespace DebugPass
 
 namespace ForwardPass
 {
-    struct Settings
+    struct RenderPassSharedSettings
     {
         // Not owned
         BufferHandle view_cb_handle = {};
@@ -233,7 +233,7 @@ namespace ForwardPass
 
     void* setup(void* settings)
     {
-        Settings* forward_pass_settings = reinterpret_cast<Settings*>(settings);
+        RenderPassSharedSettings* forward_pass_settings = reinterpret_cast<RenderPassSharedSettings*>(settings);
         InternalState* internal_state = new InternalState();
 
         // What do we need to set up before we can do the forward pass?
@@ -295,7 +295,7 @@ namespace ForwardPass
     void record(const render_pass_system::ResourceMap& resource_map, CommandContextHandle cmd_ctx, void* context, void* internal_state)
     {
         constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-        Settings* pass_context = reinterpret_cast<Settings*>(context);
+        RenderPassSharedSettings* pass_context = reinterpret_cast<RenderPassSharedSettings*>(context);
         InternalState* state = reinterpret_cast<InternalState*>(internal_state);
 
         TextureHandle depth_target = resource_map.get_texture_resource(ResourceNames::DEPTH_TARGET);
@@ -356,8 +356,8 @@ public:
 
     AABB_SoA aabb_soa;
 
-    ForwardPass::Settings forward_pass_settings = {};
-    DebugPass::Settings debug_context = {};
+    ForwardPass::RenderPassSharedSettings forward_pass_settings = {};
+    DebugPass::RenderPassSharedSettings debug_context = {};
 
     render_pass_system::RenderPassList render_list;
 

@@ -450,7 +450,7 @@ namespace zec
         RenderTargetBlendDesc render_target_blend_descs[8] = { };
     };
 
-    /// Can be used to create either a computer shader pipeline or a graphics pipeline
+    /// Can be used to create either a compute shader pipeline or a graphics pipeline
     /// 
     /// To create a Graphics pipeline, you probably just need to define the input assembly
     /// and set used_stages to PIXEL and/or VERTEX
