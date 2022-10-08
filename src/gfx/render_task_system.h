@@ -1,23 +1,11 @@
 #pragma once
 #include <span>
-#include <stdexcept>
+//#include <stdexcept>
 
 #include "core/virtual_page_allocator.h"
 #include "gfx/public_resources.h"
 #include "gfx/gfx.h"
 #include "gfx/render_system.h"
-
-// Goals:
-// - Want to enable render_system to work with task system
-// - Solution: IRenderPasses are now used to produce list of tasks instead of just being called by RenderTaskSystem?
-// - Want to enable using different potential pass lists
-//      - The difficulty here is that we previously made certain assumptions about global state
-//      - We need to know ALL the possible ways we can use the resources we create
-//      - Perhaps then, we need to register our passes
-//      - It'd be great to have a model where the render task system fully owns the render task
-//      - It'd also be great for render tasks to "register" certain settings with the pass system
-//      - Pass system could then provide a single access point for updating/changing that data
-//
 
 namespace zec
 {
@@ -245,39 +233,27 @@ namespace zec
         std::vector<PerPassData> per_pass_data = {};
     };
 
+    class ResourceContext
+    {
+        // This is going to track our resources, can be shared accross RenderTaskSystems if desired
+        // This would let us run tasks that can then be used as part of separate render task systems?
+        // Do we actually care about this?
+
+        // But we'd track last used pass
+        // Resource layout per task
+        // desc per pass
+
+        // If we wanted to alias we'd need to do things in two passes
+    };
+
     class RenderTaskSystem
     {
     public:
 
         //RenderPassHandle register_render_pass(const RenderPassTaskDesc& render_pass_task_desc);
-        void register_buffer_resources(const BufferPassResourceDesc in_resource_descs[], const size_t num_resources)
-        {
-            for (size_t i = 0; i < num_resources; ++i) {
-                auto& buffer_desc = in_resource_descs[i];
-                if (buffer_resource_descs.count(buffer_desc.identifier)) {
-                    throw std::invalid_argument("Cannot register the same identifier multiple times!");
-                }
-                else {
-                    buffer_resource_descs.insert({ buffer_desc.identifier, buffer_desc });
-                }
-            }
-        };
+        void register_buffer_resources(const BufferPassResourceDesc in_resource_descs[], const size_t num_resources);
 
-        void register_texture_resources(const TexturePassResourceDesc in_resource_descs[], const size_t num_resources)
-        {
-            for (size_t i = 0; i < num_resources; ++i) {
-                auto& texture_resource_desc = in_resource_descs[i];
-                if (texture_resource_descs.count(texture_resource_desc.identifier)) {
-                    throw std::invalid_argument("Cannot register the same identifier multiple times!");
-                }
-                else {
-                    texture_resource_descs.insert({ texture_resource_desc.identifier, texture_resource_desc });
-                    if (texture_resource_desc.sizing == Sizing::RELATIVE_TO_SWAP_CHAIN) {
-                        swap_chain_relative_resources.push_back(u32(texture_resource_desc.identifier));
-                    }
-                }
-            }
-        };
+        void register_texture_resources(const TexturePassResourceDesc in_resource_descs[], const size_t num_resources);
 
         template<typename TSetting>
         void register_settings(const u32 settings_id)

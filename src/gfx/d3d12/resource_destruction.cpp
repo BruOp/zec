@@ -10,7 +10,7 @@ namespace zec::gfx::dx12
             ASSERT(internal_queues[i].size == 0);
         }
     }
-    
+
     void ResourceDestructionQueue::process(const u64 current_frame_idx)
     {
         ASSERT(current_frame_idx < RENDER_LATENCY);

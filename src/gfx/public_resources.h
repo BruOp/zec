@@ -30,6 +30,11 @@ namespace zec
     RESOURCE_HANDLE(UploadContextHandle);
     RESOURCE_HANDLE(ShaderBlobsHandle);
 
+    // TODO: ADD ManagedShaderBlobsHandle
+    /*class ManagedShaderBlobsHandle
+    {
+    };*/
+
     // ---------- Enums ----------
     enum ResourceUsage : u16
     {
@@ -464,11 +469,10 @@ namespace zec
     ///
     /// To create a Compute pipeline, the used_stages must equel COMPUTE
     ///
-    /// In both cases, the shader file path and the resource layout handle must be set
+    /// In both cases, the shader blobs must be pre-compiled and the resource layout handle must be set
     /// to appropriate values
     struct PipelineStateObjectDesc
     {
-        ResourceLayoutHandle resource_layout = INVALID_HANDLE;
         InputAssemblyDesc input_assembly_desc = {};
         DepthStencilDesc depth_stencil_state = {};
         RasterStateDesc raster_state_desc = {};
@@ -476,7 +480,6 @@ namespace zec
         BufferFormat rtv_formats[8] = {};
         BufferFormat depth_buffer_format = BufferFormat::INVALID;
         TopologyType topology_type = TopologyType::TRIANGLE;
-        ShaderBlobsHandle shader_blobs;
     };
 
     // ---------- Other Descriptions ----------

@@ -65,6 +65,11 @@ namespace zec::gfx::dx12
             return ptrs[handle.idx];
         }
 
+        T*& operator[](ResourceHandle handle)
+        {
+            return ptrs[handle.idx];
+        }
+
         inline u64 size()
         {
             return ptrs.size;

@@ -3,13 +3,15 @@
 #include "core/zec_math.h"
 #include "public_resources.h"
 
+// Forward declared string
+// TODO: put this into a separate header, string_fwd
 namespace std
 {
     template <class _Elem>
     class allocator;
 
     template <class _Elem>
-    struct char_traits; // properties of a string or stream unknown element
+    struct char_traits;
 
     template <class _Elem, class _Traits, class _Alloc>
     class basic_string;
@@ -49,8 +51,10 @@ namespace zec::gfx
 
     namespace pipelines
     {
-        ResourceLayoutHandle create_resource_layout(const ResourceLayoutDesc& desc);
-        PipelineStateHandle  create_pipeline_state_object(const PipelineStateObjectDesc& desc, const wchar* name);
+        ResourceLayoutHandle    create_resource_layout(const ResourceLayoutDesc& desc);
+        PipelineStateHandle     create_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const wchar* name);
+        // This basically creates a new PSO and replaces the existing pipeline_state_handle that's stored at the index. Obviously you probably don't want to do this in the middle of a frame, but it _should_ be safe to do so.
+        ZecResult               recreate_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const wchar* name, const PipelineStateHandle pipeline_state_handle);
     }
 
     namespace buffers

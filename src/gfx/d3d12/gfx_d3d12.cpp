@@ -766,118 +766,141 @@ namespace zec::gfx
 
         };
 
-        PipelineStateHandle create_pipeline_state_object(const PipelineStateObjectDesc& desc, const wchar* name)
+        namespace
         {
-            ASSERT(is_valid(desc.resource_layout));
-
-            ID3D12RootSignature* root_signature = g_context.root_signatures[desc.resource_layout];
-            ID3D12PipelineState* pipeline = nullptr;
-            const CompiledShaderBlobs* shader_blobs = g_context.shader_blob_manager.get_blobs(desc.shader_blobs);
-            if (shader_blobs->compute_shader) {
-                ASSERT(!shader_blobs->vertex_shader && !shader_blobs->pixel_shader);
-
-                IDxcBlob* compute_shader = cast_blob(shader_blobs->compute_shader);
-
-                D3D12_COMPUTE_PIPELINE_STATE_DESC pso_desc{};
-                pso_desc.CS.BytecodeLength = compute_shader->GetBufferSize();
-                pso_desc.CS.pShaderBytecode = compute_shader->GetBufferPointer();
-                pso_desc.pRootSignature = root_signature;
-                DXCall(g_context.device->CreateComputePipelineState(&pso_desc, IID_PPV_ARGS(&pipeline)));
-
-                return { g_context.pipelines.push_back(pipeline) };
-            }
-
-            // Create the input assembly desc
-            std::string semantic_names[MAX_NUM_MESH_VERTEX_BUFFERS];
-            D3D12_INPUT_ELEMENT_DESC d3d_elements[MAX_NUM_MESH_VERTEX_BUFFERS] = {};
-            u32 num_input_elements = 0;
+            ID3D12PipelineState* private_create_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const wchar* name)
             {
-                for (size_t i = 0; i < MAX_NUM_MESH_VERTEX_BUFFERS; i++) {
-                    D3D12_INPUT_ELEMENT_DESC& d3d_desc = d3d_elements[i];
-                    const auto& input_entry = desc.input_assembly_desc.elements[i];
-                    if (input_entry.attribute_type == MESH_ATTRIBUTE_INVALID) {
-                        break;
+                ASSERT(is_valid(desc.resource_layout));
+
+                ID3D12RootSignature* root_signature = g_context.root_signatures[resource_layout_handle];
+                ID3D12PipelineState* pipeline = nullptr;
+                const CompiledShaderBlobs* shader_blobs = g_context.shader_blob_manager.get_blobs(shader_blobs_handle);
+
+                if (shader_blobs->compute_shader) {
+                    ASSERT(!shader_blobs->vertex_shader && !shader_blobs->pixel_shader);
+
+                    IDxcBlob* compute_shader = cast_blob(shader_blobs->compute_shader);
+
+                    D3D12_COMPUTE_PIPELINE_STATE_DESC pso_desc{};
+                    pso_desc.CS.BytecodeLength = compute_shader->GetBufferSize();
+                    pso_desc.CS.pShaderBytecode = compute_shader->GetBufferPointer();
+                    pso_desc.pRootSignature = root_signature;
+                    DXCall(g_context.device->CreateComputePipelineState(&pso_desc, IID_PPV_ARGS(&pipeline)));
+                }
+                else
+                {
+                    // Create the input assembly desc
+                    std::string semantic_names[MAX_NUM_MESH_VERTEX_BUFFERS];
+                    D3D12_INPUT_ELEMENT_DESC d3d_elements[MAX_NUM_MESH_VERTEX_BUFFERS] = {};
+                    u32 num_input_elements = 0;
+                    {
+                        for (size_t i = 0; i < MAX_NUM_MESH_VERTEX_BUFFERS; i++) {
+                            D3D12_INPUT_ELEMENT_DESC& d3d_desc = d3d_elements[i];
+                            const auto& input_entry = desc.input_assembly_desc.elements[i];
+                            if (input_entry.attribute_type == MESH_ATTRIBUTE_INVALID) {
+                                break;
+                            }
+
+                            switch (input_entry.attribute_type) {
+                            case MESH_ATTRIBUTE_POSITION:
+                                semantic_names[i] = "POSITION";
+                                break;
+                            case MESH_ATTRIBUTE_NORMAL:
+                                semantic_names[i] = "NORMAL";
+                                break;
+                            case MESH_ATTRIBUTE_TEXCOORD:
+                                semantic_names[i] = "TEXCOORD";
+                                break;
+                            case MESH_ATTRIBUTE_BLENDINDICES:
+                                semantic_names[i] = "BLENDINDICES";
+                                break;
+                            case MESH_ATTRIBUTE_BLENDWEIGHTS:
+                                semantic_names[i] = "BLENDWEIGHT";
+                                break;
+                            case MESH_ATTRIBUTE_COLOR:
+                                semantic_names[i] = "COLOR";
+                                break;
+                            default:
+                                throw std::runtime_error("Unsupported mesh attribute type!");
+                            }
+
+                            d3d_desc.SemanticName = semantic_names[i].c_str();
+                            d3d_desc.SemanticIndex = input_entry.semantic_index;
+                            d3d_desc.Format = to_d3d_format(input_entry.format);
+                            d3d_desc.InputSlot = input_entry.input_slot;
+                            d3d_desc.AlignedByteOffset = input_entry.aligned_byte_offset;
+                            d3d_desc.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+                            d3d_desc.InstanceDataStepRate = 0;
+                            num_input_elements++;
+                        };
                     }
 
-                    switch (input_entry.attribute_type) {
-                    case MESH_ATTRIBUTE_POSITION:
-                        semantic_names[i] = "POSITION";
-                        break;
-                    case MESH_ATTRIBUTE_NORMAL:
-                        semantic_names[i] = "NORMAL";
-                        break;
-                    case MESH_ATTRIBUTE_TEXCOORD:
-                        semantic_names[i] = "TEXCOORD";
-                        break;
-                    case MESH_ATTRIBUTE_BLENDINDICES:
-                        semantic_names[i] = "BLENDINDICES";
-                        break;
-                    case MESH_ATTRIBUTE_BLENDWEIGHTS:
-                        semantic_names[i] = "BLENDWEIGHT";
-                        break;
-                    case MESH_ATTRIBUTE_COLOR:
-                        semantic_names[i] = "COLOR";
-                        break;
-                    default:
-                        throw std::runtime_error("Unsupported mesh attribute type!");
+                    // Create a pipeline state object description, then create the object
+                    D3D12_RASTERIZER_DESC rasterizer_desc = to_d3d_rasterizer_desc(desc.raster_state_desc);
+
+                    const auto& blend_desc = desc.blend_state;
+                    D3D12_BLEND_DESC d3d_blend_desc = { };
+                    d3d_blend_desc.AlphaToCoverageEnable = blend_desc.alpha_to_coverage_enable;
+                    d3d_blend_desc.IndependentBlendEnable = blend_desc.independent_blend_enable;
+                    for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i) {
+                        d3d_blend_desc.RenderTarget[i] = to_d3d_blend_desc(desc.blend_state.render_target_blend_descs[i]);
                     }
 
-                    d3d_desc.SemanticName = semantic_names[i].c_str();
-                    d3d_desc.SemanticIndex = input_entry.semantic_index;
-                    d3d_desc.Format = to_d3d_format(input_entry.format);
-                    d3d_desc.InputSlot = input_entry.input_slot;
-                    d3d_desc.AlignedByteOffset = input_entry.aligned_byte_offset;
-                    d3d_desc.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
-                    d3d_desc.InstanceDataStepRate = 0;
-                    num_input_elements++;
-                };
-            }
+                    D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc = {};
+                    pso_desc.InputLayout = { d3d_elements, num_input_elements };
+                    pso_desc.pRootSignature = root_signature;
+                    pso_desc.RasterizerState = rasterizer_desc;
+                    pso_desc.BlendState = d3d_blend_desc;
+                    pso_desc.DepthStencilState = to_d3d_depth_stencil_desc(desc.depth_stencil_state);
+                    pso_desc.SampleMask = UINT_MAX;
+                    pso_desc.PrimitiveTopologyType = to_d3d_topology_type(desc.topology_type);
+                    pso_desc.SampleDesc.Count = 1;
+                    if (desc.depth_buffer_format != BufferFormat::INVALID) {
+                        pso_desc.DSVFormat = to_d3d_format(desc.depth_buffer_format);
+                    }
+                    for (size_t i = 0; i < std::size(desc.rtv_formats); i++) {
+                        if (desc.rtv_formats[i] == BufferFormat::INVALID) break;
+                        pso_desc.RTVFormats[i] = to_d3d_format(desc.rtv_formats[i]);
+                        pso_desc.NumRenderTargets = i + 1;
+                    }
 
-            // Create a pipeline state object description, then create the object
-            D3D12_RASTERIZER_DESC rasterizer_desc = to_d3d_rasterizer_desc(desc.raster_state_desc);
+                    IDxcBlob* vertex_shader = cast_blob(shader_blobs->vertex_shader);
+                    IDxcBlob* pixel_shader = cast_blob(shader_blobs->pixel_shader);
+                    if (vertex_shader) {
+                        pso_desc.VS.BytecodeLength = vertex_shader->GetBufferSize();
+                        pso_desc.VS.pShaderBytecode = vertex_shader->GetBufferPointer();
+                    }
+                    if (pixel_shader) {
+                        pso_desc.PS.BytecodeLength = pixel_shader->GetBufferSize();
+                        pso_desc.PS.pShaderBytecode = pixel_shader->GetBufferPointer();
+                    }
 
-            const auto& blend_desc = desc.blend_state;
-            D3D12_BLEND_DESC d3d_blend_desc = { };
-            d3d_blend_desc.AlphaToCoverageEnable = blend_desc.alpha_to_coverage_enable;
-            d3d_blend_desc.IndependentBlendEnable = blend_desc.independent_blend_enable;
-            for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i) {
-                d3d_blend_desc.RenderTarget[i] = to_d3d_blend_desc(desc.blend_state.render_target_blend_descs[i]);
-            }
+                    DXCall(g_context.device->CreateGraphicsPipelineState(&pso_desc, IID_PPV_ARGS(&pipeline)));
 
-            D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc = {};
-            pso_desc.InputLayout = { d3d_elements, num_input_elements };
-            pso_desc.pRootSignature = root_signature;
-            pso_desc.RasterizerState = rasterizer_desc;
-            pso_desc.BlendState = d3d_blend_desc;
-            pso_desc.DepthStencilState = to_d3d_depth_stencil_desc(desc.depth_stencil_state);
-            pso_desc.SampleMask = UINT_MAX;
-            pso_desc.PrimitiveTopologyType = to_d3d_topology_type(desc.topology_type);
-            pso_desc.SampleDesc.Count = 1;
-            if (desc.depth_buffer_format != BufferFormat::INVALID) {
-                pso_desc.DSVFormat = to_d3d_format(desc.depth_buffer_format);
-            }
-            for (size_t i = 0; i < std::size(desc.rtv_formats); i++) {
-                if (desc.rtv_formats[i] == BufferFormat::INVALID) break;
-                pso_desc.RTVFormats[i] = to_d3d_format(desc.rtv_formats[i]);
-                pso_desc.NumRenderTargets = i + 1;
-            }
+                }
 
-            IDxcBlob* vertex_shader = cast_blob(shader_blobs->vertex_shader);
-            IDxcBlob* pixel_shader = cast_blob(shader_blobs->pixel_shader);
-            if (vertex_shader) {
-                pso_desc.VS.BytecodeLength = vertex_shader->GetBufferSize();
-                pso_desc.VS.pShaderBytecode = vertex_shader->GetBufferPointer();
-            }
-            if (pixel_shader) {
-                pso_desc.PS.BytecodeLength = pixel_shader->GetBufferSize();
-                pso_desc.PS.pShaderBytecode = pixel_shader->GetBufferPointer();
-            }
+                pipeline->SetName(name);
+                return pipeline;
+            };
+        }
 
-            DXCall(g_context.device->CreateGraphicsPipelineState(&pso_desc, IID_PPV_ARGS(&pipeline)));
+        PipelineStateHandle create_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const wchar* name)
+        {
+            return g_context.pipelines.push_back(private_create_pipeline_state_object(shader_blobs_handle,resource_layout_handle, desc, name));
+        }
 
-            pipeline->SetName(name);
-            return { g_context.pipelines.push_back(pipeline) };
-        };
+        ZecResult recreate_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const wchar* name, const PipelineStateHandle pipeline_state_handle)
+        {
+            ID3D12PipelineState* old_pipeline = g_context.pipelines[pipeline_state_handle];
+            ID3D12PipelineState* new_pipeline = private_create_pipeline_state_object(shader_blobs_handle, resource_layout_handle, desc, name);
+
+            // Assign new pipeline to old slot
+            g_context.pipelines[pipeline_state_handle] = new_pipeline;
+            // Destroy the old pipeline
+            g_context.destruction_queue.enqueue(g_context.current_cpu_frame, old_pipeline);
+            return ZecResult::SUCCESS;
+        }
+
     }
 
     namespace buffers

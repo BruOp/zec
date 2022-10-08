@@ -5,49 +5,29 @@
 
 namespace clustered
 {
-    struct ResourceIdentifier
+    template <typename T, size_t N>
+    constexpr zec::SettingsDesc define_setting(const char (&name)[N])
     {
-        u64 id;
-        const char* name;
-    };
+        return zec::SettingsDesc{
+            .identifier = ctcrc32(name),
+            .name = name,
+            .byte_size = sizeof(T)
+        };
+    }
 
     namespace Settings
     {
-        constexpr zec::SettingsDesc main_pass_view_cb = {
-            .identifier = ctcrc32("Main pass view cb"),
-            .name = "Main pass view cb",
-            .byte_size = sizeof(zec::BufferHandle),
-        };
+        constexpr zec::SettingsDesc main_pass_view_cb = define_setting<zec::BufferHandle>("Main pass view cb");
 
-        constexpr zec::SettingsDesc renderable_scene_ptr = {
-            .identifier = ctcrc32("Renderable Scene pointer"),
-            .name = "Renderable Scene pointer",
-            .byte_size = sizeof(RenderableScene*),
-        };
+        constexpr zec::SettingsDesc renderable_scene_ptr = define_setting<RenderableScene*>("Renderable Scene pointer");
 
-        constexpr zec::SettingsDesc cluster_grid_setup = {
-            .identifier = ctcrc32("Cluster Grid Setup"),
-            .name = "Cluster Grid Setup",
-            .byte_size = sizeof(ClusterGridSetup),
-        };
-        
-        constexpr zec::SettingsDesc background_cube_map = {
-            .identifier = ctcrc32("Background Cube Map"),
-            .name = "Background Cube Map",
-            .byte_size = sizeof(zec::TextureHandle),
-        };
-        
-        constexpr zec::SettingsDesc fullscreen_quad = {
-            .identifier = ctcrc32("Fullscreen Quad Mesh"),
-            .name = "Fullscreen Quad Mesh",
-            .byte_size = sizeof(zec::MeshHandle),
-        };
+        constexpr zec::SettingsDesc cluster_grid_setup = define_setting <ClusterGridSetup>("Cluster Grid Setup");
 
-        constexpr zec::SettingsDesc exposure = {
-            .identifier = ctcrc32("Tone Mapping Exposure"),
-            .name = "ToneMapping Exposure",
-            .byte_size = sizeof(float),
-        };
+        constexpr zec::SettingsDesc background_cube_map = define_setting <zec::TextureHandle>("Background Cube Map");
+
+        constexpr zec::SettingsDesc fullscreen_quad = define_setting <zec::MeshHandle>("Fullscreen Quad Mesh");
+
+        constexpr zec::SettingsDesc exposure = define_setting<float>("Tone Mapping Exposure");
     }
 
     namespace PassResources

@@ -1,9 +1,12 @@
 #include "render_task_system.h"
+#include <codecvt>
+#include <sstream>
+#include <stdexcept>
+
 #include "utils/utils.h"
 #include "gfx/profiling_utils.h"
 #include "cpu_tasks.h"
-#include <sstream>
-#include <codecvt>
+
 
 namespace zec
 {
@@ -70,6 +73,35 @@ namespace zec
             std::ostringstream ss{};
             ss << resource_usage.name << " was not registered with correct usage.";
             errors.push_back(ss.str());
+        }
+    }
+
+    void RenderTaskSystem::register_buffer_resources(const BufferPassResourceDesc in_resource_descs[], const size_t num_resources)
+    {
+        for (size_t i = 0; i < num_resources; ++i) {
+            auto& buffer_desc = in_resource_descs[i];
+            if (buffer_resource_descs.count(buffer_desc.identifier)) {
+                throw std::invalid_argument("Cannot register the same identifier multiple times!");
+            }
+            else {
+                buffer_resource_descs.insert({ buffer_desc.identifier, buffer_desc });
+            }
+        }
+    }
+
+    void RenderTaskSystem::register_texture_resources(const TexturePassResourceDesc in_resource_descs[], const size_t num_resources)
+    {
+        for (size_t i = 0; i < num_resources; ++i) {
+            auto& texture_resource_desc = in_resource_descs[i];
+            if (texture_resource_descs.count(texture_resource_desc.identifier)) {
+                throw std::invalid_argument("Cannot register the same identifier multiple times!");
+            }
+            else {
+                texture_resource_descs.insert({ texture_resource_desc.identifier, texture_resource_desc });
+                if (texture_resource_desc.sizing == Sizing::RELATIVE_TO_SWAP_CHAIN) {
+                    swap_chain_relative_resources.push_back(u32(texture_resource_desc.identifier));
+                }
+            }
         }
     }
 
@@ -292,9 +324,9 @@ namespace zec
             }
         }
 
-        for (auto& [_, desc] : pipeline_state_descs)
+        for (auto& [_, blobs] : shader_blobs)
         {
-            shader_compilation::release_blobs(desc.pipeline_desc.shader_blobs);
+            shader_compilation::release_blobs(blobs);
         }
     }
 
