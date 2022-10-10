@@ -13,6 +13,7 @@ namespace zec
         {
             data = (u8*)memory::virtual_reserve(nullptr, max_capacity);
         };
+
         ~VirtualPageAllocator()
         {
             if (data != nullptr) {

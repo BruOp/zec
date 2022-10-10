@@ -61,7 +61,9 @@ namespace zec
         MESH_ATTRIBUTE_TEXCOORD = (1 << 2),
         MESH_ATTRIBUTE_COLOR = (1 << 3),
         MESH_ATTRIBUTE_BLENDINDICES = (1 << 4),
-        MESH_ATTRIBUTE_BLENDWEIGHTS = (1 << 5)
+        MESH_ATTRIBUTE_BLENDWEIGHTS = (1 << 5),
+        MESH_ATTRIBUTE_TANGENT = (1 << 6),
+        MESH_ATTRIBUTE_INDICES = (1 << 7),
     };
 
     enum struct BufferType : u16
@@ -347,7 +349,7 @@ namespace zec
 
         // Used as optimized clear values when creating for render targets
         float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-        // Used as the optimized clear alue when creating a depth stencil target
+        // Used as the optimized clear value when creating a depth stencil target
         float clear_depth;
         u8 clear_stencil;
     };

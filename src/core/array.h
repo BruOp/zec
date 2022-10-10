@@ -14,6 +14,26 @@ namespace zec
         u32 size = 0;
     };
 
+    // Useful for pointing to memory managed by another service/system
+    template<typename T>
+    struct ArraySpan
+    {
+        u64 size = 0;
+        T* data = nullptr;
+
+        T operator[](const size_t index) const
+        {
+            ASSERT(index < size);
+            return data[index];
+        }
+
+        T& operator[](const size_t index)
+        {
+            ASSERT(index < size);
+            return data[index];
+        }
+    };
+
     template<typename T, size_t Capacity>
     class FixedArray
     {

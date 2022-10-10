@@ -450,7 +450,7 @@ namespace zec
             struct { vec3 v; float u; };
         };
 
-        quaternion() = default;
+        quaternion() : v(), u(0.0) {};
         quaternion(const float x, const float y, const float z, const float w) :
             x(x), y(y), z(z), w(w)
         { };

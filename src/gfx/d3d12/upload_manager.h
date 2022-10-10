@@ -10,11 +10,6 @@ namespace D3D12MA
     class Allocation;
 }
 
-namespace DirectX
-{
-    class ScratchImage;
-}
-
 namespace std
 {
     template<>

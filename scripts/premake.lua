@@ -160,6 +160,8 @@ project("zec_lib")
   }
 
 include("./tests.lua")
+include("./asset_lib.lua")
+include("./asset_converter.lua")
 include("./clustered_forward.lua")
 
 group "examples"
