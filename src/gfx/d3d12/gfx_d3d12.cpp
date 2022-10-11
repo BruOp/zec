@@ -770,7 +770,7 @@ namespace zec::gfx
         {
             ID3D12PipelineState* private_create_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const wchar* name)
             {
-                ASSERT(is_valid(desc.resource_layout));
+                ASSERT(is_valid(resource_layout_handle));
 
                 ID3D12RootSignature* root_signature = g_context.root_signatures[resource_layout_handle];
                 ID3D12PipelineState* pipeline = nullptr;

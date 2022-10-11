@@ -1,15 +1,28 @@
 #pragma once
 #include <span>
-//#include <stdexcept>
+#include <unordered_map>
 
 #include "core/virtual_page_allocator.h"
 #include "gfx/public_resources.h"
 #include "gfx/gfx.h"
-#include "gfx/render_system.h"
 
 namespace zec
 {
     class TaskScheduler;
+
+    template<typename T>
+    struct RenderPassResource
+    {
+        u32 identifier = UINT32_MAX;
+
+        u32 hash()
+        {
+            return std::hash(identifier);
+        }
+    };
+
+    using ResourceLayoutIdentifier = RenderPassResource<ResourceLayoutHandle>;
+    using PipelineStateIdentifier = RenderPassResource<PipelineStateHandle>;
 
     enum struct Sizing : u8
     {
@@ -172,21 +185,6 @@ namespace zec
         PerPassData* per_pass_data;
     };
 
-    struct RenderPassResourceLayoutDesc
-    {
-        u32 identifier = UINT32_MAX;
-        ResourceLayoutDesc resource_layout_desc;
-    };
-
-    struct RenderPassPipelineStateObjectDesc
-    {
-        std::wstring_view name = L"";
-        u32 identifier = UINT32_MAX;
-        u32 resource_layout_id = UINT32_MAX;
-        ShaderCompilationDesc shader_compilation_desc = {};
-        PipelineStateObjectDesc pipeline_desc = {};
-    };
-
     struct RenderPassTaskDesc
     {
         const std::string_view name = "";
@@ -194,8 +192,8 @@ namespace zec
         const RenderPassSetupFn setup_fn = nullptr;
         const RenderPassExecuteFn execute_fn = nullptr;
         const RenderPassTeardownFn teardown_fn = nullptr;
-        const std::span<RenderPassResourceLayoutDesc const> resource_layout_descs = { };
-        const std::span<RenderPassPipelineStateObjectDesc const> pipeline_descs = { };
+        const std::span<ResourceLayoutIdentifier const> resource_layout_ids = { };
+        const std::span<PipelineStateIdentifier const> pipeline_ids = { };
         const std::span<SettingsDesc const> settings = {};
         const std::span<RenderPassResourceUsage const> inputs = {};
         const std::span<RenderPassResourceUsage const> outputs = {};
@@ -252,8 +250,9 @@ namespace zec
 
         //RenderPassHandle register_render_pass(const RenderPassTaskDesc& render_pass_task_desc);
         void register_buffer_resources(const BufferPassResourceDesc in_resource_descs[], const size_t num_resources);
-
         void register_texture_resources(const TexturePassResourceDesc in_resource_descs[], const size_t num_resources);
+        void register_resource_layout(const ResourceLayoutHandle resource_layout, const ResourceLayoutIdentifier id);
+        void register_pipeline_state_object(const PipelineStateHandle pso, const PipelineStateIdentifier id);
 
         template<typename TSetting>
         void register_settings(const u32 settings_id)
@@ -277,13 +276,11 @@ namespace zec
         Array<ResourceState> resource_states;
         Array<u32> swap_chain_relative_resources;
 
-        std::unordered_map<u32, ResourceLayoutHandle> resource_layouts;
-        std::unordered_map<u32, PipelineStateHandle> pipelines;
+        std::unordered_map<ResourceLayoutIdentifier, ResourceLayoutHandle> resource_layouts;
+        std::unordered_map<PipelineStateIdentifier, PipelineStateHandle> pipelines;
         ResourceMap resource_map;
         SettingsData settings;
 
-        std::unordered_map<u32, RenderPassResourceLayoutDesc> resource_layout_descs;
-        std::unordered_map<u32, RenderPassPipelineStateObjectDesc> pipeline_state_descs;
         std::unordered_map<u32, BufferPassResourceDesc> buffer_resource_descs;
         std::unordered_map<u32, TexturePassResourceDesc> texture_resource_descs;
     };

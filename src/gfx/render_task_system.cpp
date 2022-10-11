@@ -213,33 +213,17 @@ namespace zec
                 settings.create_settings(setting_desc);
             }
 
-            // Register resource layouts, pipeline states and settings
-            for (const auto& resource_layout_desc : render_pass_desc.resource_layout_descs) {
-                if (resource_layout_descs.count(resource_layout_desc.identifier) == 0) {
-                    resource_layout_descs.insert({ resource_layout_desc.identifier, resource_layout_desc });
+            // Check if resource layout alreay exists, pipeline states and settings
+            for (const auto& resource_layout_id : render_pass_desc.resource_layout_ids) {
+                if (resource_layouts.count(resource_layout_id) == 0) {
+                    // Complain if the resource layout has not been registered
                 }
             }
 
             // Register resource layouts, pipeline states and settings
-            for (const auto& pipeline_desc : render_pass_desc.pipeline_descs) {
-                if (pipeline_state_descs.count(pipeline_desc.identifier) == 0) {
-                    RenderPassPipelineStateObjectDesc out_pipeline_desc = pipeline_desc;
-                    // Try to compile the shaders here
-                    {
-                        ShaderBlobsHandle shader_blobs;
-
-                        std::string shader_compilation_errors = {};
-                        ZecResult res = gfx::shader_compilation::compile_shaders(out_pipeline_desc.shader_compilation_desc, shader_blobs, shader_compilation_errors);
-                        if (res == ZecResult::FAILURE)
-                        {
-                            errors.push_back(std::move(shader_compilation_errors));
-                        }
-                        else {
-                            out_pipeline_desc.pipeline_desc.shader_blobs = shader_blobs;
-                        }
-                        // We'll insert either just so we don't repeatedly try to compile invalid shaders
-                        pipeline_state_descs.insert({ pipeline_desc.identifier, out_pipeline_desc});
-                    }
+            for (const auto& pipeline_id : render_pass_desc.pipeline_ids) {
+                if (pipelines.count(pipeline_id) == 0) {
+                    // Complain if the pipeline has not been registered
                 }
             }
         }
