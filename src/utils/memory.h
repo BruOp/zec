@@ -1,6 +1,8 @@
 
 #pragma once
 #include <malloc.h>
+#include <memory.h>
+
 #include "utils/assert.h"
 #include "utils/sys_info.h"
 #include "core/zec_types.h"

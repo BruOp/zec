@@ -37,6 +37,8 @@ namespace zec::gfx
         gfx::shader_compilation::release_blobs(blobs_handle);
 
         // Save this stuff for future recompilation
+        out_handle.idx = descs.size;
+        ASSERT(descs.size == handles.size);
         descs.push_back(
             {
                 .blobs_desc = shader_blob_desc,
@@ -48,6 +50,8 @@ namespace zec::gfx
             .pso_handle = pipeline_id,
             });
         ASSERT(descs.size == handles.size);
+
+        return out_handle;
     }
 
     ZecResult PipelineCompilationManager::recompile_pipeline(const wchar* name, const PipelineCompilationHandle compilation_handle, std::string& inout_errors)

@@ -77,8 +77,9 @@ namespace clustered
         RenderableScene renderable_scene;
         RenderableCamera renderable_camera;
 
-        RenderTaskSystem render_task_system = {};
-        RenderTaskListHandle complete_task_list = {};
+        render_graph::ResourceContext resource_context = {};
+        render_graph::ShaderStore shader_store = {};
+        render_graph::RenderTaskList render_task_list = {};
 
         TaskScheduler task_scheduler{};
 
@@ -320,56 +321,42 @@ namespace clustered
                 }
             }
 
+            // "Managed" resources
             {
+                resource_context.set_backbuffer_id(pass_resources::SDR_TARGET);
+                resource_context.register_texture(pass_resource_descs::DEPTH_TARGET);
+                resource_context.register_texture(pass_resource_descs::HDR_TARGET);
+
+                // Create light index buffers
                 size_t num_clusters = CLUSTER_SETUP.width * CLUSTER_SETUP.height * (CLUSTER_SETUP.pre_mid_depth + CLUSTER_SETUP.post_mid_depth);
-                auto spot_light_indices_desc = PassResources::SPOT_LIGHT_INDICES;
-                auto point_light_indices_desc = PassResources::POINT_LIGHT_INDICES;
+                auto spot_light_indices_desc = pass_resource_descs::SPOT_LIGHT_INDICES;
+                auto point_light_indices_desc = pass_resource_descs::POINT_LIGHT_INDICES;
                 spot_light_indices_desc.desc.byte_size = num_clusters * (ClusterGridSetup::MAX_LIGHTS_PER_BIN + 1) * sizeof(u32);
                 point_light_indices_desc.desc.byte_size = num_clusters * (ClusterGridSetup::MAX_LIGHTS_PER_BIN + 1) * sizeof(u32);
 
-                BufferPassResourceDesc buffer_resources[] = {
-                    spot_light_indices_desc,
-                    point_light_indices_desc,
-                };
-                render_task_system.register_buffer_resources(buffer_resources, std::size(buffer_resources));
+                resource_context.register_buffer(spot_light_indices_desc);
+                resource_context.register_buffer(point_light_indices_desc);
             }
 
-            TexturePassResourceDesc texture_resources[] = {
-                PassResources::DEPTH_TARGET,
-                PassResources::HDR_TARGET,
+            const render_graph::PassDesc* render_pass_task_descs[] = {
+                    &depth_pass_desc,
+                    &light_binning_desc,
+                    &background_pass_desc,
+                    &forward_pass_desc,
+                    &tone_mapping_pass_desc,
             };
-            render_task_system.register_texture_resources(texture_resources, std::size(texture_resources));
 
-            RenderPassTaskDesc render_pass_task_descs[] = {
-                    depth_pass_desc,
-                    light_binning_desc,
-                    background_pass_desc,
-                    forward_pass_desc,
-                    tone_mapping_pass_desc,
-            };
-            RenderTaskListDesc task_list_desc = {
-                .backbuffer_resource_id = PassResources::SDR_TARGET.identifier,
-                .render_pass_task_descs = render_pass_task_descs,
-            };
-            std::vector<std::string> errors{};
-            complete_task_list = render_task_system.create_render_task_list(task_list_desc, errors);
-
-
-            for (const auto& error : errors) {
-                write_log(error.c_str());
+            for (const render_graph::PassDesc* pass_desc : render_pass_task_descs)
+            {
+                render_task_list.add_pass(*pass_desc);
             }
-            if (errors.size() != 0) {
-                throw std::runtime_error("Render Pass Task List was invalid :(");
-            };
 
-            render_task_system.complete_setup();
-            // TODO: Make validation ensure these have already been set rather than relying on us to define them.
-            render_task_system.set_setting(Settings::exposure.identifier, 1.0f);
-            render_task_system.set_setting(Settings::background_cube_map.identifier, radiance_map);
-            render_task_system.set_setting(Settings::fullscreen_quad.identifier, fullscreen_mesh);
-            render_task_system.set_setting(Settings::cluster_grid_setup.identifier, CLUSTER_SETUP);
-            render_task_system.set_setting(Settings::main_pass_view_cb.identifier, renderable_camera.view_constant_buffer);
-            render_task_system.set_setting(Settings::renderable_scene_ptr.identifier, &renderable_scene);
+            render_task_list.set_settings(settings::EXPOSURE, 1.0f);
+            render_task_list.set_settings(settings::BACKGROUND_CUBE_MAP, radiance_map);
+            render_task_list.set_settings(settings::FULLSCREEN_QUAD, fullscreen_mesh);
+            render_task_list.set_settings(settings::CLUSTER_GRID_SETUP, CLUSTER_SETUP);
+            render_task_list.set_settings(settings::MAIN_PASS_VIEW_CB, renderable_camera.view_constant_buffer);
+            render_task_list.set_settings(settings::RENDERABLE_SCENE_PTR, &renderable_scene);
 
             gfx::cmd::cpu_wait(receipt);
         }
@@ -398,7 +385,7 @@ namespace clustered
 
         void render() override final
         {
-            render_task_system.execute(complete_task_list, task_scheduler);
+            render_task_list.execute(/*task_scheduler*/);
         }
 
         void before_reset() override final

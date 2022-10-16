@@ -5,31 +5,40 @@
 
 #include "../core/zec_types.h"
 #include "../core/array.h"
-#include "../core/virtual_page_allocator.h"
+#include "../core/linear_allocator.h"
 #include "public_resources.h"
-namespace zec::gfx::render_graph
+
+namespace zec::render_graph
 {
-   struct ResourceIdentifier
+    struct ResourceIdentifier
     {
         u32 identifier = UINT32_MAX;
 
-        u32 hash()
-        {
-            return identifier;
-        }
+        bool operator==(const ResourceIdentifier& other) const = default;
     };
 
+    //bool operator==(const ResourceIdentifier& lhs, const ResourceIdentifier& rhs)
+    //{
+    //    return lhs.identifier == rhs.identifier;
+    //}
+}
+
+
+template<>
+struct std::hash<zec::render_graph::ResourceIdentifier>
+{
+    size_t operator()(const zec::render_graph::ResourceIdentifier& id) const
+    {
+        return static_cast<size_t>(id.identifier);
+    }
+};
+
+namespace zec::render_graph
+{
     enum struct Sizing : u8
     {
         RELATIVE_TO_SWAP_CHAIN = 0,
         ABSOLUTE,
-    };
-
-    enum struct PassResourceType : u8
-    {
-        INVALID = 0,
-        BUFFER,
-        TEXTURE,
     };
 
     // TODO: Also support resizing here,but using a divisor -- to enable for instance resizing tile buffers
@@ -45,6 +54,7 @@ namespace zec::gfx::render_graph
     {
         ResourceIdentifier identifier = {};
         std::string_view name = "";
+        // TODO: Re-evaluate whether this data will be managed by ResourceContext at all, and if not, ditch it
         // If sizing == Sizing::RELATIVE_TO_SWAP_CHAIN, then the width and height in the texture_desc are
         // ignored and instead, relative_width_factor * swap_chain.width is used instead. (Same for height)
         Sizing sizing = Sizing::ABSOLUTE;
@@ -54,12 +64,14 @@ namespace zec::gfx::render_graph
         TextureDesc desc = {};
     };
 
-
     class ResourceContext
     {
     public:
         void register_buffer(const BufferResourceDesc& buffer_desc);
         void register_texture(const TextureResourceDesc& buffer_desc);
+
+        // Sets an id so that when a pass writes to these resources, they're really just writing to the backbuffer
+        void set_backbuffer_id(const ResourceIdentifier backbuffer_id);
 
         // TODO void handle_resize(u32 width, u32 height);
         const void set_resource_state(const ResourceIdentifier id, const ResourceUsage resource_usage);
@@ -69,13 +81,12 @@ namespace zec::gfx::render_graph
         ResourceUsage get_resource_state(const ResourceIdentifier resource_identifier) const;
 
     private:
-
-        std::unordered_map<ResourceIdentifier, BufferHandle> buffers;
-        std::unordered_map<ResourceIdentifier, TextureHandle> textures;
+        std::unordered_map<ResourceIdentifier, BufferHandle[RENDER_LATENCY]> buffers;
+        std::unordered_map<ResourceIdentifier, TextureHandle[RENDER_LATENCY]> textures;
         std::unordered_map< ResourceIdentifier, ResourceUsage> resource_states;
     };
 
-    class ShaderContext
+    class ShaderStore
     {
     public:
         void register_resource_layout(const ResourceIdentifier id, const ResourceLayoutHandle handle);
@@ -89,60 +100,54 @@ namespace zec::gfx::render_graph
         std::unordered_map<ResourceIdentifier, PipelineStateHandle> pipelines;
     };
 
-    struct SettingsDesc
+    class PassDataStore
     {
-        u32 identifier = 0;
-        std::string_view name = "";
-        size_t byte_size = 0;
-    };
-
-    class SettingsContext
-    {
-        struct SettingsEntry
+        struct DataEntry
         {
             void* ptr = nullptr;
             const size_t byte_size = 0;
         };
     public:
-        // Returns false if the settings already exist
-        bool create_settings(const SettingsDesc& desc)
+
+        template<typename T>
+        void emplace(const ResourceIdentifier id, const T& data)
         {
-            bool needs_creation = entries.count(desc.identifier) == 0;
-            if (needs_creation) {
-                void* ptr = allocator.allocate(desc.byte_size);
-                entries.insert({ desc.identifier, { ptr, desc.byte_size } });
-                memset(ptr, 0, desc.byte_size);
+            if (entries.count(id) == 0)
+            {
+                T* ptr = reinterpret_cast<T*>(allocator.allocate(sizeof(T)));
+                *ptr = data;
+                entries.insert({ id, { ptr, sizeof(T) }});
             }
-            else {
-                ASSERT_MSG(entries[desc.identifier].byte_size == desc.byte_size, "Size mismatch for setting %s, this setting has \
-                    already been registered under the same name but with a different byte size", desc.name);
+            else
+            {
+                ASSERT_MSG(entries[id].byte_size == sizeof(T), "Size mismatch for setting %s, this setting has \
+                    already been registered under the same identifier but with a different byte size");
             }
-            return needs_creation;
         }
 
         template<typename T>
-        void set_settings(u32 settings_id, const T data)
+        void set(const ResourceIdentifier id, const T data)
         {
-            ASSERT(entries.count(settings_id) == 1);
-            SettingsEntry& entry = entries.at(settings_id);
+            DataEntry& entry = entries.at(id);
             ASSERT(entry.byte_size == sizeof(T))
             *static_cast<T*>(entry.ptr) = data;
         }
 
         template<typename T>
-        const T get_settings(u32 settings_id) const
+        const T& get(const ResourceIdentifier id) const
         {
-            ASSERT(entries.count(settings_id) == 1);
-            SettingsEntry& entry = entries.at(settings_id);
+            const DataEntry& entry = entries.at(id);
             ASSERT(entry.byte_size == sizeof(T));
-            return *static_cast<T*>(entries.at(settings_id).ptr);
+            return *static_cast<const T*>(entries.at(id).ptr);
         }
 
     private:
-        VirtualPageAllocator allocator = {};
-        std::unordered_map<u32, SettingsEntry> entries = {};
+        FixedLinearAllocator<1024> allocator = {};
+        std::unordered_map<ResourceIdentifier, DataEntry> entries = {};
     };
 
+    using SettingsStore = PassDataStore;
+    using PerPassDataStore = PassDataStore;
 
     enum struct PassResourceType : u8
     {
@@ -153,52 +158,76 @@ namespace zec::gfx::render_graph
 
     struct PassResourceUsage
     {
-        u32 identifier = UINT32_MAX;
+        ResourceIdentifier identifier = {};
         PassResourceType type = PassResourceType::INVALID;
         ResourceUsage usage = RESOURCE_USAGE_UNUSED;
-        std::string_view name = "";
     };
-    
-    typedef void(*PassExecuteFn)(const ResourceContext* resource_contex, const ShaderContext* shader_context, const SettingsContext* settings_context);
+
+    struct PassExecutionContext
+    {
+        const ResourceContext* resource_context = nullptr;
+        const ShaderStore* shader_context = nullptr;
+        const SettingsStore* settings_context = nullptr;
+        const PerPassDataStore* per_pass_data_store = nullptr;
+        CommandContextHandle cmd_context = {};
+    };
+
+    typedef void(*PassSetupFn)(const SettingsStore* settings_context, PerPassDataStore* per_pass_data_store);
+    typedef void(*PassExecuteFn)(const PassExecutionContext* execution_context);
+    typedef void(*PassTeardownFn)(PerPassDataStore* per_pass_data_store);
+    // TODO: On settings change? We'll need to handle settings changes for passes that rely on them to create resources in Setup
 
     struct PassDesc
     {
         const std::string_view name = "";
         const CommandQueueType command_queue_type = CommandQueueType::GRAPHICS;
+        const PassSetupFn setup_fn = nullptr;
         const PassExecuteFn execute_fn = nullptr;
-        const std::span<ResourceIdentifier const> resource_layout_ids = { };
-        const std::span<ResourceIdentifier const> pipeline_ids = { };
+        const PassTeardownFn teardown_fn = nullptr;
+        // TODO: Are these really necessary? Is upfront validation really going to be that useful?
+        // TODO: Do we want to validate settings?
+        //const std::span<ResourceIdentifier const> resource_layout_ids = { };
+        //const std::span<ResourceIdentifier const> pipeline_ids = { };
         const std::span<PassResourceUsage const> inputs = {};
         const std::span<PassResourceUsage const> outputs = {};
     };
 
-    // TOD: DO we need an "Execution" context?
-
-    /*class RenderTaskList
-    {
-    public:
-        u32 backbuffer_resource_id;
-        std::vector<PassTask> render_pass_tasks = {};
-        std::vector<PassResourceTransitionDesc> resource_transition_descs = {};
-        std::vector<CmdReceipt> receipts = {};
-        std::vector<CommandContextHandle> cmd_contexts = {};
-        std::vector<PerPassData> per_pass_data = {};
-    };*/
-
     class RenderTaskList
     {
     public:
-        RenderTaskList(ResourceContext* resource_context, ShaderContext* shader_context, SettingsContext* settings_context);
+        RenderTaskList() = default;
+        RenderTaskList(ResourceContext* resource_context, ShaderStore* shader_context, SettingsStore* settings_context);
+        ~RenderTaskList() = default;
 
-        ZecResult add_pass(const PassDesc& render_pass_desc, std::string& out_error_string);
+        ZecResult add_pass(const PassDesc& render_pass_desc/*, std::string& out_error_string*/);
 
         void execute(/*TaskScheduler& task_scheduler*/);
 
+        template<typename T>
+        void create_settings(const ResourceIdentifier& id, T&& data)
+        {
+            settings_context.emplace(id, data);
+        };
+
+        template<typename T>
+        T get_settings(const ResourceIdentifier settings_id) const
+        {
+            return settings_context.get(settings_id);
+        };
+
+        template<typename T>
+        void set_settings(const ResourceIdentifier settings_id, const T data)
+        {
+            settings_context.set(settings_id, data);
+        }
+
+
     private:
         std::vector<PassDesc> pass_descs = {};
+        // TODO: Our render graph doesn't need to manage resource sizes, that can be a separate system.
         ResourceContext* resource_context = nullptr;
-        ShaderContext* shader_context = nullptr;
-        SettingsContext* settings_context = nullptr;
-
+        ShaderStore* shader_context = nullptr;
+        SettingsStore settings_context = {};
+        PerPassDataStore per_pass_data_store = {};
     };
 }

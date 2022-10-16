@@ -22,6 +22,9 @@ namespace zec::gfx::dx12
         return handle;
     }
 
+    // TODO: Add function for destroying individual textures
+
+    // TODO: Rename this function so it's not confusing
     void TextureList::destroy(void(*resource_destruction_callback)(ID3D12Resource*, D3D12MA::Allocation*), void(*descriptor_destruction_callback)(DescriptorRangeHandle))
     {
         for (size_t i = 0; i < count; i++) {
