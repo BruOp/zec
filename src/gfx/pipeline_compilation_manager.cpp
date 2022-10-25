@@ -5,15 +5,6 @@
 
 namespace zec::gfx
 {
-    PipelineCompilationManager::PipelineCompilationManager()
-    {
-
-    }
-
-    PipelineCompilationManager::~PipelineCompilationManager()
-    {
-    }
-
     PipelineCompilationHandle PipelineCompilationManager::create_pipeline(
         const wchar* name,
         const ShaderCompilationDesc& shader_blob_desc,
@@ -77,4 +68,14 @@ namespace zec::gfx
 
         return res;
     }
+
+    ResourceLayoutHandle PipelineCompilationManager::get_resource_layout(const PipelineCompilationHandle handle)
+    {
+        return handles[handle.idx].resource_layout_handle;
+    };
+
+    PipelineStateHandle PipelineCompilationManager::get_pipeline_state_handle(const PipelineCompilationHandle handle)
+    {
+        return handles[handle.idx].pso_handle;
+    };
 }

@@ -5,5 +5,8 @@
 
 namespace clustered
 {
-    extern const zec::RenderPassTaskDesc tone_mapping_pass_desc;
+    namespace tone_mapping_pass
+    {
+        extern const zec::render_graph::PassDesc pass_desc;
+    }
 }

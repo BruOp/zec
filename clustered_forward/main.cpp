@@ -10,6 +10,7 @@
 #include "camera.h"
 #include "gltf_loading.h"
 #include "gfx/render_task_system.h"
+#include "gfx/pipeline_compilation_manager.h"
 
 #include "pass_resources.h"
 #include "bounding_meshes.h"
@@ -76,6 +77,8 @@ namespace clustered
         // Rendering Data
         RenderableScene renderable_scene;
         RenderableCamera renderable_camera;
+
+        gfx::PipelineCompilationManager pipeline_compilation_manager = {};
 
         render_graph::ResourceContext resource_context = {};
         render_graph::ShaderStore shader_store = {};
@@ -323,6 +326,7 @@ namespace clustered
 
             // "Managed" resources
             {
+                resource_context.set_render_config_state(gfx::get_config_state());
                 resource_context.set_backbuffer_id(pass_resources::SDR_TARGET);
                 resource_context.register_texture(pass_resource_descs::DEPTH_TARGET);
                 resource_context.register_texture(pass_resource_descs::HDR_TARGET);
@@ -338,25 +342,75 @@ namespace clustered
                 resource_context.register_buffer(point_light_indices_desc);
             }
 
-            const render_graph::PassDesc* render_pass_task_descs[] = {
-                    &depth_pass_desc,
-                    &light_binning_desc,
-                    &background_pass_desc,
-                    &forward_pass_desc,
-                    &tone_mapping_pass_desc,
-            };
-
-            for (const render_graph::PassDesc* pass_desc : render_pass_task_descs)
+            // Pipelines and resource layouts
             {
-                render_task_list.add_pass(*pass_desc);
+                // TODO: Do we need to define this as part of the PipelineCompilation interface?
+                struct PipelineCompilationDesc
+                {
+                    std::wstring_view name;
+                    Shaders shader;
+                    ResourceLayouts resource_layout;
+                    Pipelines pso;
+                };
+
+                constexpr PipelineCompilationDesc pipeline_comp_descs[] = {
+                    { L"Depth", DEPTH_PASS_SHADER, DEPTH_PASS_RESOURCE_LAYOUT, DEPTH_PASS_PIPELINE },
+                    { L"Point Light Binning", LIGHT_BINNING_PASS_POINT_LIGHT_SHADER, LIGHT_BINNING_PASS_RESOURCE_LAYOUT, LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE },
+                    { L"Spot Light Binning", LIGHT_BINNING_PASS_SPOT_LIGHT_SHADER, LIGHT_BINNING_PASS_RESOURCE_LAYOUT, LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE },
+                    { L"Background Pass", BACKGROUND_PASS_SHADER, BACKGROUND_PASS_RESOURCE_LAYOUT, BACKGROUND_PASS_PIPELINE },
+                    { L"Forward", FORWARD_PASS_SHADER, FORWARD_PASS_RESOURCE_LAYOUT, FORWARD_PASS_PIPELINE },
+                    { L"Tone Mapping", TONE_MAPPING_PASS_SHADER, TONE_MAPPING_PASS_RESOURCE_LAYOUT, TONE_MAPPING_PASS_PIPELINE }
+                };
+
+                // TODO -- Just use wstring for errors
+                std::string errors = {};
+                gfx::PipelineCompilationHandle result;
+                for (const auto& desc : pipeline_comp_descs)
+                {
+                    result = pipeline_compilation_manager.create_pipeline(desc.name.data(), get_shader_compilation_desc(desc.shader), get_resource_layout_desc(desc.resource_layout), get_pipeline_desc(desc.pso), errors);
+                    ASSERT_MSG(errors.empty() && is_valid(result), "Shader compilation failure: %s", errors);
+
+                    if (!shader_store.has_resource_layout({ desc.resource_layout }))
+                    {
+                        shader_store.register_resource_layout({ desc.resource_layout }, pipeline_compilation_manager.get_resource_layout(result));
+                    }
+
+                    if (!shader_store.has_pipeline({ desc.pso }))
+                    {
+                        shader_store.register_pipeline({ desc.pso }, pipeline_compilation_manager.get_pipeline_state_handle(result));
+                    }
+                }
             }
 
-            render_task_list.set_settings(settings::EXPOSURE, 1.0f);
-            render_task_list.set_settings(settings::BACKGROUND_CUBE_MAP, radiance_map);
-            render_task_list.set_settings(settings::FULLSCREEN_QUAD, fullscreen_mesh);
-            render_task_list.set_settings(settings::CLUSTER_GRID_SETUP, CLUSTER_SETUP);
-            render_task_list.set_settings(settings::MAIN_PASS_VIEW_CB, renderable_camera.view_constant_buffer);
-            render_task_list.set_settings(settings::RENDERABLE_SCENE_PTR, &renderable_scene);
+            // Build task list
+            {
+                render_graph::PassListBuilder pass_list_builder{ &render_task_list };
+                pass_list_builder.set_resource_context(&resource_context);
+                pass_list_builder.set_shader_store(&shader_store);
+
+                const render_graph::PassDesc* render_pass_task_descs[] = {
+                        &depth_pass::pass_desc,
+                        &light_binning_pass::pass_desc,
+                        &background_pass::pass_desc,
+                        &forward_pass::pass_desc,
+                        &tone_mapping_pass::pass_desc,
+                };
+
+                for (const render_graph::PassDesc* pass_desc : render_pass_task_descs)
+                {
+                    render_graph::PassListBuilder::Result res = pass_list_builder.add_pass(*pass_desc);
+                    ASSERT(res.get_code() == render_graph::PassListBuilder::StatusCodes::SUCCESS);
+                }
+            }
+
+            render_task_list.create_settings(settings::EXPOSURE, 1.0f);
+            render_task_list.create_settings(settings::BACKGROUND_CUBE_MAP, radiance_map);
+            render_task_list.create_settings(settings::FULLSCREEN_QUAD, fullscreen_mesh);
+            render_task_list.create_settings(settings::CLUSTER_GRID_SETUP, CLUSTER_SETUP);
+            render_task_list.create_settings(settings::MAIN_PASS_VIEW_CB, renderable_camera.view_constant_buffer);
+            render_task_list.create_settings(settings::RENDERABLE_SCENE_PTR, &renderable_scene);
+
+            render_task_list.setup();
 
             gfx::cmd::cpu_wait(receipt);
         }

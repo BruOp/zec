@@ -24,8 +24,8 @@ namespace zec::gfx
         };
 
     public:
-        PipelineCompilationManager();
-        ~PipelineCompilationManager();
+        PipelineCompilationManager() = default;
+        ~PipelineCompilationManager() = default;
 
         PipelineCompilationHandle create_pipeline(
             const wchar* name,
@@ -34,7 +34,10 @@ namespace zec::gfx
             const PipelineStateObjectDesc& pipeline_desc,
             std::string& inout_errors);
 
-        ZecResult recompile_pipeline(const wchar* name, const PipelineCompilationHandle index, std::string& inout_errors);
+        ZecResult recompile_pipeline(const wchar* name, const PipelineCompilationHandle handle, std::string& inout_errors);
+
+        ResourceLayoutHandle get_resource_layout(const PipelineCompilationHandle handle);
+        PipelineStateHandle get_pipeline_state_handle(const PipelineCompilationHandle handle);
     private:
         Array<RecompilationData> descs;
         Array<Handles> handles;

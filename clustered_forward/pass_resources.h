@@ -28,12 +28,53 @@ namespace clustered
         MAKE_IDENTIFIER(POINT_LIGHT_INDICES);
     }
 
+    enum ResourceLayouts : u32
+    {
+        DEPTH_PASS_RESOURCE_LAYOUT = 0,
+        BACKGROUND_PASS_RESOURCE_LAYOUT,
+        FORWARD_PASS_RESOURCE_LAYOUT,
+        TONE_MAPPING_PASS_RESOURCE_LAYOUT,
+        LIGHT_BINNING_PASS_RESOURCE_LAYOUT,
+        CLUSTERED_DEBUG_PASS_RESOURCE_LAYOUT,
+        RESOURCE_LAYOUT_COUNT
+    };
+
+
+    enum Shaders : u32
+    {
+        DEPTH_PASS_SHADER = 0,
+        BACKGROUND_PASS_SHADER,
+        FORWARD_PASS_SHADER,
+        TONE_MAPPING_PASS_SHADER,
+        LIGHT_BINNING_PASS_SPOT_LIGHT_SHADER,
+        LIGHT_BINNING_PASS_POINT_LIGHT_SHADER,
+        CLUSTERED_DEBUG_PASS_SHADER,
+        SHADERS_COUNT
+    };
+
+
+    enum Pipelines : u32
+    {
+        DEPTH_PASS_PIPELINE = 0,
+        BACKGROUND_PASS_PIPELINE,
+        FORWARD_PASS_PIPELINE,
+        TONE_MAPPING_PASS_PIPELINE,
+        LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE,
+        LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE,
+        CLUSTERED_DEBUG_PASS_PIPELINE,
+        PIPELINES_COUNT,
+    };
+
+    zec::ResourceLayoutDesc get_resource_layout_desc(const ResourceLayouts& layouts_enum);
+    zec::ShaderCompilationDesc get_shader_compilation_desc(const Shaders& shaders_enum);
+    zec::PipelineStateObjectDesc get_pipeline_desc(const Pipelines& pipelines_enum);
+
     namespace pass_resource_descs
     {
-        constexpr zec::render_graph::TextureResourceDesc DEPTH_TARGET;
-        constexpr zec::render_graph::TextureResourceDesc HDR_TARGET;
-        constexpr zec::render_graph::TextureResourceDesc SDR_TARGET;
-        constexpr zec::render_graph::BufferResourceDesc SPOT_LIGHT_INDICES;
-        constexpr zec::render_graph::BufferResourceDesc POINT_LIGHT_INDICES;
+        extern zec::render_graph::TextureResourceDesc DEPTH_TARGET;
+        extern zec::render_graph::TextureResourceDesc HDR_TARGET;
+        extern zec::render_graph::TextureResourceDesc SDR_TARGET;
+        extern zec::render_graph::BufferResourceDesc SPOT_LIGHT_INDICES;
+        extern zec::render_graph::BufferResourceDesc POINT_LIGHT_INDICES;
     }
 }

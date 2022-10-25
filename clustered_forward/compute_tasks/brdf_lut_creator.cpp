@@ -37,11 +37,8 @@ namespace clustered
         ASSERT_MSG(is_success(res), errors.c_str());
 
         // Create the Pipeline State Object
-        PipelineStateObjectDesc pipeline_desc = {
-            .resource_layout = resource_layout,
-            .shader_blobs = blobs
-        };
-        pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc, L"BRDF Creation");
+        PipelineStateObjectDesc pipeline_desc = {};
+        pso_handle = gfx::pipelines::create_pipeline_state_object(blobs, resource_layout, pipeline_desc, L"BRDF Creation");
 
         gfx::shader_compilation::release_blobs(blobs);
     }

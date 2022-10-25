@@ -2,125 +2,83 @@
 #include "../renderable_scene.h"
 #include "gfx/gfx.h"
 #include "utils/crc_hash.h"
+#include "../pass_resources.h"
 
 using namespace zec;
+using namespace zec::render_graph;
 
-namespace clustered
+namespace clustered::light_binning_pass
 {
-    enum struct BindingSlots : u32
+    namespace
     {
-        CLUSTER_GRID_CONSTANTS = 0,
-        VIEW_CONSTANTS,
-        SCENE_CONSTANTS,
-        READ_BUFFERS_TABLE,
-        WRITE_BUFFERS_TABLE,
-    };
-
-    struct LightBinningPassData
-    {
-        BufferHandle cluster_grid_cb;
-    };
-    static_assert(sizeof(LightBinningPassData) < sizeof(PerPassData));
-
-    struct ClusterGridConstants
-    {
-        ClusterGridSetup setup;
-        u32 spot_light_indices_list_idx;
-        u32 point_light_indices_list_idx;
-    };
-
-    constexpr RenderPassResourceUsage outputs[] = {
+        enum struct BindingSlots : u32
         {
-            .identifier = PassResources::SPOT_LIGHT_INDICES.identifier,
-            .type = PassResourceType::BUFFER,
-            .usage = RESOURCE_USAGE_COMPUTE_WRITABLE,
-            .name = PassResources::SPOT_LIGHT_INDICES.name,
+            CLUSTER_GRID_CONSTANTS = 0,
+            VIEW_CONSTANTS,
+            SCENE_CONSTANTS,
+            READ_BUFFERS_TABLE,
+            WRITE_BUFFERS_TABLE,
+        };
+
+        struct ClusterGridConstants
+        {
+            ClusterGridSetup setup;
+            u32 spot_light_indices_list_idx;
+            u32 point_light_indices_list_idx;
+        };
+
+        struct LightBinningPassData
+        {
+            BufferHandle cluster_grid_cb;
+        };
+        MAKE_IDENTIFIER(LIGHT_BINNING_PASS_DATA);
+
+    }
+
+
+    constexpr render_graph::PassResourceUsage outputs[] = {
+        {
+            .identifier = pass_resources::SPOT_LIGHT_INDICES,
+            .type = render_graph::PassResourceType::BUFFER,
+            .usage = RESOURCE_USAGE_COMPUTE_WRITABLE
         },
         {
-            .identifier = PassResources::POINT_LIGHT_INDICES.identifier,
-            .type = PassResourceType::BUFFER,
-            .usage = RESOURCE_USAGE_COMPUTE_WRITABLE,
-            .name = PassResources::POINT_LIGHT_INDICES.name,
+            .identifier = pass_resources::POINT_LIGHT_INDICES,
+            .type = render_graph::PassResourceType::BUFFER,
+            .usage = RESOURCE_USAGE_COMPUTE_WRITABLE
         }
     };
 
-    constexpr RenderPassResourceLayoutDesc resource_layout_descs[] = { {
-        .identifier = ctcrc32("light binning layout"),
-        .resource_layout_desc = {
-            .num_constants = 0,
-            .constant_buffers = {
-                {.visibility = ShaderVisibility::COMPUTE },
-                {.visibility = ShaderVisibility::COMPUTE },
-                {.visibility = ShaderVisibility::COMPUTE },
-            },
-            .num_constant_buffers = 3,
-            .tables = {
-                {.usage = ResourceAccess::READ },
-                {.usage = ResourceAccess::WRITE },
-            },
-            .num_resource_tables = 2,
-            .num_static_samplers = 0,
-        }
-    } };
-
-    const static RenderPassPipelineStateObjectDesc pipeline_descs[] = {
-        {
-            .identifier = ctcrc32("spot light assighment pipeline state"),
-            .resource_layout_id = resource_layout_descs[0].identifier,
-            .shader_compilation_desc = {
-                .used_stages = PipelineStage::PIPELINE_STAGE_COMPUTE,
-                .shader_file_path = L"shaders/clustered_forward/spot_light_assignment.hlsl",
-            },
-            .pipeline_desc = {},
-        },
-        {
-            .identifier = ctcrc32("point light assighment pipeline state"),
-            .resource_layout_id = resource_layout_descs[0].identifier,
-            .shader_compilation_desc = {
-                .used_stages = PipelineStage::PIPELINE_STAGE_COMPUTE,
-                .shader_file_path = L"shaders/clustered_forward/point_light_assignment.hlsl",
-            },
-            .pipeline_desc = {},
-        }
-    };
-
-    enum struct SettingsIDs : u32
+    static void setup(const SettingsStore* settings_context, PerPassDataStore* per_pass_data_store)
     {
-        MAIN_PASS_VIEW_CB = Settings::main_pass_view_cb.identifier,
-        RENDERABLE_SCENE_PTR = Settings::renderable_scene_ptr.identifier,
-        CLUSTER_GRID_SETUP = Settings::cluster_grid_setup.identifier,
-    };
-
-    constexpr SettingsDesc settings[] = {
-        Settings::main_pass_view_cb,
-        Settings::renderable_scene_ptr,
-        Settings::cluster_grid_setup,
-    };
-
-    static void setup(PerPassData* per_pass_data)
-    {
-        LightBinningPassData* pass_data = reinterpret_cast<LightBinningPassData*>(per_pass_data);
-        pass_data->cluster_grid_cb = gfx::buffers::create({
+        BufferHandle cluster_grid_cb = gfx::buffers::create({
             .usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC,
             .type = BufferType::DEFAULT,
             .byte_size = sizeof(ClusterGridConstants),
             .stride = 0 });
-        gfx::set_debug_name(pass_data->cluster_grid_cb, L"Cluster Grid Constants");
+        gfx::set_debug_name(cluster_grid_cb, L"Cluster Grid Constants");
+        per_pass_data_store->emplace(LIGHT_BINNING_PASS_DATA, LightBinningPassData{
+            .cluster_grid_cb = cluster_grid_cb
+        });
     }
 
-    void light_binning_execution(const RenderPassContext* context)
+    void light_binning_execution(const PassExecutionContext* context)
     {
         const CommandContextHandle cmd_ctx = context->cmd_context;
-        const ResourceMap& resource_map = *context->resource_map;
-        const LightBinningPassData pass_data = *reinterpret_cast<LightBinningPassData*>(context->per_pass_data);
-        const ResourceLayoutHandle resource_layout = context->resource_layouts->at(resource_layout_descs[0].identifier);
-        const PipelineStateHandle spot_light_pso = context->pipeline_states->at(pipeline_descs[0].identifier);
-        const PipelineStateHandle point_light_pso = context->pipeline_states->at(pipeline_descs[1].identifier);
+        const ResourceContext& resource_context = *context->resource_context;
+        const ShaderStore& shader_context = *context->shader_context;
+        const SettingsStore& settings_context = *context->settings_context;
+        const PerPassDataStore* per_pass_data_store = context->per_pass_data_store;
 
-        const BufferHandle spot_light_indices_buffer = resource_map.get_buffer_resource(PassResources::SPOT_LIGHT_INDICES.identifier);
-        const BufferHandle point_light_indices_buffer = resource_map.get_buffer_resource(PassResources::POINT_LIGHT_INDICES.identifier);
+        const LightBinningPassData& pass_data = per_pass_data_store->get<LightBinningPassData>(LIGHT_BINNING_PASS_DATA);
+        const ResourceLayoutHandle resource_layout = shader_context.get_resource_layout({ LIGHT_BINNING_PASS_RESOURCE_LAYOUT });
+        const PipelineStateHandle spot_light_pso = shader_context.get_pipeline({ LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE });
+        const PipelineStateHandle point_light_pso = shader_context.get_pipeline({ LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE });
 
-        const ClusterGridSetup cluster_grid_setup = context->settings->get_settings<ClusterGridSetup>(u32(SettingsIDs::CLUSTER_GRID_SETUP));
+        const BufferHandle spot_light_indices_buffer = resource_context.get_buffer(pass_resources::SPOT_LIGHT_INDICES);
+        const BufferHandle point_light_indices_buffer = resource_context.get_buffer(pass_resources::POINT_LIGHT_INDICES);
+
+        const ClusterGridSetup cluster_grid_setup = settings_context.get<ClusterGridSetup>(settings::CLUSTER_GRID_SETUP);
         ClusterGridConstants binning_constants = {
             .setup = cluster_grid_setup,
             .spot_light_indices_list_idx = gfx::buffers::get_shader_writable_index(spot_light_indices_buffer),
@@ -131,12 +89,12 @@ namespace clustered
         gfx::cmd::set_compute_resource_layout(cmd_ctx, resource_layout);
         gfx::cmd::set_compute_pipeline_state(cmd_ctx, spot_light_pso);
 
-        const BufferHandle view_cb_handle = context->settings->get_settings<BufferHandle>(u32(SettingsIDs::MAIN_PASS_VIEW_CB));
+        const BufferHandle view_cb_handle = settings_context.get<BufferHandle>(settings::MAIN_PASS_VIEW_CB);
         gfx::cmd::bind_compute_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANTS));
 
         gfx::cmd::bind_compute_constant_buffer(cmd_ctx, pass_data.cluster_grid_cb, u32(BindingSlots::CLUSTER_GRID_CONSTANTS));
 
-        const RenderableScene* renderable_scene = context->settings->get_settings<RenderableScene*>(u32(SettingsIDs::RENDERABLE_SCENE_PTR));
+        const RenderableScene* renderable_scene = settings_context.get<RenderableScene*>(settings::RENDERABLE_SCENE_PTR);
         gfx::cmd::bind_compute_constant_buffer(cmd_ctx, renderable_scene->scene_constants, u32(BindingSlots::SCENE_CONSTANTS));
 
         gfx::cmd::bind_compute_resource_table(cmd_ctx, u32(BindingSlots::READ_BUFFERS_TABLE));
@@ -154,14 +112,11 @@ namespace clustered
         gfx::cmd::dispatch(cmd_ctx, group_count_x, group_count_y, group_count_z);
     };
 
-    extern const RenderPassTaskDesc light_binning_desc = {
+    extern const render_graph::PassDesc pass_desc = {
         .name = "Light Binning Pass",
         .command_queue_type = zec::CommandQueueType::GRAPHICS,
         .setup_fn = &setup,
         .execute_fn = &light_binning_execution,
-        .resource_layout_descs = resource_layout_descs,
-        .pipeline_descs = pipeline_descs,
-        .settings = settings,
         .inputs = {},
         .outputs = outputs,
     };

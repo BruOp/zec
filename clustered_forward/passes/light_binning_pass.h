@@ -4,5 +4,9 @@
 
 namespace clustered
 {
-    extern const zec::RenderPassTaskDesc light_binning_desc;
+
+    namespace light_binning_pass
+    {
+        extern const zec::render_graph::PassDesc pass_desc;
+    }
 }

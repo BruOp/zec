@@ -3,110 +3,60 @@
 namespace clustered
 {
     using namespace zec;
+    using namespace zec::render_graph;
 
-    struct TonemapPassConstants
+    namespace
     {
-        u32 src_texture;
-        float exposure;
-    };
-
-
-    static constexpr RenderPassResourceUsage inputs[] = {
+        struct TonemapPassConstants
         {
-            .identifier = PassResources::HDR_TARGET.identifier,
-            .type = PassResourceType::TEXTURE,
-            .usage = RESOURCE_USAGE_SHADER_READABLE,
-            .name = PassResources::HDR_TARGET.name,
-        },
-    };
+            u32 src_texture;
+            float exposure;
+        };
 
-    static constexpr RenderPassResourceUsage outputs[] = {
-        {
-            .identifier = PassResources::SDR_TARGET.identifier,
-            .type = PassResourceType::TEXTURE,
-            .usage = zec::RESOURCE_USAGE_RENDER_TARGET,
-            .name = PassResources::SDR_TARGET.name,
-        },
-    };
 
-    static constexpr RenderPassResourceLayoutDesc resource_layout_descs[] = { {
-        .identifier = ctcrc32("Tone Mapping Pass Layout Desc"),
-        .resource_layout_desc = {
-            .constants = {{
-                .visibility = ShaderVisibility::PIXEL,
-                .num_constants = 2
-             }},
-            .num_constants = 1,
-            .num_constant_buffers = 0,
-            .tables = {
-                {.usage = ResourceAccess::READ },
+        static constexpr PassResourceUsage inputs[] = {
+            {
+                .identifier = pass_resources::HDR_TARGET.identifier,
+                .type = PassResourceType::TEXTURE,
+                .usage = RESOURCE_USAGE_SHADER_READABLE,
             },
-            .num_resource_tables = 1,
-            .static_samplers = {
-                {
-                    .filtering = SamplerFilterType::MIN_POINT_MAG_POINT_MIP_POINT,
-                    .wrap_u = SamplerWrapMode::CLAMP,
-                    .wrap_v = SamplerWrapMode::CLAMP,
-                    .binding_slot = 0,
-                },
-            },
-            .num_static_samplers = 1,
-        },
-    } };
+        };
 
-    static constexpr RenderPassPipelineStateObjectDesc pipeline_descs[] = { {
-        .name = L"Tone Mapping Pipeline",
-        .identifier = ctcrc32("Tone Mapping Pipeline"),
-        .resource_layout_id = resource_layout_descs[0].identifier,
-        .shader_compilation_desc = {
-            .used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL,
-            .shader_file_path = L"shaders/clustered_forward/basic_tone_map.hlsl",
-        },
-        .pipeline_desc = {
-            .input_assembly_desc = {{
-                { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
-                { MESH_ATTRIBUTE_TEXCOORD, 0, BufferFormat::FLOAT_2, 1 },
-            } },
-            .depth_stencil_state = {
-                .depth_cull_mode = ComparisonFunc::OFF,
+        static constexpr PassResourceUsage outputs[] = {
+            {
+                .identifier = pass_resources::SDR_TARGET.identifier,
+                .type = PassResourceType::TEXTURE,
+                .usage = zec::RESOURCE_USAGE_RENDER_TARGET,
             },
-            .raster_state_desc = {
-                .cull_mode = CullMode::NONE,
-            },
-            .rtv_formats = {{ PassResources::SDR_TARGET.desc.format }},
-        }
-    } };
+        };
 
-    static constexpr SettingsDesc settings[] = {
-        Settings::fullscreen_quad,
-        Settings::exposure,
-    };
+    }
 
-    static void tone_mapping_pass_exectution(const RenderPassContext* context)
+    namespace tone_mapping_pass
     {
-        const ResourceMap& resource_map = *context->resource_map;
-
-        const PipelineStateHandle pso = context->pipeline_states->at(pipeline_descs[0].identifier);
-
-        if (is_valid(pso))
+        static void tone_mapping_pass_exectution(const PassExecutionContext* context)
         {
-            TextureHandle hdr_buffer = resource_map.get_texture_resource(PassResources::HDR_TARGET.identifier);
-            TextureHandle sdr_buffer = resource_map.get_texture_resource(PassResources::SDR_TARGET.identifier);
-
             const CommandContextHandle cmd_ctx = context->cmd_context;
+            const ResourceContext& resource_context = *context->resource_context;
+            const ShaderStore& shader_context = *context->shader_context;
+            const SettingsStore& settings_context = *context->settings_context;
+
+            TextureHandle sdr_buffer = resource_context.get_texture(pass_resources::SDR_TARGET);
             gfx::cmd::set_render_targets(cmd_ctx, &sdr_buffer, 1);
 
             const TextureInfo& texture_info = gfx::textures::get_texture_info(sdr_buffer);
             Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
             Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-            const ResourceLayoutHandle resource_layout = context->resource_layouts->at(resource_layout_descs[0].identifier);
+            const ResourceLayoutHandle resource_layout = shader_context.get_resource_layout({ TONE_MAPPING_PASS_RESOURCE_LAYOUT });
+            const PipelineStateHandle pso = shader_context.get_pipeline({ TONE_MAPPING_PASS_PIPELINE });
             gfx::cmd::set_graphics_resource_layout(cmd_ctx, resource_layout);
             gfx::cmd::set_graphics_pipeline_state(cmd_ctx, pso);
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
-            const float exposure = context->settings->get_settings<float>(Settings::exposure.identifier);
+            TextureHandle hdr_buffer = resource_context.get_texture(pass_resources::HDR_TARGET);
+            const float exposure = settings_context.get<float>(settings::EXPOSURE);
             TonemapPassConstants tonemapping_constants = {
                 .src_texture = gfx::textures::get_shader_readable_index(hdr_buffer),
                 .exposure = exposure
@@ -114,20 +64,19 @@ namespace clustered
             gfx::cmd::bind_graphics_constants(cmd_ctx, &tonemapping_constants, 2, 0);
             gfx::cmd::bind_graphics_resource_table(cmd_ctx, 1);
 
-            const MeshHandle fullscreen_mesh = context->settings->get_settings<MeshHandle>(Settings::fullscreen_quad.identifier);
+            // TODO: Why isn't this just a resource? We just need three indices in a buffer actually
+            const MeshHandle fullscreen_mesh = settings_context.get<MeshHandle>(settings::FULLSCREEN_QUAD);
             gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
         }
+
+        extern const render_graph::PassDesc pass_desc = {
+            .name = "Tone Mapping Pass",
+            .command_queue_type = zec::CommandQueueType::GRAPHICS,
+            .setup_fn = nullptr,
+            .execute_fn = &tone_mapping_pass_exectution,
+            .inputs = inputs,
+            .outputs = outputs,
+        };
     }
 
-    extern const RenderPassTaskDesc tone_mapping_pass_desc = {
-        .name = "Tone Mapping Pass",
-        .command_queue_type = zec::CommandQueueType::GRAPHICS,
-        .setup_fn = nullptr,
-        .execute_fn = &tone_mapping_pass_exectution,
-        .resource_layout_descs = resource_layout_descs,
-        .pipeline_descs = pipeline_descs,
-        .settings = settings,
-        .inputs = inputs,
-        .outputs = outputs,
-    };
 }

@@ -6,5 +6,8 @@
 
 namespace clustered
 {
-    extern const zec::RenderPassTaskDesc forward_pass_desc;
+    namespace forward_pass
+    {
+        extern const zec::render_graph::PassDesc pass_desc;
+    }
 }
