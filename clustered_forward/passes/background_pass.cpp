@@ -1,5 +1,6 @@
 #include "background_pass.h"
 #include "../bounding_meshes.h"
+#include "../pass_resources.h"
 
 using namespace zec;
 

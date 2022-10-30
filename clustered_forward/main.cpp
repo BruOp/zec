@@ -22,6 +22,7 @@
 #include "passes/tone_mapping_pass.h"
 #include "passes/light_binning_pass.h"
 #include "passes/cluster_debug_pass.h"
+#include "passes/ui_pass.h"
 //#include "passes/debug_pass.h"
 
 #include "compute_tasks/brdf_lut_creator.h"
@@ -55,6 +56,24 @@ namespace clustered
         .near_plane = -CAMERA_NEAR,
         .far_plane = -CAMERA_FAR,
         .mid_plane = -CLUSTER_MID_PLANE,
+    };
+
+    // TODO: Do we need to define this as part of the PipelineCompilation interface?
+    struct PipelineCompilationDesc
+    {
+        std::wstring_view name;
+        Shaders shader;
+        ResourceLayouts resource_layout;
+        Pipelines pso;
+    };
+
+    constexpr PipelineCompilationDesc pipeline_comp_descs[] = {
+        { L"Depth", DEPTH_PASS_SHADER, DEPTH_PASS_RESOURCE_LAYOUT, DEPTH_PASS_PIPELINE },
+        { L"Point Light Binning", LIGHT_BINNING_PASS_POINT_LIGHT_SHADER, LIGHT_BINNING_PASS_RESOURCE_LAYOUT, LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE },
+        { L"Spot Light Binning", LIGHT_BINNING_PASS_SPOT_LIGHT_SHADER, LIGHT_BINNING_PASS_RESOURCE_LAYOUT, LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE },
+        { L"Background Pass", BACKGROUND_PASS_SHADER, BACKGROUND_PASS_RESOURCE_LAYOUT, BACKGROUND_PASS_PIPELINE },
+        { L"Forward", FORWARD_PASS_SHADER, FORWARD_PASS_RESOURCE_LAYOUT, FORWARD_PASS_PIPELINE },
+        { L"Tone Mapping", TONE_MAPPING_PASS_SHADER, TONE_MAPPING_PASS_RESOURCE_LAYOUT, TONE_MAPPING_PASS_PIPELINE }
     };
 
     class ClusteredForward : public zec::App
@@ -344,24 +363,6 @@ namespace clustered
 
             // Pipelines and resource layouts
             {
-                // TODO: Do we need to define this as part of the PipelineCompilation interface?
-                struct PipelineCompilationDesc
-                {
-                    std::wstring_view name;
-                    Shaders shader;
-                    ResourceLayouts resource_layout;
-                    Pipelines pso;
-                };
-
-                constexpr PipelineCompilationDesc pipeline_comp_descs[] = {
-                    { L"Depth", DEPTH_PASS_SHADER, DEPTH_PASS_RESOURCE_LAYOUT, DEPTH_PASS_PIPELINE },
-                    { L"Point Light Binning", LIGHT_BINNING_PASS_POINT_LIGHT_SHADER, LIGHT_BINNING_PASS_RESOURCE_LAYOUT, LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE },
-                    { L"Spot Light Binning", LIGHT_BINNING_PASS_SPOT_LIGHT_SHADER, LIGHT_BINNING_PASS_RESOURCE_LAYOUT, LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE },
-                    { L"Background Pass", BACKGROUND_PASS_SHADER, BACKGROUND_PASS_RESOURCE_LAYOUT, BACKGROUND_PASS_PIPELINE },
-                    { L"Forward", FORWARD_PASS_SHADER, FORWARD_PASS_RESOURCE_LAYOUT, FORWARD_PASS_PIPELINE },
-                    { L"Tone Mapping", TONE_MAPPING_PASS_SHADER, TONE_MAPPING_PASS_RESOURCE_LAYOUT, TONE_MAPPING_PASS_PIPELINE }
-                };
-
                 // TODO -- Just use wstring for errors
                 std::string errors = {};
                 gfx::PipelineCompilationHandle result;
@@ -394,6 +395,7 @@ namespace clustered
                         &background_pass::pass_desc,
                         &forward_pass::pass_desc,
                         &tone_mapping_pass::pass_desc,
+                        &ui_pass::pass_desc,
                 };
 
                 for (const render_graph::PassDesc* pass_desc : render_pass_task_descs)
@@ -422,10 +424,19 @@ namespace clustered
 
         void update(const zec::TimeData& time_data) override final
         {
+            ui::begin_frame();
             zec::input::InputState input_state = input_manager.get_state();
 
             camera_controller.update(camera, input_state, time_data.delta_seconds_f);
             camera_controller.apply(camera);
+
+            const auto framerate = ImGui::GetIO().Framerate;
+            ImGui::Begin("Pipelines");
+
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / framerate, framerate);
+
+            ImGui::End();
+            ui::end_frame();
         }
 
         void copy() override final

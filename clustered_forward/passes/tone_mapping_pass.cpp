@@ -13,7 +13,6 @@ namespace clustered
             float exposure;
         };
 
-
         static constexpr PassResourceUsage inputs[] = {
             {
                 .identifier = pass_resources::HDR_TARGET.identifier,
@@ -29,7 +28,6 @@ namespace clustered
                 .usage = zec::RESOURCE_USAGE_RENDER_TARGET,
             },
         };
-
     }
 
     namespace tone_mapping_pass

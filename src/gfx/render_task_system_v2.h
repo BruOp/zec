@@ -71,7 +71,7 @@ namespace zec::render_graph
     };
 
     // Tracks the state that the resource is in during the execution of the render graph
-    struct ResourceState
+    struct BarrierState
     {
         ResourceUsage resource_usage;
         CommandQueueType queue_type;
@@ -90,25 +90,32 @@ namespace zec::render_graph
 
         // Sets an id so that when a pass writes to these resources, they're really just writing to the backbuffer
         void set_backbuffer_id(const ResourceIdentifier id);
-        void set_resource_state(const ResourceIdentifier id, const ResourceState resource_usage);
+        void set_barrier_state(const ResourceIdentifier id, const BarrierState barrier_state);
         // TODO handle resize
         void set_render_config_state(const RenderConfigState& config_state) { render_config_state = config_state; };
 
         BufferHandle get_buffer(const ResourceIdentifier buffer_identifier) const;
         TextureHandle get_texture(const ResourceIdentifier texture_identifier) const;
-        ResourceState get_resource_state(const ResourceIdentifier resource_identifier) const;
+        BarrierState get_barrier_state(const ResourceIdentifier resource_identifier) const;
         ResourceIdentifier get_backbuffer_id();
 
-        bool has_buffer(const ResourceIdentifier id) const { return buffers.contains(id); };
-        bool has_texture(const ResourceIdentifier id) const { return textures.contains(id); };
+        bool has_buffer(const ResourceIdentifier id) const { return resource_states.contains(id); };
+        bool has_texture(const ResourceIdentifier id) const { return resource_states.contains(id); };
 
         void refresh_backbuffer();
     private:
+        // Tracks the state that the resource is in during the execution of the render graph
+        struct ResourceState
+        {
+            BufferHandle buffer;
+            TextureHandle texture;
+            ResourceUsage resource_usage;
+            CommandQueueType queue_type;
+        };
+
         ResourceIdentifier backbuffer_id = {};
         RenderConfigState render_config_state;
-        std::unordered_map<ResourceIdentifier, BufferHandle[RENDER_LATENCY]> buffers;
-        std::unordered_map<ResourceIdentifier, TextureHandle[RENDER_LATENCY]> textures;
-        std::unordered_map< ResourceIdentifier, ResourceState> resource_states;
+        std::unordered_map< ResourceIdentifier, ResourceState[RENDER_LATENCY]> resource_states;
     };
 
     class ShaderStore
@@ -215,8 +222,6 @@ namespace zec::render_graph
         const PassTeardownFn teardown_fn = nullptr;
         // TODO: Are these really necessary? Is upfront validation really going to be that useful?
         // TODO: Do we want to validate settings?
-        //const std::span<ResourceIdentifier const> resource_layout_ids = { };
-        //const std::span<ResourceIdentifier const> pipeline_ids = { };
         const std::span<PassResourceUsage const> inputs = {};
         const std::span<PassResourceUsage const> outputs = {};
     };
@@ -265,6 +270,7 @@ namespace zec::render_graph
         std::vector<Pass> passes = {};
 
         // TODO: Our render graph doesn't need to manage resource sizes, that can be a separate system.
+        // TODO: Find a better naming for this. Settings vs Resources vs PerPass isn't really all that helpful I don't think.
         ResourceContext* resource_context = nullptr;
         ShaderStore* shader_store = nullptr;
         SettingsStore settings_context = {};
@@ -326,7 +332,7 @@ namespace zec::render_graph
         Result add_pass(const PassDesc& render_pass_desc);
 
     private:
-        struct BuilderResourceState : ResourceState
+        struct BuilderResourceState : BarrierState
         {
             u32 last_written_to_by = UINT32_MAX;
         };

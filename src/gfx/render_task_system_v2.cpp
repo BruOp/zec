@@ -32,24 +32,21 @@ namespace zec::render_graph
 
     void ResourceContext::register_buffer(const BufferResourceDesc& buffer_desc)
     {
-        ASSERT(buffers.count(buffer_desc.identifier) == 0);
-        // TODO : Combine resoruce state with the handle, so that we can't have silent conflicts in resource_states accidentally
         ASSERT(resource_states.count(buffer_desc.identifier) == 0);
-        BufferHandle (&buffer_handles)[RENDER_LATENCY] = buffers[buffer_desc.identifier];
+        ResourceState (&resource_state)[RENDER_LATENCY] = resource_states[buffer_desc.identifier];
 
         for (u32 i = 0; i < RENDER_LATENCY; ++i)
         {
-            buffer_handles[i] = gfx::buffers::create(buffer_desc.desc);
-            gfx::set_debug_name(buffer_handles[i], buffer_desc.name.data());
+            resource_state[i].buffer = gfx::buffers::create(buffer_desc.desc);
+            resource_state[i].queue_type = CommandQueueType::GRAPHICS; // TODO: Is this always true???
+            resource_state[i].resource_usage = buffer_desc.initial_usage;
+            gfx::set_debug_name(resource_state[i].buffer, buffer_desc.name.data());
         }
 
-        resource_states.emplace(buffer_desc.identifier, buffer_desc.initial_usage);
     }
 
     void ResourceContext::register_texture(const TextureResourceDesc& texture_desc)
     {
-        ASSERT(textures.count(texture_desc.identifier) == 0);
-        // TODO : Combine resoruce state with the handle, so that we can't have silent conflicts in resource_states accidentally
         ASSERT(resource_states.count(texture_desc.identifier) == 0);
 
         TextureDesc temp_desc = texture_desc.desc;
@@ -58,54 +55,69 @@ namespace zec::render_graph
             temp_desc.height = render_config_state.height;
             temp_desc.depth = 1;
         }
-        TextureHandle(&texture_handles)[RENDER_LATENCY] = textures[texture_desc.identifier];
+        ResourceState (&resource_state)[RENDER_LATENCY] = resource_states[texture_desc.identifier];
         for (u32 i = 0; i < RENDER_LATENCY; ++i)
         {
-            texture_handles[i] = gfx::textures::create(temp_desc);
-            gfx::set_debug_name(texture_handles[i], texture_desc.name.data());
+            resource_state[i].texture = gfx::textures::create(temp_desc);
+            resource_state[i].queue_type = CommandQueueType::GRAPHICS; // TODO: Is this always true???
+            resource_state[i].resource_usage = texture_desc.desc.initial_state;
+            gfx::set_debug_name(resource_state[i].texture, texture_desc.name.data());
         }
-        resource_states.emplace(texture_desc.identifier, texture_desc.desc.initial_state);
     }
 
     void ResourceContext::set_backbuffer_id(const ResourceIdentifier id)
     {
         ASSERT_MSG(!backbuffer_id.is_valid(), "Backbuffer resource has already been set for this context.");
         backbuffer_id = id;
-        resource_states.emplace(backbuffer_id, ResourceState{ RESOURCE_USAGE_PRESENT, CommandQueueType::GRAPHICS });
+        ResourceState(&resource_state)[RENDER_LATENCY] = resource_states[backbuffer_id];
+
+        for (u32 i = 0; i < RENDER_LATENCY; ++i)
+        {
+            // The texture handle gets filled in by refresh_backbuffer
+            resource_state[i].queue_type = CommandQueueType::GRAPHICS;
+            resource_state[i].resource_usage = RESOURCE_USAGE_PRESENT;
+        }
     }
 
     void ResourceContext::refresh_backbuffer()
     {
         ASSERT_MSG(backbuffer_id.is_valid(), "We need valid backbuffer ID, to store the current backbuffer handle with");
         TextureHandle backbuffer_handle = gfx::get_current_back_buffer_handle();
-        TextureHandle(&texture_handles)[RENDER_LATENCY] = textures[backbuffer_id];
+        ResourceState(&resource_state)[RENDER_LATENCY] = resource_states[backbuffer_id];
         for (u32 i = 0; i < RENDER_LATENCY; ++i)
         {
-            texture_handles[i] = backbuffer_handle;
+            resource_state[i].texture = backbuffer_handle;
         }
-        resource_states.at(backbuffer_id) = ResourceState{ RESOURCE_USAGE_PRESENT, CommandQueueType::GRAPHICS };
     }
 
-    void ResourceContext::set_resource_state(const ResourceIdentifier id, const ResourceState resource_usage)
+    void ResourceContext::set_barrier_state(const ResourceIdentifier id, const BarrierState barrier_state)
     {
-        resource_states.at(id) = resource_usage;
+        const u64 idx = gfx::get_current_frame_idx() % RENDER_LATENCY;
+        ResourceState(&resource_state)[RENDER_LATENCY] = resource_states.at(id);
+        resource_state[idx].resource_usage = barrier_state.resource_usage;
+        resource_state[idx].queue_type = barrier_state.queue_type;
     }
 
     BufferHandle ResourceContext::get_buffer(const ResourceIdentifier buffer_identifier) const
     {
         const u64 idx = gfx::get_current_frame_idx() % RENDER_LATENCY;
-        return buffers.at(buffer_identifier)[idx];
+        return resource_states.at(buffer_identifier)[idx].buffer;
     }
 
     TextureHandle ResourceContext::get_texture(const ResourceIdentifier texture_identifier) const
     {
         const u64 idx = gfx::get_current_frame_idx() % RENDER_LATENCY;
-        return textures.at(texture_identifier)[idx];
+        return resource_states.at(texture_identifier)[idx].texture;
     }
 
-    ResourceState ResourceContext::get_resource_state(const ResourceIdentifier resource_identifier) const
+    BarrierState ResourceContext::get_barrier_state(const ResourceIdentifier resource_identifier) const
     {
-        return resource_states.at(resource_identifier);
+        const u64 idx = gfx::get_current_frame_idx() % RENDER_LATENCY;
+        const ResourceState(&resource_state)[RENDER_LATENCY] = resource_states.at(resource_identifier);
+        return {
+            .resource_usage = resource_state[idx].resource_usage,
+            .queue_type = resource_state[idx].queue_type,
+        };
     }
 
     ResourceIdentifier ResourceContext::get_backbuffer_id()
@@ -280,7 +292,7 @@ namespace zec::render_graph
             {
                 // Transition inputs
                 // Handle inter queue fluses
-                ResourceState current_state = resource_context->get_resource_state(input.identifier);
+                BarrierState current_state = resource_context->get_barrier_state(input.identifier);
 
                 if (current_state.queue_type == pass.desc.command_queue_type)
                 {
@@ -306,7 +318,7 @@ namespace zec::render_graph
                         }
 
                         current_state.resource_usage = input.usage;
-                        resource_context->set_resource_state(input.identifier, current_state);
+                        resource_context->set_barrier_state(input.identifier, current_state);
                     }
                     else if (input.usage == RESOURCE_USAGE_COMPUTE_WRITABLE)
                     {
@@ -337,7 +349,7 @@ namespace zec::render_graph
             {
                 // Transition outputs
                 // Handle inter queue fluses
-                ResourceState current_state = resource_context->get_resource_state(output.identifier);
+                BarrierState current_state = resource_context->get_barrier_state(output.identifier);
 
                 if (current_state.queue_type == pass.desc.command_queue_type)
                 {
@@ -363,7 +375,7 @@ namespace zec::render_graph
                         }
 
                         current_state.resource_usage = output.usage;
-                        resource_context->set_resource_state(output.identifier, current_state);
+                        resource_context->set_barrier_state(output.identifier, current_state);
                     }
                     else if (output.usage == RESOURCE_USAGE_COMPUTE_WRITABLE)
                     {
@@ -421,6 +433,9 @@ namespace zec::render_graph
         if (is_valid(gfx_cmd_list))
         {
             const auto backbuffer_id = resource_context->get_backbuffer_id();
+            BarrierState backbuffer_state = resource_context->get_barrier_state(backbuffer_id);
+            ASSERT(backbuffer_state.resource_usage == RESOURCE_USAGE_RENDER_TARGET);
+            ASSERT(backbuffer_state.queue_type == CommandQueueType::GRAPHICS);
             // Add assert that it's in render target state?
             ResourceTransitionDesc transition_desc{
                 .type = ResourceTransitionType::TEXTURE,
@@ -430,6 +445,9 @@ namespace zec::render_graph
             };
             gfx::cmd::transition_resources(gfx_cmd_list, &transition_desc, 1);
             gfx::cmd::return_and_execute(&gfx_cmd_list, 1);
+
+            backbuffer_state.resource_usage = RESOURCE_USAGE_PRESENT;
+            resource_context->set_barrier_state(backbuffer_id, backbuffer_state);
 
         }
 

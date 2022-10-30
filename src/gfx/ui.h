@@ -10,6 +10,6 @@ namespace zec::ui
     void destroy();
 
     void begin_frame();
-
-    void end_frame(const CommandContextHandle context_handle);
+    void end_frame();
+    void draw_frame(CommandContextHandle context_handle);
 }

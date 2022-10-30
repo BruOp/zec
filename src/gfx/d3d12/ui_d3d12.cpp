@@ -74,12 +74,17 @@ namespace zec::ui
         ImGui::NewFrame();
     }
 
-    void end_frame(const CommandContextHandle handle)
+    void end_frame()
+    {
+        ASSERT(g_is_ui_initialized);
+        ImGui::Render();
+    }
+
+    void draw_frame(CommandContextHandle handle)
     {
         ASSERT(g_is_ui_initialized);
         RenderContext& render_context = gfx::dx12::get_render_context();
         ID3D12GraphicsCommandList* cmd_list = get_command_list(render_context, handle);
-        ImGui::Render();
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
     }
 }
