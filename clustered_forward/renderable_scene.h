@@ -44,6 +44,12 @@ namespace clustered
         zec::vec3 color;
     };
 
+    struct SceneDebugData
+    {
+        u32 debug_lines_buffer_idx = UINT32_MAX;    
+    };
+
+    // TODO: I'm not sure this should actually be here. Seems more like a "pass_resource" than anything.
     struct SceneConstantData
     {
         float time = 0.0f;
@@ -54,8 +60,8 @@ namespace clustered
         u32 num_point_lights = 0;
         u32 spot_light_buffer_idx = UINT32_MAX;
         u32 point_light_buffer_idx = UINT32_MAX;
+        SceneDebugData scene_debug_data;
     };
-
     struct MaterialData
     {
         zec::vec4 base_color_factor;

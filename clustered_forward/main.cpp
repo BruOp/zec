@@ -24,6 +24,7 @@
 #include "passes/light_binning_pass.h"
 #include "passes/cluster_debug_pass.h"
 #include "passes/ui_pass.h"
+#include "passes/prepare_debug_data_pass.h"
 //#include "passes/debug_pass.h"
 
 #include "compute_tasks/brdf_lut_creator.h"
@@ -73,7 +74,8 @@ namespace clustered
         { L"Spot Light Binning", LIGHT_BINNING_PASS_SPOT_LIGHT_SHADER, LIGHT_BINNING_PASS_RESOURCE_LAYOUT, LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE },
         { L"Background Pass", BACKGROUND_PASS_SHADER, BACKGROUND_PASS_RESOURCE_LAYOUT, BACKGROUND_PASS_PIPELINE },
         { L"Forward", FORWARD_PASS_SHADER, FORWARD_PASS_RESOURCE_LAYOUT, FORWARD_PASS_PIPELINE },
-        { L"Tone Mapping", TONE_MAPPING_PASS_SHADER, TONE_MAPPING_PASS_RESOURCE_LAYOUT, TONE_MAPPING_PASS_PIPELINE }
+		{ L"Tone Mapping", TONE_MAPPING_PASS_SHADER, TONE_MAPPING_PASS_RESOURCE_LAYOUT, TONE_MAPPING_PASS_PIPELINE },
+		{ L"Prepare Debug Data", CLEAR_BUFFER_SHADER, CLEAR_BUFFER_RESOURCE_LAYOUT, CLEAR_BUFFER_PIPELINE },
     };
 
     class ClusteredForward : public zec::App
@@ -265,14 +267,14 @@ namespace clustered
                     );
 
                 vec3 corners[] = {
-                            aabb.min,
-                            {aabb.max.x, aabb.min.y, aabb.min.z},
-                            {aabb.min.x, aabb.max.y, aabb.min.z},
-                            {aabb.min.x, aabb.min.y, aabb.max.z},
-                            {aabb.min.x, aabb.max.y, aabb.max.z},
-                            {aabb.max.x, aabb.min.y, aabb.max.z},
-                            {aabb.max.x, aabb.max.y, aabb.min.z},
-                            aabb.max,
+                    aabb.min,
+                    {aabb.max.x, aabb.min.y, aabb.min.z},
+                    {aabb.min.x, aabb.max.y, aabb.min.z},
+                    {aabb.min.x, aabb.min.y, aabb.max.z},
+                    {aabb.min.x, aabb.max.y, aabb.max.z},
+                    {aabb.max.x, aabb.min.y, aabb.max.z},
+                    {aabb.max.x, aabb.max.y, aabb.min.z},
+                    aabb.max,
                 };
 
                 // Transform corners
@@ -357,7 +359,8 @@ namespace clustered
                 point_light_indices_desc.desc.byte_size = num_clusters * (ClusterGridSetup::MAX_LIGHTS_PER_BIN + 1) * sizeof(u32);
 
                 resource_context.register_buffer(spot_light_indices_desc);
-                resource_context.register_buffer(point_light_indices_desc);
+				resource_context.register_buffer(point_light_indices_desc);
+				resource_context.register_buffer(pass_resource_descs::DEBUG_LINES_POSITIONS);
             }
 
             // Pipelines and resource layouts
@@ -401,6 +404,7 @@ namespace clustered
                         &forward_pass::pass_desc,
                         &tone_mapping_pass::pass_desc,
                         &ui_pass::pass_desc,
+                        &prepare_debug_data_pass::pass_desc,
                 };
 
                 for (const render_graph::PassDesc* pass_desc : render_pass_task_descs)

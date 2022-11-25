@@ -25,7 +25,8 @@ namespace clustered
         MAKE_IDENTIFIER(HDR_TARGET);
         MAKE_IDENTIFIER(SDR_TARGET);
         MAKE_IDENTIFIER(SPOT_LIGHT_INDICES);
-        MAKE_IDENTIFIER(POINT_LIGHT_INDICES);
+		MAKE_IDENTIFIER(POINT_LIGHT_INDICES);
+		MAKE_IDENTIFIER(DEBUG_LINES_POSITIONS);
     }
 
     enum EResourceLayoutIds : u32
@@ -36,6 +37,7 @@ namespace clustered
         TONE_MAPPING_PASS_RESOURCE_LAYOUT,
         LIGHT_BINNING_PASS_RESOURCE_LAYOUT,
         CLUSTERED_DEBUG_PASS_RESOURCE_LAYOUT,
+        CLEAR_BUFFER_RESOURCE_LAYOUT,
         RESOURCE_LAYOUT_COUNT
     };
 
@@ -49,6 +51,7 @@ namespace clustered
         LIGHT_BINNING_PASS_SPOT_LIGHT_SHADER,
         LIGHT_BINNING_PASS_POINT_LIGHT_SHADER,
         CLUSTERED_DEBUG_PASS_SHADER,
+        CLEAR_BUFFER_SHADER,
         SHADERS_COUNT
     };
 
@@ -62,6 +65,7 @@ namespace clustered
         LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE,
         LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE,
         CLUSTERED_DEBUG_PASS_PIPELINE,
+        CLEAR_BUFFER_PIPELINE,
         PIPELINES_COUNT,
     };
 
@@ -76,5 +80,6 @@ namespace clustered
         extern zec::render_graph::TextureResourceDesc SDR_TARGET;
         extern zec::render_graph::BufferResourceDesc SPOT_LIGHT_INDICES;
         extern zec::render_graph::BufferResourceDesc POINT_LIGHT_INDICES;
+        extern zec::render_graph::BufferResourceDesc DEBUG_LINES_POSITIONS;
     }
 }

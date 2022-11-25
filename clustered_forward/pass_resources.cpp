@@ -1,10 +1,13 @@
 #include "pass_resources.h"
 #include <array>
+#include "zec_math.h"
 
 namespace clustered
 {
     using namespace zec;
     using namespace zec::render_graph;
+
+    static constexpr u32 NUM_LINES_SUPPORTED = 4096u;
 
     namespace pass_resource_descs
     {
@@ -79,6 +82,18 @@ namespace clustered
                 .stride = 4,
             }
         };
+		zec::render_graph::BufferResourceDesc DEBUG_LINES_POSITIONS = {
+			.identifier = pass_resources::DEBUG_LINES_POSITIONS,
+			.name = L"point light indices",
+			.initial_usage = zec::RESOURCE_USAGE_COMPUTE_WRITABLE,
+			.desc = {
+				.usage = zec::RESOURCE_USAGE_COMPUTE_WRITABLE | zec::RESOURCE_USAGE_VERTEX,
+				.type = zec::BufferType::RAW,
+                // We'll use the first element to store things like the number of lines we've written so far
+				.byte_size = (NUM_LINES_SUPPORTED + 1) * sizeof(vec3) * 2,
+				.stride = sizeof(vec3),
+			}
+		};
     }
 
     // TODO: Maybe include the enum value so we can validate that we're providing this data correctly
@@ -217,6 +232,14 @@ namespace clustered
             },
             .num_resource_tables = 1,
             .num_static_samplers = 0,
+        },
+        // PREPARE_DEBUG_DATA_RESOURCE_LAYOUT
+        {
+            .num_constants = 3,
+            .tables = {
+                { .usage=zec::ResourceAccess::WRITE },
+            },
+            .num_resource_tables=1,
         }
     };
 
@@ -256,6 +279,11 @@ namespace clustered
         {
             .used_stages = zec::PIPELINE_STAGE_VERTEX | zec::PIPELINE_STAGE_PIXEL,
             .shader_file_path = L"shaders/clustered_forward/cluster_debug.hlsl",
+		},
+        // PREPARE_DEBUG_DATA_SHADER
+		{
+            .used_stages = zec::PIPELINE_STAGE_COMPUTE,
+            .shader_file_path = L"shaders/clustered_forward/clear_buffer.hlsl"
         }
     };
 
@@ -343,7 +371,9 @@ namespace clustered
             },
             .rtv_formats = { { pass_resource_descs::SDR_TARGET.desc.format } },
             .depth_buffer_format = zec::BufferFormat::D32,
-        }
+        },
+		// PREPARE_DEBUG_DATA_PIPELINE
+        {},
     };
 
     zec::ResourceLayoutDesc get_resource_layout_desc(const EResourceLayoutIds& layouts_enum)

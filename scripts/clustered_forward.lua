@@ -28,8 +28,8 @@ links {
   "zec_lib"
 }
 
-DLL_PATH = path.join(EXTERNAL_DIR, "../bin/*.dll")
-postbuildcommands { "cp %{DLL_PATH} %{cfg.targetdir}" }
+DLL_PATH = path.join(EXTERNAL_DIR, "..\bin\*.dll")
+postbuildcommands { "XCOPY %{DLL_PATH} %{cfg.targetdir}" }
 
 configuration {"vs*", "x64"}
 linkoptions {
