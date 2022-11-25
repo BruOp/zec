@@ -28,7 +28,7 @@
 #include "core/zec_types.h"
 #include "assert.h"
 #include <stdio.h>
-#include <window.h>
+#include <windows.h>
 
 namespace pow2
 {

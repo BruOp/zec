@@ -1,6 +1,8 @@
 #include "dx_utils.h"
 
 #include <d3d12.h>
+#include <d3dcommon.h>
+
 #include <dxcompiler/dxcapi.h>
 #include "render_context.h"
 #include "utils/utils.h"
@@ -41,6 +43,13 @@ namespace zec::gfx::dx12
         return wc;
     };
 
+    std::wstring get_wstring(IDxcBlobUtf16* blob)
+    {
+        const wchar_t* blob_string = blob->GetStringPointer();
+        size_t len = blob->GetStringLength();
+        return std::wstring{ blob_string, len };
+    };
+
     void print_blob(ID3DBlob* blob)
     {
         const char* blob_string = reinterpret_cast<char*>(blob->GetBufferPointer());
@@ -54,5 +63,22 @@ namespace zec::gfx::dx12
     {
         std::wstring wc = get_wstring(blob);
         debug_print(wc);
-    };
+    }
+
+    std::wstring GetDXErrorString(HRESULT hr)
+    {
+        const u32 errStringSize = 1024;
+        wchar errorString[errStringSize];
+        DXGetErrorDescriptionW(hr, errorString, errStringSize);
+
+        std::wstring message = L"DirectX Error: ";
+        message += errorString;
+        return message;
+    }
+
+    std::string GetDXErrorStringUTF8(HRESULT hr)
+    {
+        std::wstring errorString = GetDXErrorString(hr);
+        return wstring_to_utf8(errorString);
+    }
 }

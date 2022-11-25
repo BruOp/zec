@@ -25,10 +25,7 @@ namespace zec::gfx::dx12
         void process(const u64 current_frame_idx);
         void flush();
 
-        void enqueue(const u64 current_frame_idx, IUnknown* d3d_ptr, D3D12MA::Allocation* allocation = nullptr)
-        {
-            internal_queues[current_frame_idx].create_back(d3d_ptr, allocation);
-        }
+        void enqueue(const u64 current_frame_idx, IUnknown* d3d_ptr, D3D12MA::Allocation* allocation = nullptr);
     private:
         Array<ResourceToDelete> internal_queues[RENDER_LATENCY] = {};
     };

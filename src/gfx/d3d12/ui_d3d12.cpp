@@ -1,7 +1,9 @@
 #include "gfx/ui.h"
+#include <Windows.h>
 #include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui_impl_dx12.h"
 #include "gfx/constants.h"
+#include "window.h"
 
 #include "render_context.h"
 

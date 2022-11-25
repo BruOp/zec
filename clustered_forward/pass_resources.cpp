@@ -81,7 +81,10 @@ namespace clustered
         };
     }
 
-    std::array<ResourceLayoutDesc, ResourceLayouts::RESOURCE_LAYOUT_COUNT> resource_layouts = {
+    // TODO: Maybe include the enum value so we can validate that we're providing this data correctly
+    // TODO: use SM 6.6 and get rid of some of this data
+    // see https://microsoft.github.io/DirectX-Specs/d3d/HLSL_SM_6_6_DynamicResources.html
+    std::array<ResourceLayoutDesc, EResourceLayoutIds::RESOURCE_LAYOUT_COUNT> resource_layouts = {
         // DEPTH_PASS_RESOURCE_LAYOUT
         ResourceLayoutDesc{
             .constants = {
@@ -217,7 +220,7 @@ namespace clustered
         }
     };
 
-    std::array<ShaderCompilationDesc, Shaders::SHADERS_COUNT> shader_compilation_descs = {
+    std::array<ShaderCompilationDesc, EShaderIds::SHADERS_COUNT> shader_compilation_descs = {
         // DEPTH_PASS_SHADER
         ShaderCompilationDesc{
             .used_stages = zec::PIPELINE_STAGE_VERTEX,
@@ -256,7 +259,7 @@ namespace clustered
         }
     };
 
-    std::array<PipelineStateObjectDesc, Pipelines::PIPELINES_COUNT> pipeline_descs = {
+    std::array<PipelineStateObjectDesc, EPipelineIds::PIPELINES_COUNT> pipeline_descs = {
         // DEPTH_PASS_PIPELINE
         PipelineStateObjectDesc{
             .input_assembly_desc = { {
@@ -343,17 +346,17 @@ namespace clustered
         }
     };
 
-    zec::ResourceLayoutDesc get_resource_layout_desc(const ResourceLayouts& layouts_enum)
+    zec::ResourceLayoutDesc get_resource_layout_desc(const EResourceLayoutIds& layouts_enum)
     {
         return resource_layouts.at(layouts_enum);
     }
 
-    zec::ShaderCompilationDesc get_shader_compilation_desc(const Shaders& shaders_enum)
+    zec::ShaderCompilationDesc get_shader_compilation_desc(const EShaderIds& shaders_enum)
     {
         return shader_compilation_descs.at(shaders_enum);
     }
 
-    zec::PipelineStateObjectDesc get_pipeline_desc(const Pipelines& pipelines_enum)
+    zec::PipelineStateObjectDesc get_pipeline_desc(const EPipelineIds& pipelines_enum)
     {
         return pipeline_descs.at(pipelines_enum);
     }

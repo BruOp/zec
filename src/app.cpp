@@ -1,3 +1,4 @@
+#include <Windows.h>
 #include "app.h"
 #include "gfx/gfx.h"
 #include "gfx/profiling_utils.h"

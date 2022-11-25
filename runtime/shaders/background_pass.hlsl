@@ -107,15 +107,15 @@ float4 PSMain(PSInput input) : SV_TARGET
     TextureCube src_texture = texCube_table[envmap_idx];
     float4 color = src_texture.SampleLevel(default_sampler, input.direction_ws.xyz, float(mip_level));
     float3 rgb = color.rgb;
-    
-    float3 Yxy = convertRGB2Yxy(rgb);
 
-    Yxy.x *= exposure;
+    // float3 Yxy = convertRGB2Yxy(rgb);
 
-    rgb = convertYxy2RGB(Yxy);
+    // Yxy.x *= exposure;
 
-    rgb.x = Tonemap_ACES(rgb.x);
-    rgb.y = Tonemap_ACES(rgb.y);
-    rgb.z = Tonemap_ACES(rgb.z);
-    return float4 (rgb, color.a);
+    // rgb = convertYxy2RGB(Yxy);
+
+    // rgb.x = Tonemap_ACES(rgb.x);
+    // rgb.y = Tonemap_ACES(rgb.y);
+    // rgb.z = Tonemap_ACES(rgb.z);
+    return float4 (0.0.xxx, color.a);
 }

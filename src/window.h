@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include <windows.h>
+#include <minwindef.h>
 
 #include "utils/exceptions.h"
 #include "core/array.h"

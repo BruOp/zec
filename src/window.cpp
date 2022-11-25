@@ -1,3 +1,4 @@
+#include <Windows.h>
 #include "window.h"
 
 namespace zec

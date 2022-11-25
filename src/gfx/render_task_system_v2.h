@@ -8,6 +8,7 @@
 #include "../core/linear_allocator.h"
 #include "public_resources.h"
 
+// TODO: EASY -- Remove old task system
 
 namespace zec::render_graph
 {
@@ -23,10 +24,10 @@ namespace zec::render_graph
         }
     };
 
-    //bool operator==(const ResourceIdentifier& lhs, const ResourceIdentifier& rhs)
-    //{
-    //    return lhs.identifier == rhs.identifier;
-    //}
+    using BufferId = ResourceIdentifier;
+    using TextureId = ResourceIdentifier;
+    using ResourceLayoutId = ResourceIdentifier;
+    using PipelineId = ResourceIdentifier;
 }
 
 
@@ -77,6 +78,7 @@ namespace zec::render_graph
         CommandQueueType queue_type;
     };
 
+
     // TODO: Should _all_ resources go through this context? Even the creation of e.g. transient constant buffers?
     // TODO: Should we separate resources managed by the render graph and resources that are updated but the client (like e.g. light buffers)?
     class ResourceContext
@@ -118,20 +120,83 @@ namespace zec::render_graph
         std::unordered_map< ResourceIdentifier, ResourceState[RENDER_LATENCY]> resource_states;
     };
 
-    class ShaderStore
+    template<typename TIdentifier, typename THandle>
+    class Store
     {
     public:
-        void register_resource_layout(const ResourceIdentifier id, const ResourceLayoutHandle handle);
-        void register_pipeline(const ResourceIdentifier id, const PipelineStateHandle handle);
+        using const_iterator = std::unordered_map< typename TIdentifier, typename THandle >::const_iterator;
 
-        ResourceLayoutHandle get_resource_layout(const ResourceIdentifier id) const;
-        PipelineStateHandle get_pipeline(const ResourceIdentifier id) const;
+        THandle get(const TIdentifier id) const
+        {
+            return handles.at(id);
+        };
 
-        bool has_resource_layout(const ResourceIdentifier id) const { return resource_layouts.contains(id); };
-        bool has_pipeline(const ResourceIdentifier id) const { return pipelines.contains(id); };
+        void set(const TIdentifier id, const THandle handle)
+        {
+            handles[id] = handle;
+        };
+
+        bool contains(const TIdentifier id) const
+        {
+            return handles.contains(id);
+        };
+
+        const_iterator begin() const noexcept
+        {
+            return handles.begin();
+        }
+
+        const_iterator end() const noexcept
+        {
+            return handles.end();
+        }
+    protected:
+        std::unordered_map<TIdentifier, THandle> handles;
+    };
+
+    struct PipelineCompilationDesc
+    {
+        std::wstring_view name;
+        ResourceLayoutHandle resource_layout;
+        ShaderCompilationDesc shader_compilation_desc;
+        PipelineStateObjectDesc pso_desc;
+    };
+
+    using ResourceLayoutStore = Store<ResourceLayoutId, ResourceLayoutHandle>;
+
+    class PipelineStore
+    {
+    public:
+        ZecResult compile(const PipelineId id, const PipelineCompilationDesc& desc, std::string& errors);
+        ZecResult recompile(const PipelineId id, std::string& errors);
+
+        PipelineStateHandle get_pipeline(const PipelineId id) const
+        {
+            return pso_handles.get(id);
+        };
+
+        ResourceLayoutHandle get_resource_layout(const PipelineId id) const
+        {
+            return recompilation_infos.get(id).resource_layout;
+        };
+
+        bool contains(const PipelineId id) const
+        {
+            return pso_handles.contains(id);
+        };
+
+        Store<PipelineId, PipelineCompilationDesc>::const_iterator begin() const noexcept
+        {
+            return recompilation_infos.begin();
+        }
+
+        Store<PipelineId, PipelineCompilationDesc>::const_iterator end() const noexcept
+        {
+            return recompilation_infos.end();
+        }
     private:
-        std::unordered_map<ResourceIdentifier, ResourceLayoutHandle> resource_layouts;
-        std::unordered_map<ResourceIdentifier, PipelineStateHandle> pipelines;
+        Store<PipelineId, PipelineStateHandle> pso_handles;
+        Store<PipelineId, PipelineCompilationDesc> recompilation_infos;
     };
 
     class PassDataStore
@@ -202,7 +267,8 @@ namespace zec::render_graph
     struct PassExecutionContext
     {
         const ResourceContext* resource_context = nullptr;
-        const ShaderStore* shader_context = nullptr;
+        // TODO: Do we even need this? Can we not just get it through our recompilation desc?
+        const PipelineStore* pipeline_context = nullptr;
         const SettingsStore* settings_context = nullptr;
         const PerPassDataStore* per_pass_data_store = nullptr;
         CommandContextHandle cmd_context = {};
@@ -220,8 +286,6 @@ namespace zec::render_graph
         const PassSetupFn setup_fn = nullptr;
         const PassExecuteFn execute_fn = nullptr;
         const PassTeardownFn teardown_fn = nullptr;
-        // TODO: Are these really necessary? Is upfront validation really going to be that useful?
-        // TODO: Do we want to validate settings?
         const std::span<PassResourceUsage const> inputs = {};
         const std::span<PassResourceUsage const> outputs = {};
     };
@@ -241,7 +305,7 @@ namespace zec::render_graph
         };
     public:
         RenderTaskList() = default;
-        RenderTaskList(ResourceContext* resource_context, ShaderStore* shader_context);
+        RenderTaskList(ResourceContext* resource_context, PipelineStore* pipeline_context);
         // TODO: Either call or ensure that PassTeardownFn has been called for all passes
         ~RenderTaskList() = default;
 
@@ -272,7 +336,7 @@ namespace zec::render_graph
         // TODO: Our render graph doesn't need to manage resource sizes, that can be a separate system.
         // TODO: Find a better naming for this. Settings vs Resources vs PerPass isn't really all that helpful I don't think.
         ResourceContext* resource_context = nullptr;
-        ShaderStore* shader_store = nullptr;
+        PipelineStore* shader_store = nullptr;
         SettingsStore settings_context = {};
         PerPassDataStore per_pass_data_store = {};
     };
@@ -327,7 +391,7 @@ namespace zec::render_graph
         };
 
         void set_resource_context(ResourceContext* resource_context);
-        void set_shader_store(ShaderStore* shader_store);
+        void set_shader_store(PipelineStore* shader_store);
         void set_pass_list(RenderTaskList* pass_list);
         Result add_pass(const PassDesc& render_pass_desc);
 

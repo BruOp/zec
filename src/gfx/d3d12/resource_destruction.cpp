@@ -1,4 +1,5 @@
 #include "resource_destruction.h"
+#include <array>
 #include "dx_helpers.h"
 #include "command_context.h"
 
@@ -75,6 +76,12 @@ namespace zec::gfx::dx12
         for (size_t i = 0; i < std::size(internal_queues); i++) {
             process(i);
         }
+    }
+
+    void ResourceDestructionQueue::enqueue(const u64 current_frame_idx, IUnknown* d3d_ptr, D3D12MA::Allocation* allocation)
+    {
+        ASSERT(current_frame_idx < RENDER_LATENCY);
+        internal_queues[current_frame_idx].create_back(d3d_ptr, allocation);
     }
 
 }

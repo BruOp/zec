@@ -66,14 +66,14 @@ namespace clustered::light_binning_pass
     {
         const CommandContextHandle cmd_ctx = context->cmd_context;
         const ResourceContext& resource_context = *context->resource_context;
-        const ShaderStore& shader_context = *context->shader_context;
+        const PipelineStore& pipeline_context = *context->pipeline_context;
         const SettingsStore& settings_context = *context->settings_context;
         const PerPassDataStore* per_pass_data_store = context->per_pass_data_store;
 
         const LightBinningPassData& pass_data = per_pass_data_store->get<LightBinningPassData>(LIGHT_BINNING_PASS_DATA);
-        const ResourceLayoutHandle resource_layout = shader_context.get_resource_layout({ LIGHT_BINNING_PASS_RESOURCE_LAYOUT });
-        const PipelineStateHandle spot_light_pso = shader_context.get_pipeline({ LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE });
-        const PipelineStateHandle point_light_pso = shader_context.get_pipeline({ LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE });
+        const ResourceLayoutHandle resource_layout = pipeline_context.get_resource_layout({ LIGHT_BINNING_PASS_RESOURCE_LAYOUT });
+        const PipelineStateHandle spot_light_pso = pipeline_context.get_pipeline({ LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE });
+        const PipelineStateHandle point_light_pso = pipeline_context.get_pipeline({ LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE });
 
         const BufferHandle spot_light_indices_buffer = resource_context.get_buffer(pass_resources::SPOT_LIGHT_INDICES);
         const BufferHandle point_light_indices_buffer = resource_context.get_buffer(pass_resources::POINT_LIGHT_INDICES);

@@ -9,7 +9,6 @@
 
 #pragma once
 #include <string>
-#include <windows.h>
 
 #include "core/zec_types.h"
 #include "assert.h"
@@ -82,11 +81,7 @@ namespace zec
 #else
 
     // Throws a Win32Exception on failing return value
-    inline void Win32Call(BOOL retVal)
-    {
-        if (retVal == 0)
-            throw Win32Exception(GetLastError());
-    }
+    void Win32Call(BOOL retVal);
 
 #endif // USE_ASSERTS
 

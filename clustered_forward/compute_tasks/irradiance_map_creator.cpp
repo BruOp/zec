@@ -43,11 +43,13 @@ namespace clustered
         std::string errors{};
         ShaderBlobsHandle blobs = {};
         ZecResult res = gfx::shader_compilation::compile_shaders(shader_compilation_desc, blobs, errors);
+
         ASSERT_MSG(is_success(res), errors.c_str());
 
         // Create the Pipeline State Object
         PipelineStateObjectDesc pipeline_desc = {};
-        pso_handle = gfx::pipelines::create_pipeline_state_object(blobs, resource_layout, pipeline_desc, L"Irradiance map creator");
+        pso_handle = gfx::pipelines::create_pipeline_state_object(blobs, resource_layout, pipeline_desc);
+        gfx::set_debug_name(pso_handle, L"Irradiance map creator");
 
         gfx::shader_compilation::release_blobs(blobs);
     }

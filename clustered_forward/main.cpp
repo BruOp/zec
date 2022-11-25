@@ -1,6 +1,7 @@
 #include <string>
 #include <random>
 #include <functional>
+#include <Windows.h>
 
 #include "app.h"
 #include "utils/utils.h"
@@ -58,16 +59,15 @@ namespace clustered
         .mid_plane = -CLUSTER_MID_PLANE,
     };
 
-    // TODO: Do we need to define this as part of the PipelineCompilation interface?
-    struct PipelineCompilationDesc
+    struct PipelineInfos
     {
         std::wstring_view name;
-        Shaders shader;
-        ResourceLayouts resource_layout;
-        Pipelines pso;
+        EShaderIds shader;
+        EResourceLayoutIds resource_layout;
+        EPipelineIds pso;
     };
 
-    constexpr PipelineCompilationDesc pipeline_comp_descs[] = {
+    constexpr PipelineInfos pipeline_info[] = {
         { L"Depth", DEPTH_PASS_SHADER, DEPTH_PASS_RESOURCE_LAYOUT, DEPTH_PASS_PIPELINE },
         { L"Point Light Binning", LIGHT_BINNING_PASS_POINT_LIGHT_SHADER, LIGHT_BINNING_PASS_RESOURCE_LAYOUT, LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE },
         { L"Spot Light Binning", LIGHT_BINNING_PASS_SPOT_LIGHT_SHADER, LIGHT_BINNING_PASS_RESOURCE_LAYOUT, LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE },
@@ -97,10 +97,9 @@ namespace clustered
         RenderableScene renderable_scene;
         RenderableCamera renderable_camera;
 
-        gfx::PipelineCompilationManager pipeline_compilation_manager = {};
-
         render_graph::ResourceContext resource_context = {};
-        render_graph::ShaderStore shader_store = {};
+        render_graph::ResourceLayoutStore resource_layout_store = {};
+        render_graph::PipelineStore shader_store = {};
         render_graph::RenderTaskList render_task_list = {};
 
         TaskScheduler task_scheduler{};
@@ -363,23 +362,29 @@ namespace clustered
 
             // Pipelines and resource layouts
             {
-                // TODO -- Just use wstring for errors
                 std::string errors = {};
-                gfx::PipelineCompilationHandle result;
-                for (const auto& desc : pipeline_comp_descs)
+                for (size_t i = 0; i < std::size(pipeline_info); ++i)
                 {
-                    result = pipeline_compilation_manager.create_pipeline(desc.name.data(), get_shader_compilation_desc(desc.shader), get_resource_layout_desc(desc.resource_layout), get_pipeline_desc(desc.pso), errors);
-                    ASSERT_MSG(errors.empty() && is_valid(result), "Shader compilation failure: %s", errors);
-
-                    if (!shader_store.has_resource_layout({ desc.resource_layout }))
+                    const auto& desc = pipeline_info[i];
+                    ResourceLayoutHandle resource_layout_handle;
+                    if (resource_layout_store.contains({ desc.resource_layout }))
                     {
-                        shader_store.register_resource_layout({ desc.resource_layout }, pipeline_compilation_manager.get_resource_layout(result));
+                        resource_layout_handle = resource_layout_store.get({desc.resource_layout});
                     }
-
-                    if (!shader_store.has_pipeline({ desc.pso }))
+                    else
                     {
-                        shader_store.register_pipeline({ desc.pso }, pipeline_compilation_manager.get_pipeline_state_handle(result));
+                        resource_layout_handle = gfx::pipelines::create_resource_layout(get_resource_layout_desc(desc.resource_layout));
+                        resource_layout_store.set({ desc.resource_layout }, resource_layout_handle);
+
                     }
+                    render_graph::PipelineCompilationDesc compilation_desc{
+                        .name = desc.name,
+                        .resource_layout = resource_layout_handle,
+                        .shader_compilation_desc = get_shader_compilation_desc(desc.shader),
+                        .pso_desc = get_pipeline_desc(desc.pso),
+                    };
+                    ZecResult result = shader_store.compile({ desc.pso }, compilation_desc, errors);
+                    ASSERT_MSG(result == ZecResult::SUCCESS && errors.empty(), errors.c_str());
                 }
             }
 
@@ -424,16 +429,86 @@ namespace clustered
 
         void update(const zec::TimeData& time_data) override final
         {
-            ui::begin_frame();
+            static bool show_pipeline_menu = false;
             zec::input::InputState input_state = input_manager.get_state();
 
             camera_controller.update(camera, input_state, time_data.delta_seconds_f);
             camera_controller.apply(camera);
 
-            const auto framerate = ImGui::GetIO().Framerate;
-            ImGui::Begin("Pipelines");
+            ui::begin_frame();
+            ImGui::ShowDemoWindow();
 
+            const auto framerate = ImGui::GetIO().Framerate;
+            ImGui::Begin("Clustered Forward Rendering");
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / framerate, framerate);
+            if (ImGui::Button("Open pipelines menus"))
+            {
+                show_pipeline_menu = true;
+            }
+
+            // TODO: separate function for this
+            ImGui::SetNextWindowSize(ImVec2(500, 440), ImGuiCond_FirstUseEver);
+            if (show_pipeline_menu)
+            {
+                if (ImGui::Begin("Pipelines", &show_pipeline_menu, ImGuiWindowFlags_MenuBar))
+                {
+                    enum struct CompilationState : u32
+                    {
+                        INVALID = 0,
+                        SUCCESS,
+                        FAILURE
+                    };
+
+                    static CompilationState state = CompilationState::INVALID;
+                    static std::string errors = {};
+                    static render_graph::PipelineId selected = {};
+                    {
+                        ImGui::BeginChild("pipeline list", ImVec2(0, 100), true);
+                        for (const auto& desc_pair : shader_store)
+                        {
+
+                            const auto& pipeline_comp_desc = desc_pair.second;
+
+                            std::string name = wstring_to_ansi(pipeline_comp_desc.name.data());
+                            if (ImGui::Selectable(name.c_str(), selected == desc_pair.first))
+                            {
+                                selected = desc_pair.first;
+                                errors.clear();
+                                state = CompilationState::INVALID;
+                            }
+                        }
+                        ImGui::EndChild();
+                    }
+
+                    if (selected.is_valid())
+                    {
+                        if (ImGui::Button("Reload Shader"))
+                        {
+                            ZecResult res = shader_store.recompile(selected, errors);
+                            state = (res == ZecResult::SUCCESS) ? CompilationState::SUCCESS : CompilationState::FAILURE;
+                        }
+
+                        if (state == CompilationState::SUCCESS)
+                        {
+                            ImGui::Text("Succeded!");
+                        }
+                        else if (state == CompilationState::FAILURE)
+                        {
+                            ImGui::Text("Failed!");
+                        }
+                    }
+
+                    if (state == CompilationState::FAILURE && errors.length() > 0)
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(30, 0, 0, 100));
+                        ImGui::BeginChild("scrolling", ImVec2(0, 0), true, ImGuiWindowFlags_HorizontalScrollbar);
+                        ImGui::TextUnformatted(errors.c_str());
+                        ImGui::EndChild();
+                        ImGui::PopStyleColor();
+                    }
+                }
+                ImGui::End();
+            }
 
             ImGui::End();
             ui::end_frame();

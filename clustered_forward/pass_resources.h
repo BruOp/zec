@@ -28,7 +28,7 @@ namespace clustered
         MAKE_IDENTIFIER(POINT_LIGHT_INDICES);
     }
 
-    enum ResourceLayouts : u32
+    enum EResourceLayoutIds : u32
     {
         DEPTH_PASS_RESOURCE_LAYOUT = 0,
         BACKGROUND_PASS_RESOURCE_LAYOUT,
@@ -40,7 +40,7 @@ namespace clustered
     };
 
 
-    enum Shaders : u32
+    enum EShaderIds : u32
     {
         DEPTH_PASS_SHADER = 0,
         BACKGROUND_PASS_SHADER,
@@ -53,7 +53,7 @@ namespace clustered
     };
 
 
-    enum Pipelines : u32
+    enum EPipelineIds : u32
     {
         DEPTH_PASS_PIPELINE = 0,
         BACKGROUND_PASS_PIPELINE,
@@ -65,9 +65,9 @@ namespace clustered
         PIPELINES_COUNT,
     };
 
-    zec::ResourceLayoutDesc get_resource_layout_desc(const ResourceLayouts& layouts_enum);
-    zec::ShaderCompilationDesc get_shader_compilation_desc(const Shaders& shaders_enum);
-    zec::PipelineStateObjectDesc get_pipeline_desc(const Pipelines& pipelines_enum);
+    zec::ResourceLayoutDesc get_resource_layout_desc(const EResourceLayoutIds& layouts_enum);
+    zec::ShaderCompilationDesc get_shader_compilation_desc(const EShaderIds& shaders_enum);
+    zec::PipelineStateObjectDesc get_pipeline_desc(const EPipelineIds& pipelines_enum);
 
     namespace pass_resource_descs
     {

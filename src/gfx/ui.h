@@ -1,7 +1,8 @@
 #pragma once
 #include "imgui/imgui.h"
-#include "window.h"
 #include "gfx/public_resources.h"
+
+class Window;
 
 namespace zec::ui
 {

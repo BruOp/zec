@@ -32,7 +32,7 @@ namespace clustered
         {
             const CommandContextHandle cmd_ctx = context->cmd_context;
             const ResourceContext& resource_context = *context->resource_context;
-            const ShaderStore& shader_context = *context->shader_context;
+            const PipelineStore& pipeline_context = *context->pipeline_context;
             const SettingsStore& settings_context = *context->settings_context;
             TextureHandle depth_target = resource_context.get_texture(pass_resources::DEPTH_TARGET);
 
@@ -40,8 +40,8 @@ namespace clustered
             Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
             Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-            const ResourceLayoutHandle resource_layout = shader_context.get_resource_layout({ DEPTH_PASS_RESOURCE_LAYOUT });
-            const PipelineStateHandle pso = shader_context.get_pipeline({ DEPTH_PASS_PIPELINE });
+            const ResourceLayoutHandle resource_layout = pipeline_context.get_resource_layout({ DEPTH_PASS_RESOURCE_LAYOUT });
+            const PipelineStateHandle pso = pipeline_context.get_pipeline({ DEPTH_PASS_PIPELINE });
 
             gfx::cmd::set_graphics_resource_layout(cmd_ctx, resource_layout);
             gfx::cmd::set_graphics_pipeline_state(cmd_ctx, pso);

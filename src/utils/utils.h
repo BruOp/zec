@@ -23,6 +23,7 @@ namespace zec
     std::wstring ansi_to_wstring(const char* ansiString);
 
     std::string wstring_to_ansi(const wchar* wideString);
+    std::string wstring_to_utf8(const std::wstring& wideString);
 
     // Splits up a string using a delimiter
     void split(const std::wstring& str, std::vector<std::wstring>& parts, const std::wstring& delimiters = L" ");

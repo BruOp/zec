@@ -18,7 +18,7 @@ namespace zec
         message += errorString;
         return message;
     }
-    
+
     std::string GetWin32ErrorStringAnsi(DWORD errorCode)
     {
         char errorString[MAX_PATH];
@@ -34,19 +34,19 @@ namespace zec
         message += errorString;
         return message;
     }
-    
+
     Exception::Exception(const std::string& exceptionMessage)
     {
         wchar buffer[512];
         MultiByteToWideChar(CP_ACP, 0, exceptionMessage.c_str(), -1, buffer, 512);
         message = std::wstring(buffer);
     }
-    
+
     void Exception::ShowErrorMessage() const throw()
     {
         MessageBox(NULL, message.c_str(), L"Error", MB_OK | MB_ICONERROR);
     }
-    
+
     Win32Exception::Win32Exception(DWORD code, const wchar* msgPrefix) : errorCode(code)
     {
         wchar errorString[MAX_PATH];
@@ -63,4 +63,12 @@ namespace zec
             message += msgPrefix;
         message += errorString;
     }
+
+#if !USE_ASSERTS
+    void Win32Call(BOOL retVal)
+    {
+        if (retVal == 0)
+            throw Win32Exception(GetLastError());
+    }
+#endif // USE_ASSERTS
 }

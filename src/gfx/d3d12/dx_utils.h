@@ -1,39 +1,27 @@
 #pragma once
 #include "utils/exceptions.h"
 #include "DXErr.h"
-#include <d3dcommon.h>
 
+struct ID3D10Blob;
 struct IDxcBlobUtf8;
+struct IDxcBlobUtf16;
+
+typedef long HRESULT;
+typedef ID3D10Blob ID3DBlob;
+
 
 namespace zec::gfx::dx12
 {
     std::string get_string(IDxcBlobUtf8* blob);
     std::wstring get_wstring(IDxcBlobUtf8* blob);
+    std::wstring get_wstring(IDxcBlobUtf16* blob);
 
     void print_blob(ID3DBlob* blob);
     void print_blob(IDxcBlobUtf8* blob);
 
-    inline std::wstring GetDXErrorString(HRESULT hr)
-    {
-        const u32 errStringSize = 1024;
-        wchar errorString[errStringSize];
-        DXGetErrorDescriptionW(hr, errorString, errStringSize);
+    std::wstring GetDXErrorString(HRESULT hr);
 
-        std::wstring message = L"DirectX Error: ";
-        message += errorString;
-        return message;
-    }
-
-    inline std::string GetDXErrorStringAnsi(HRESULT hr)
-    {
-        std::wstring errorString = GetDXErrorString(hr);
-
-        std::string message;
-        message.reserve(errorString.length());
-        for (u64 i = 0; i < errorString.length(); ++i)
-            message.append(1, static_cast<char>(errorString[i]));
-        return message;
-    }
+    std::string GetDXErrorStringUTF8(HRESULT hr);
 
     // Exception thrown when a DirectX Function fails
     class DXException : public Exception
@@ -69,7 +57,7 @@ namespace zec::gfx::dx12
 #define DXCall(x)   \
         do {                                                                        \
         HRESULT hr_ = x;                                                            \
-        ASSERT_MSG(SUCCEEDED(hr_), zec::gfx::dx12::GetDXErrorStringAnsi(hr_).c_str());   \
+        ASSERT_MSG(SUCCEEDED(hr_), zec::gfx::dx12::GetDXErrorStringUTF8(hr_).c_str());   \
         } while (0);
 #endif // DXCall
 #else // USE_ASSERTS

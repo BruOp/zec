@@ -2,23 +2,7 @@
 #include "core/zec_types.h"
 #include "core/zec_math.h"
 #include "public_resources.h"
-
-// Forward declared string
-// TODO: put this into a separate header, string_fwd
-namespace std
-{
-    template <class _Elem>
-    class allocator;
-
-    template <class _Elem>
-    struct char_traits;
-
-    template <class _Elem, class _Traits, class _Alloc>
-    class basic_string;
-
-    typedef basic_string<wchar_t, char_traits<wchar_t>, allocator<wchar_t>> wstring;
-    typedef basic_string<char, char_traits<char>, allocator<char>> string;
-}
+#include "utils/string_fwd.h"
 
 namespace zec::gfx
 {
@@ -52,9 +36,9 @@ namespace zec::gfx
     namespace pipelines
     {
         ResourceLayoutHandle    create_resource_layout(const ResourceLayoutDesc& desc);
-        PipelineStateHandle     create_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const wchar* name);
+        PipelineStateHandle     create_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc);
         // This basically creates a new PSO and replaces the existing pipeline_state_handle that's stored at the index. Obviously you probably don't want to do this in the middle of a frame, but it _should_ be safe to do so.
-        ZecResult               recreate_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const wchar* name, const PipelineStateHandle pipeline_state_handle);
+        ZecResult               recreate_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const PipelineStateHandle pipeline_state_handle);
     }
 
     namespace buffers

@@ -125,26 +125,51 @@ namespace zec::render_graph
         return backbuffer_id;
     }
 
-    void ShaderStore::register_resource_layout(const ResourceIdentifier id, const ResourceLayoutHandle handle)
+    ZecResult PipelineStore::compile(const PipelineId id, const PipelineCompilationDesc& desc, std::string& inout_errors)
     {
-        ASSERT(resource_layouts.count(id) == 0);
-        resource_layouts.emplace(id, handle);
+        ASSERT(!pso_handles.contains(id));
+        ASSERT(!recompilation_infos.contains(id));
+
+        ShaderBlobsHandle blobs_handle{};
+        ZecResult res = gfx::shader_compilation::compile_shaders(desc.shader_compilation_desc, blobs_handle, inout_errors);
+
+        if (res == ZecResult::SUCCESS)
+        {
+            ResourceLayoutHandle resource_layout = desc.resource_layout;
+            PipelineStateHandle pso_handle = gfx::pipelines::create_pipeline_state_object(blobs_handle, resource_layout, desc.pso_desc);
+
+            // Success!
+            // Clean up after ourselves
+            gfx::shader_compilation::release_blobs(blobs_handle);
+
+            pso_handles.set(id, pso_handle);
+            recompilation_infos.set(id, desc);;
+        }
+        return res;
     }
 
-    void ShaderStore::register_pipeline(const ResourceIdentifier id, const PipelineStateHandle handle)
+    ZecResult PipelineStore::recompile(const PipelineId pipeline_id, std::string& inout_errors)
     {
-        ASSERT(pipelines.count(id) == 0);
-        pipelines.emplace(id, handle);
-    }
+        ASSERT(pso_handles.contains(pipeline_id));
+        ASSERT(recompilation_infos.contains(pipeline_id));
 
-    ResourceLayoutHandle ShaderStore::get_resource_layout(const ResourceIdentifier id) const
-    {
-        return resource_layouts.at(id);
-    }
+        const PipelineCompilationDesc& recompilation_desc = recompilation_infos.get(pipeline_id);
+        ShaderBlobsHandle blobs_handle{};
+        ZecResult res = gfx::shader_compilation::compile_shaders(recompilation_desc.shader_compilation_desc, blobs_handle, inout_errors);
 
-    PipelineStateHandle ShaderStore::get_pipeline(const ResourceIdentifier id) const
-    {
-        return pipelines.at(id);
+        if (res == ZecResult::SUCCESS)
+        {
+            // Recompile pipeline id
+            const ResourceLayoutHandle resource_layout_handle = recompilation_desc.resource_layout;
+            const PipelineStateHandle old_pipeline_id = pso_handles.get(pipeline_id);
+
+            // TODO: do we need to make this whole process async? How would that work?
+            res = gfx::pipelines::recreate_pipeline_state_object(blobs_handle, resource_layout_handle, recompilation_desc.pso_desc, old_pipeline_id);
+
+            gfx::shader_compilation::release_blobs(blobs_handle);
+        }
+
+        return res;
     }
 
     PassListBuilder::PassListBuilder(RenderTaskList* list_to_build) : out_list(list_to_build)
@@ -248,12 +273,12 @@ namespace zec::render_graph
         out_list->resource_context = resource_context;
     }
 
-    void PassListBuilder::set_shader_store(ShaderStore* shader_store)
+    void PassListBuilder::set_shader_store(PipelineStore* shader_store)
     {
         out_list->shader_store = shader_store;
     }
 
-    RenderTaskList::RenderTaskList(ResourceContext* resource_context, ShaderStore* shader_store)
+    RenderTaskList::RenderTaskList(ResourceContext* resource_context, PipelineStore* shader_store)
         : resource_context{ resource_context }
         , shader_store{ shader_store }
         , settings_context{}
@@ -413,7 +438,7 @@ namespace zec::render_graph
                 // Pass Execution
                 PassExecutionContext execution_context = {
                    .resource_context = resource_context,
-                   .shader_context = shader_store,
+                   .pipeline_context = shader_store,
                    .settings_context = &settings_context,
                    .per_pass_data_store = &per_pass_data_store,
                    .cmd_context = cmd_ctx,
@@ -470,4 +495,5 @@ namespace zec::render_graph
         }
 
     }
+
 }

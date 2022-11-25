@@ -1,6 +1,7 @@
 #pragma once
 #include <filesystem>
 #include <string>
+#include <Windows.h>
 
 #include "core/zec_types.h"
 #include "core/zec_math.h"
@@ -768,7 +769,7 @@ namespace zec::gfx
 
         namespace
         {
-            ID3D12PipelineState* private_create_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const wchar* name)
+            ID3D12PipelineState* private_create_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc)
             {
                 ASSERT(is_valid(resource_layout_handle));
 
@@ -879,28 +880,26 @@ namespace zec::gfx
 
                 }
 
-                pipeline->SetName(name);
                 return pipeline;
             };
         }
 
-        PipelineStateHandle create_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const wchar* name)
+        PipelineStateHandle create_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc)
         {
-            return g_context.pipelines.push_back(private_create_pipeline_state_object(shader_blobs_handle,resource_layout_handle, desc, name));
+            return g_context.pipelines.push_back(private_create_pipeline_state_object(shader_blobs_handle,resource_layout_handle, desc));
         }
 
-        ZecResult recreate_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const wchar* name, const PipelineStateHandle pipeline_state_handle)
+        ZecResult recreate_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const PipelineStateHandle pipeline_state_handle)
         {
             ID3D12PipelineState* old_pipeline = g_context.pipelines[pipeline_state_handle];
-            ID3D12PipelineState* new_pipeline = private_create_pipeline_state_object(shader_blobs_handle, resource_layout_handle, desc, name);
+            ID3D12PipelineState* new_pipeline = private_create_pipeline_state_object(shader_blobs_handle, resource_layout_handle, desc);
 
             // Assign new pipeline to old slot
             g_context.pipelines[pipeline_state_handle] = new_pipeline;
             // Destroy the old pipeline
-            g_context.destruction_queue.enqueue(g_context.current_cpu_frame, old_pipeline);
+            g_context.destruction_queue.enqueue(g_context.current_frame_idx, old_pipeline);
             return ZecResult::SUCCESS;
         }
-
     }
 
     namespace buffers

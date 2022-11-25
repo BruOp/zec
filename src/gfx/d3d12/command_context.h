@@ -5,7 +5,6 @@
 #include "core/ring_buffer.h"
 #include "gfx/public_resources.h"
 #include "gfx/gfx.h"
-#include "dx_utils.h"
 #include "wrappers.h"
 
 namespace zec::gfx::dx12

@@ -23,7 +23,7 @@ namespace zec::gfx::dx12
         // Composite of 8-bit heap_type, 24-bit count (so most significant 8 bits is heap-type)
         u32 composite_member = UINT32_MAX;
         u32 offset = zec::k_invalid_handle;
-        
+
         static constexpr u32 COUNT_MASK = 0x00FFFFFF;
 
         inline u32 get_offset() const
@@ -105,7 +105,7 @@ namespace zec::gfx::dx12
 
         void initialize(ID3D12Device* device);
         void destroy();
-        
+
         DescriptorRangeHandle allocate_descriptors(ID3D12Device* device, ID3D12Resource* resource, const D3D12_SHADER_RESOURCE_VIEW_DESC* srv_desc);
         // In this case, num_descs allows you to create UAVs for e.g. each mip of a map
         DescriptorRangeHandle allocate_descriptors(ID3D12Device* device, ID3D12Resource* resource, const D3D12_UNORDERED_ACCESS_VIEW_DESC* uav_descs, const size_t num_descs);

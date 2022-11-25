@@ -1,4 +1,5 @@
 #include "timer.h"
+#include <Windows.h>
 #include "utils/utils.h"
 
 namespace zec

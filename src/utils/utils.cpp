@@ -1,4 +1,5 @@
 #include "utils.h"
+#include <windows.h>
 
 namespace zec
 {
@@ -19,6 +20,14 @@ namespace zec
         char buffer[512];
         Win32Call(WideCharToMultiByte(CP_ACP, 0, wideString, -1, buffer, 512, NULL, NULL));
         return std::string(buffer);
+    }
+
+    std::string wstring_to_utf8(const std::wstring& wideString)
+    {
+        const size_t len = WideCharToMultiByte(CP_UTF8, 0, wideString.c_str(), wideString.length(), nullptr, 0, NULL, NULL);
+        std::string out_string(len, 0);
+        Win32Call(WideCharToMultiByte(CP_UTF8, 0, wideString.c_str(), wideString.length(), out_string.data(), len, NULL, NULL));
+        return out_string;
     }
 
     void split(const std::wstring& str, std::vector<std::wstring>& parts, const std::wstring& delimiters)
