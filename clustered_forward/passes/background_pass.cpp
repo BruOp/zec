@@ -19,7 +19,7 @@ namespace clustered
 
         static constexpr PassResourceUsage inputs[] = {
             {
-                .identifier = pass_resources::DEPTH_TARGET,
+                .identifier = to_rid(EResourceIds::DEPTH_TARGET),
                 .type = PassResourceType::TEXTURE,
                 .usage = RESOURCE_USAGE_DEPTH_STENCIL,
             },
@@ -27,7 +27,7 @@ namespace clustered
 
         static constexpr PassResourceUsage outputs[] = {
             {
-                .identifier = pass_resources::HDR_TARGET,
+                .identifier = to_rid(EResourceIds::HDR_TARGET),
                 .type = PassResourceType::TEXTURE,
                 .usage = zec::RESOURCE_USAGE_RENDER_TARGET,
             },
@@ -43,14 +43,14 @@ namespace clustered
             const PipelineStore& pipeline_context = *context->pipeline_context;
             const SettingsStore& settings_context = *context->settings_context;
 
-            TextureHandle depth_target = resource_context.get_texture(pass_resources::DEPTH_TARGET);
-            TextureHandle hdr_buffer = resource_context.get_texture(pass_resources::HDR_TARGET);
+            TextureHandle depth_target = resource_context.get_texture(to_rid(EResourceIds::DEPTH_TARGET));
+            TextureHandle hdr_buffer = resource_context.get_texture(to_rid(EResourceIds::HDR_TARGET));
             const TextureInfo& texture_info = gfx::textures::get_texture_info(hdr_buffer);
             Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
             Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-            const ResourceLayoutHandle resource_layout = pipeline_context.get_resource_layout({ BACKGROUND_PASS_RESOURCE_LAYOUT });
-            const PipelineStateHandle pso = pipeline_context.get_pipeline({ BACKGROUND_PASS_PIPELINE });
+            const ResourceLayoutHandle resource_layout = pipeline_context.get_resource_layout(to_rid(EResourceLayoutIds::BACKGROUND_PASS_RESOURCE_LAYOUT));
+            const PipelineStateHandle pso = pipeline_context.get_pipeline(to_rid(EPipelineIds::BACKGROUND_PASS_PIPELINE));
 
             gfx::cmd::set_graphics_resource_layout(cmd_ctx, resource_layout);
             gfx::cmd::set_graphics_pipeline_state(cmd_ctx, pso);
@@ -58,9 +58,9 @@ namespace clustered
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
             gfx::cmd::set_scissors(cmd_ctx, &scissor, 1);
 
-            const TextureHandle background_cube_map = settings_context.get<TextureHandle>(settings::BACKGROUND_CUBE_MAP);
-            const BufferHandle view_cb_handle = settings_context.get<BufferHandle>(settings::MAIN_PASS_VIEW_CB);
-            const MeshHandle fullscreen_mesh = settings_context.get<MeshHandle>(settings::FULLSCREEN_QUAD);
+            const TextureHandle background_cube_map = settings_context.get<TextureHandle>(to_rid(ESettingsIds::BACKGROUND_CUBE_MAP));
+            const BufferHandle view_cb_handle = settings_context.get<BufferHandle>(to_rid(ESettingsIds::MAIN_PASS_VIEW_CB));
+            const MeshHandle fullscreen_mesh = settings_context.get<MeshHandle>(to_rid(ESettingsIds::FULLSCREEN_QUAD));
 
             struct Constants
             {

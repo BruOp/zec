@@ -34,17 +34,17 @@ namespace clustered
 
         static constexpr PassResourceUsage inputs[] = {
             {
-                .identifier = pass_resources::DEPTH_TARGET,
+                .identifier = to_rid(EResourceIds::DEPTH_TARGET),
                 .type = PassResourceType::TEXTURE,
                 .usage = RESOURCE_USAGE_DEPTH_STENCIL,
             },
             {
-                .identifier = pass_resources::SPOT_LIGHT_INDICES,
+                .identifier = to_rid(EResourceIds::SPOT_LIGHT_INDICES),
                 .type = PassResourceType::BUFFER,
                 .usage = RESOURCE_USAGE_SHADER_READABLE,
             },
             {
-                .identifier = pass_resources::POINT_LIGHT_INDICES,
+                .identifier = to_rid(EResourceIds::POINT_LIGHT_INDICES),
                 .type = PassResourceType::BUFFER,
                 .usage = RESOURCE_USAGE_SHADER_READABLE,
             }
@@ -52,7 +52,7 @@ namespace clustered
 
         static constexpr PassResourceUsage outputs[] = {
             {
-                .identifier = pass_resources::SDR_TARGET,
+                .identifier = to_rid(EResourceIds::SDR_TARGET),
                 .type = PassResourceType::TEXTURE,
                 .usage = RESOURCE_USAGE_RENDER_TARGET,
             },
@@ -62,7 +62,6 @@ namespace clustered
 
     namespace clustered_debug_pass
     {
-
         static void setup(const render_graph::SettingsStore* settings_context, render_graph::PerPassDataStore* per_pass_data_store)
         {
             BufferHandle cluster_grid_cb = gfx::buffers::create({
@@ -83,10 +82,10 @@ namespace clustered
             const PipelineStore& pipeline_context = *context->pipeline_context;
             const SettingsStore& settings_context = *context->settings_context;
 
-            const BufferHandle spot_light_indices_buffer = resource_context.get_buffer(pass_resources::SPOT_LIGHT_INDICES);
-            const BufferHandle point_light_indices_buffer = resource_context.get_buffer(pass_resources::POINT_LIGHT_INDICES);
+            const BufferHandle spot_light_indices_buffer = resource_context.get_buffer(to_rid(EResourceIds::SPOT_LIGHT_INDICES));
+            const BufferHandle point_light_indices_buffer = resource_context.get_buffer(to_rid(EResourceIds::POINT_LIGHT_INDICES));
 
-            const ClusterGridSetup cluster_grid_setup = settings_context.get<ClusterGridSetup>(settings::CLUSTER_GRID_SETUP);
+            const ClusterGridSetup cluster_grid_setup = settings_context.get<ClusterGridSetup>(to_rid(ESettingsIds::CLUSTER_GRID_SETUP));
             ClusterGridConstants binning_constants = {
                 .setup = cluster_grid_setup,
                 .spot_light_indices_list_idx = gfx::buffers::get_shader_readable_index(spot_light_indices_buffer),
@@ -97,14 +96,14 @@ namespace clustered
 
             constexpr float clear_color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
-            TextureHandle depth_target = resource_context.get_texture(pass_resources::DEPTH_TARGET);
+            TextureHandle depth_target = resource_context.get_texture(to_rid(EResourceIds::DEPTH_TARGET));
             TextureHandle render_target = resource_context.get_texture(outputs[0].identifier);
             const TextureInfo& texture_info = gfx::textures::get_texture_info(render_target);
             Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
             Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-            const ResourceLayoutHandle resource_layout = pipeline_context.get_resource_layout({ CLUSTERED_DEBUG_PASS_RESOURCE_LAYOUT });
-            const PipelineStateHandle pso = pipeline_context.get_pipeline({ CLUSTERED_DEBUG_PASS_PIPELINE });
+            const ResourceLayoutHandle resource_layout = pipeline_context.get_resource_layout(to_rid(EPipelineIds::CLUSTERED_DEBUG_PASS_PIPELINE));
+            const PipelineStateHandle pso = pipeline_context.get_pipeline(to_rid(EPipelineIds::CLUSTERED_DEBUG_PASS_PIPELINE));
             gfx::cmd::set_graphics_resource_layout(cmd_ctx, resource_layout);
             gfx::cmd::set_graphics_pipeline_state(cmd_ctx, pso);
             gfx::cmd::set_viewports(cmd_ctx, &viewport, 1);
@@ -113,8 +112,8 @@ namespace clustered
             gfx::cmd::clear_render_target(cmd_ctx, render_target, clear_color);
             gfx::cmd::set_render_targets(cmd_ctx, &render_target, 1, depth_target);
 
-            const RenderableScene* scene_data = settings_context.get<RenderableScene*>(settings::RENDERABLE_SCENE_PTR);
-            const BufferHandle view_cb_handle = settings_context.get<BufferHandle>(settings::MAIN_PASS_VIEW_CB);
+            const RenderableScene* scene_data = settings_context.get<RenderableScene*>(to_rid(ESettingsIds::RENDERABLE_SCENE_PTR));
+            const BufferHandle view_cb_handle = settings_context.get<BufferHandle>(to_rid(ESettingsIds::MAIN_PASS_VIEW_CB));
             gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
             gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, scene_data->scene_constants, u32(BindingSlots::SCENE_CONSTANT_BUFFER));
             gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, pass_data.cluster_grid_cb, u32(BindingSlots::CLUSTER_GRID_CONSTANTS));
@@ -138,7 +137,7 @@ namespace clustered
             }
         };
 
-        extern const render_graph::PassDesc cluster_debug_desc = {
+        extern const render_graph::PassDesc pass_desc = {
             .name = "Cluster Debug Pass",
             .command_queue_type = zec::CommandQueueType::GRAPHICS,
             .setup_fn = &setup,

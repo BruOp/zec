@@ -9,7 +9,7 @@ namespace clustered::ui_pass
 
     static constexpr PassResourceUsage outputs[] = {
         {
-            .identifier = pass_resources::SDR_TARGET.identifier,
+            .identifier = to_rid(EResourceIds::SDR_TARGET),
             .type = PassResourceType::TEXTURE,
             .usage = zec::RESOURCE_USAGE_RENDER_TARGET,
         },

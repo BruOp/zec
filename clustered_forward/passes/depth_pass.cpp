@@ -18,7 +18,7 @@ namespace clustered
 
         constexpr PassResourceUsage outputs[] = {
             {
-                .identifier = pass_resources::DEPTH_TARGET,
+                .identifier = to_rid(EResourceIds::DEPTH_TARGET),
                 .type = PassResourceType::TEXTURE,
                 .usage = RESOURCE_USAGE_DEPTH_STENCIL,
             },
@@ -34,14 +34,14 @@ namespace clustered
             const ResourceContext& resource_context = *context->resource_context;
             const PipelineStore& pipeline_context = *context->pipeline_context;
             const SettingsStore& settings_context = *context->settings_context;
-            TextureHandle depth_target = resource_context.get_texture(pass_resources::DEPTH_TARGET);
+            TextureHandle depth_target = resource_context.get_texture(to_rid(EResourceIds::DEPTH_TARGET));
 
             const TextureInfo& texture_info = gfx::textures::get_texture_info(depth_target);
             Viewport viewport = { 0.0f, 0.0f, static_cast<float>(texture_info.width), static_cast<float>(texture_info.height) };
             Scissor scissor{ 0, 0, texture_info.width, texture_info.height };
 
-            const ResourceLayoutHandle resource_layout = pipeline_context.get_resource_layout({ DEPTH_PASS_RESOURCE_LAYOUT });
-            const PipelineStateHandle pso = pipeline_context.get_pipeline({ DEPTH_PASS_PIPELINE });
+            const ResourceLayoutHandle resource_layout = pipeline_context.get_resource_layout(to_rid(EResourceLayoutIds::DEPTH_PASS_RESOURCE_LAYOUT));
+            const PipelineStateHandle pso = pipeline_context.get_pipeline(to_rid(EPipelineIds::DEPTH_PASS_PIPELINE));
 
             gfx::cmd::set_graphics_resource_layout(cmd_ctx, resource_layout);
             gfx::cmd::set_graphics_pipeline_state(cmd_ctx, pso);
@@ -51,10 +51,10 @@ namespace clustered
             gfx::cmd::clear_depth_target(cmd_ctx, depth_target, 0.0f, 0);
             gfx::cmd::set_render_targets(cmd_ctx, nullptr, 0, depth_target);
 
-            const BufferHandle view_cb_handle = settings_context.get<BufferHandle>(settings::MAIN_PASS_VIEW_CB);
+            const BufferHandle view_cb_handle = settings_context.get<BufferHandle>(to_rid(ESettingsIds::MAIN_PASS_VIEW_CB));
             gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
 
-            const RenderableScene* scene_data = settings_context.get<RenderableScene*>(settings::RENDERABLE_SCENE_PTR);
+            const RenderableScene* scene_data = settings_context.get<RenderableScene*>(to_rid(ESettingsIds::RENDERABLE_SCENE_PTR));
             const Renderables& renderables = scene_data->renderables;
             gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::RAW_BUFFERS_TABLE));
 

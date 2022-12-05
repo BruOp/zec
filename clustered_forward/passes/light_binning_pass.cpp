@@ -38,12 +38,12 @@ namespace clustered::light_binning_pass
 
     constexpr render_graph::PassResourceUsage outputs[] = {
         {
-            .identifier = pass_resources::SPOT_LIGHT_INDICES,
+            .identifier = to_rid(EResourceIds::SPOT_LIGHT_INDICES),
             .type = render_graph::PassResourceType::BUFFER,
             .usage = RESOURCE_USAGE_COMPUTE_WRITABLE
         },
         {
-            .identifier = pass_resources::POINT_LIGHT_INDICES,
+            .identifier = to_rid(EResourceIds::POINT_LIGHT_INDICES),
             .type = render_graph::PassResourceType::BUFFER,
             .usage = RESOURCE_USAGE_COMPUTE_WRITABLE
         }
@@ -71,14 +71,14 @@ namespace clustered::light_binning_pass
         const PerPassDataStore* per_pass_data_store = context->per_pass_data_store;
 
         const LightBinningPassData& pass_data = per_pass_data_store->get<LightBinningPassData>(LIGHT_BINNING_PASS_DATA);
-        const ResourceLayoutHandle resource_layout = pipeline_context.get_resource_layout({ LIGHT_BINNING_PASS_RESOURCE_LAYOUT });
-        const PipelineStateHandle spot_light_pso = pipeline_context.get_pipeline({ LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE });
-        const PipelineStateHandle point_light_pso = pipeline_context.get_pipeline({ LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE });
+        const ResourceLayoutHandle resource_layout = pipeline_context.get_resource_layout(to_rid(EResourceLayoutIds::LIGHT_BINNING_PASS_RESOURCE_LAYOUT));
+        const PipelineStateHandle spot_light_pso = pipeline_context.get_pipeline(to_rid(EPipelineIds::LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE));
+        const PipelineStateHandle point_light_pso = pipeline_context.get_pipeline(to_rid(EPipelineIds::LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE));
 
-        const BufferHandle spot_light_indices_buffer = resource_context.get_buffer(pass_resources::SPOT_LIGHT_INDICES);
-        const BufferHandle point_light_indices_buffer = resource_context.get_buffer(pass_resources::POINT_LIGHT_INDICES);
+        const BufferHandle spot_light_indices_buffer = resource_context.get_buffer(to_rid(EResourceIds::SPOT_LIGHT_INDICES));
+        const BufferHandle point_light_indices_buffer = resource_context.get_buffer(to_rid(EResourceIds::POINT_LIGHT_INDICES));
 
-        const ClusterGridSetup cluster_grid_setup = settings_context.get<ClusterGridSetup>(settings::CLUSTER_GRID_SETUP);
+        const ClusterGridSetup cluster_grid_setup = settings_context.get<ClusterGridSetup>(to_rid(ESettingsIds::CLUSTER_GRID_SETUP));
         ClusterGridConstants binning_constants = {
             .setup = cluster_grid_setup,
             .spot_light_indices_list_idx = gfx::buffers::get_shader_writable_index(spot_light_indices_buffer),
@@ -89,12 +89,12 @@ namespace clustered::light_binning_pass
         gfx::cmd::set_compute_resource_layout(cmd_ctx, resource_layout);
         gfx::cmd::set_compute_pipeline_state(cmd_ctx, spot_light_pso);
 
-        const BufferHandle view_cb_handle = settings_context.get<BufferHandle>(settings::MAIN_PASS_VIEW_CB);
+        const BufferHandle view_cb_handle = settings_context.get<BufferHandle>(to_rid(ESettingsIds::MAIN_PASS_VIEW_CB));
         gfx::cmd::bind_compute_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANTS));
 
         gfx::cmd::bind_compute_constant_buffer(cmd_ctx, pass_data.cluster_grid_cb, u32(BindingSlots::CLUSTER_GRID_CONSTANTS));
 
-        const RenderableScene* renderable_scene = settings_context.get<RenderableScene*>(settings::RENDERABLE_SCENE_PTR);
+        const RenderableScene* renderable_scene = settings_context.get<RenderableScene*>(to_rid(ESettingsIds::RENDERABLE_SCENE_PTR));
         gfx::cmd::bind_compute_constant_buffer(cmd_ctx, renderable_scene->scene_constants, u32(BindingSlots::SCENE_CONSTANTS));
 
         gfx::cmd::bind_compute_resource_table(cmd_ctx, u32(BindingSlots::READ_BUFFERS_TABLE));

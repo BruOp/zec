@@ -1,6 +1,7 @@
 #include <string>
 #include <random>
 #include <functional>
+#include <bit>
 #include <Windows.h>
 
 #include "app.h"
@@ -68,13 +69,82 @@ namespace clustered
     };
 
     constexpr PipelineInfos pipeline_info[] = {
-        { L"Depth", DEPTH_PASS_SHADER, DEPTH_PASS_RESOURCE_LAYOUT, DEPTH_PASS_PIPELINE },
-        { L"Point Light Binning", LIGHT_BINNING_PASS_POINT_LIGHT_SHADER, LIGHT_BINNING_PASS_RESOURCE_LAYOUT, LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE },
-        { L"Spot Light Binning", LIGHT_BINNING_PASS_SPOT_LIGHT_SHADER, LIGHT_BINNING_PASS_RESOURCE_LAYOUT, LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE },
-        { L"Background Pass", BACKGROUND_PASS_SHADER, BACKGROUND_PASS_RESOURCE_LAYOUT, BACKGROUND_PASS_PIPELINE },
-        { L"Forward", FORWARD_PASS_SHADER, FORWARD_PASS_RESOURCE_LAYOUT, FORWARD_PASS_PIPELINE },
-        { L"Tone Mapping", TONE_MAPPING_PASS_SHADER, TONE_MAPPING_PASS_RESOURCE_LAYOUT, TONE_MAPPING_PASS_PIPELINE }
+        {
+            L"Depth",
+            EShaderIds::DEPTH_PASS_SHADER,
+            EResourceLayoutIds::DEPTH_PASS_RESOURCE_LAYOUT,
+            EPipelineIds::DEPTH_PASS_PIPELINE
+        },
+        {
+            L"Point Light Binning",
+            EShaderIds::LIGHT_BINNING_PASS_POINT_LIGHT_SHADER,
+            EResourceLayoutIds::LIGHT_BINNING_PASS_RESOURCE_LAYOUT,
+            EPipelineIds::LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE
+        },
+        {
+            L"Spot Light Binning",
+            EShaderIds::LIGHT_BINNING_PASS_SPOT_LIGHT_SHADER,
+            EResourceLayoutIds::LIGHT_BINNING_PASS_RESOURCE_LAYOUT,
+            EPipelineIds::LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE
+        },
+        {
+            L"Background Pass",
+            EShaderIds::BACKGROUND_PASS_SHADER,
+            EResourceLayoutIds::BACKGROUND_PASS_RESOURCE_LAYOUT,
+            EPipelineIds::BACKGROUND_PASS_PIPELINE
+        },
+        {
+            L"Forward",
+            EShaderIds::FORWARD_PASS_SHADER,
+            EResourceLayoutIds::FORWARD_PASS_RESOURCE_LAYOUT,
+            EPipelineIds::FORWARD_PASS_PIPELINE
+        },
+        {
+            L"Tone Mapping",
+            EShaderIds::TONE_MAPPING_PASS_SHADER,
+            EResourceLayoutIds::TONE_MAPPING_PASS_RESOURCE_LAYOUT,
+            EPipelineIds::TONE_MAPPING_PASS_PIPELINE
+        },
+        {
+            L"Clustered Lighting Debug",
+            EShaderIds::CLUSTERED_DEBUG_PASS_SHADER,
+            EResourceLayoutIds::CLUSTERED_DEBUG_PASS_RESOURCE_LAYOUT,
+            EPipelineIds::CLUSTERED_DEBUG_PASS_PIPELINE
+        }
     };
+
+    const render_graph::PassDesc* render_pass_task_descs[] = {
+        &depth_pass::pass_desc,
+        &light_binning_pass::pass_desc,
+        &background_pass::pass_desc,
+        &forward_pass::pass_desc,
+        &tone_mapping_pass::pass_desc,
+        &clustered_debug_pass::pass_desc,
+        &ui_pass::pass_desc,
+    };
+
+    const char* get_usage_name(const zec::ResourceUsage usage)
+    {
+        static constexpr const char* usage_name_map[] = {
+            "UNUSED", // RESOURCE_USAGE_UNUSED
+            "VERTEX", // RESOURCE_USAGE_VERTEX
+            "INDEX", // RESOURCE_USAGE_INDEX
+            "CONSTANT", // RESOURCE_USAGE_CONSTANT
+            "READABLE", // RESOURCE_USAGE_SHADER_READABLE
+            "READ/WRITE", // RESOURCE_USAGE_COMPUTE_WRITABLE
+            "DYNAMIC", // RESOURCE_USAGE_DYNAMIC
+            "RENDER_TARGET", // RESOURCE_USAGE_RENDER_TARGET
+            "DEPTH_STENCIL", // RESOURCE_USAGE_DEPTH_STENCIL
+            "READBACK", // RESOURCE_USAGE_READBACK
+            "PRESENT" // RESOURCE_USAGE_PRESENT
+        };
+
+        ASSERT(std::has_single_bit(static_cast<u32>(usage)));
+
+        const u32 index = 32 - std::countl_zero(static_cast<u32>(usage));
+        ASSERT(index < std::size(usage_name_map));
+        return usage_name_map[index];
+    }
 
     class ClusteredForward : public zec::App
     {
@@ -102,6 +172,8 @@ namespace clustered
         render_graph::PipelineStore shader_store = {};
         render_graph::RenderTaskList render_task_list = {};
 
+        render_graph::PassHandle pass_handles[std::size(render_pass_task_descs)] = {};
+
         TaskScheduler task_scheduler{};
 
     protected:
@@ -121,7 +193,7 @@ namespace clustered
                 .max_num_materials = 2000,
                 .max_num_spot_lights = 1024,
                 .max_num_point_lights = 1024,
-                });
+            });
 
             CommandContextHandle copy_ctx = gfx::cmd::provision(CommandQueueType::COPY);
 
@@ -304,9 +376,9 @@ namespace clustered
 
                 vec3 scene_dims = 0.5f * (scene_aabb.max - scene_aabb.min);
                 vec3 scene_origin = 0.5f * (scene_aabb.max + scene_aabb.min);
-                constexpr u32 grid_size_x = 8;
+                constexpr u32 grid_size_x = 4;
                 constexpr u32 grid_size_y = 4;
-                constexpr u32 grid_size_z = 4;
+                constexpr u32 grid_size_z = 8;
 
                 constexpr size_t num_lights = grid_size_x * grid_size_y * grid_size_z;
                 for (size_t idx = 0; idx < num_lights; ++idx) {
@@ -345,7 +417,7 @@ namespace clustered
             // "Managed" resources
             {
                 resource_context.set_render_config_state(gfx::get_config_state());
-                resource_context.set_backbuffer_id(pass_resources::SDR_TARGET);
+                resource_context.set_backbuffer_id(to_rid(EResourceIds::SDR_TARGET));
                 resource_context.register_texture(pass_resource_descs::DEPTH_TARGET);
                 resource_context.register_texture(pass_resource_descs::HDR_TARGET);
 
@@ -367,14 +439,14 @@ namespace clustered
                 {
                     const auto& desc = pipeline_info[i];
                     ResourceLayoutHandle resource_layout_handle;
-                    if (resource_layout_store.contains({ desc.resource_layout }))
+                    if (resource_layout_store.contains( to_rid(desc.resource_layout) ))
                     {
-                        resource_layout_handle = resource_layout_store.get({desc.resource_layout});
+                        resource_layout_handle = resource_layout_store.get(to_rid(desc.resource_layout));
                     }
                     else
                     {
                         resource_layout_handle = gfx::pipelines::create_resource_layout(get_resource_layout_desc(desc.resource_layout));
-                        resource_layout_store.set({ desc.resource_layout }, resource_layout_handle);
+                        resource_layout_store.set(to_rid(desc.resource_layout), resource_layout_handle);
 
                     }
                     render_graph::PipelineCompilationDesc compilation_desc{
@@ -383,7 +455,7 @@ namespace clustered
                         .shader_compilation_desc = get_shader_compilation_desc(desc.shader),
                         .pso_desc = get_pipeline_desc(desc.pso),
                     };
-                    ZecResult result = shader_store.compile({ desc.pso }, compilation_desc, errors);
+                    ZecResult result = shader_store.compile(to_rid(desc.pso), compilation_desc, errors);
                     ASSERT_MSG(result == ZecResult::SUCCESS && errors.empty(), errors.c_str());
                 }
             }
@@ -394,28 +466,20 @@ namespace clustered
                 pass_list_builder.set_resource_context(&resource_context);
                 pass_list_builder.set_shader_store(&shader_store);
 
-                const render_graph::PassDesc* render_pass_task_descs[] = {
-                        &depth_pass::pass_desc,
-                        &light_binning_pass::pass_desc,
-                        &background_pass::pass_desc,
-                        &forward_pass::pass_desc,
-                        &tone_mapping_pass::pass_desc,
-                        &ui_pass::pass_desc,
-                };
-
-                for (const render_graph::PassDesc* pass_desc : render_pass_task_descs)
+                for (size_t i = 0; i < std::size(render_pass_task_descs); i++)
                 {
+                    const render_graph::PassDesc* pass_desc = render_pass_task_descs[i];
                     render_graph::PassListBuilder::Result res = pass_list_builder.add_pass(*pass_desc);
-                    ASSERT(res.get_code() == render_graph::PassListBuilder::StatusCodes::SUCCESS);
+                    pass_handles[i] = res.get_pass_handle();
                 }
             }
 
-            render_task_list.create_settings(settings::EXPOSURE, 1.0f);
-            render_task_list.create_settings(settings::BACKGROUND_CUBE_MAP, radiance_map);
-            render_task_list.create_settings(settings::FULLSCREEN_QUAD, fullscreen_mesh);
-            render_task_list.create_settings(settings::CLUSTER_GRID_SETUP, CLUSTER_SETUP);
-            render_task_list.create_settings(settings::MAIN_PASS_VIEW_CB, renderable_camera.view_constant_buffer);
-            render_task_list.create_settings(settings::RENDERABLE_SCENE_PTR, &renderable_scene);
+            render_task_list.create_settings(to_rid(ESettingsIds::EXPOSURE), 1.0f);
+            render_task_list.create_settings(to_rid(ESettingsIds::BACKGROUND_CUBE_MAP), radiance_map);
+            render_task_list.create_settings(to_rid(ESettingsIds::FULLSCREEN_QUAD), fullscreen_mesh);
+            render_task_list.create_settings(to_rid(ESettingsIds::CLUSTER_GRID_SETUP), CLUSTER_SETUP);
+            render_task_list.create_settings(to_rid(ESettingsIds::MAIN_PASS_VIEW_CB), renderable_camera.view_constant_buffer);
+            render_task_list.create_settings(to_rid(ESettingsIds::RENDERABLE_SCENE_PTR), &renderable_scene);
 
             render_task_list.setup();
 
@@ -430,6 +494,7 @@ namespace clustered
         void update(const zec::TimeData& time_data) override final
         {
             static bool show_pipeline_menu = false;
+            static bool show_render_task_list = false;
             zec::input::InputState input_state = input_manager.get_state();
 
             camera_controller.update(camera, input_state, time_data.delta_seconds_f);
@@ -438,12 +503,18 @@ namespace clustered
             ui::begin_frame();
             ImGui::ShowDemoWindow();
 
+            // TODO: separate function for this
             const auto framerate = ImGui::GetIO().Framerate;
             ImGui::Begin("Clustered Forward Rendering");
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / framerate, framerate);
             if (ImGui::Button("Open pipelines menus"))
             {
                 show_pipeline_menu = true;
+            }
+
+            if (ImGui::Button("Open Render Task List"))
+            {
+                show_render_task_list = true;
             }
 
             // TODO: separate function for this
@@ -505,6 +576,101 @@ namespace clustered
                         ImGui::TextUnformatted(errors.c_str());
                         ImGui::EndChild();
                         ImGui::PopStyleColor();
+                    }
+                }
+                ImGui::End();
+            }
+
+            // TODO: separate function for this
+            ImGui::SetNextWindowSize(ImVec2(500, 440), ImGuiCond_FirstUseEver);
+            if (show_render_task_list)
+            {
+                if (ImGui::Begin("Render Task List", &show_render_task_list, ImGuiWindowFlags_MenuBar))
+                {
+                    ImGui::BeginChild("tasks/passes", ImVec2(0, 200), true);
+
+                    static size_t selected_index = UINT64_MAX;
+                    for (size_t i = 0; i < std::size(render_pass_task_descs); i++)
+                    {
+                        const render_graph::PassDesc* pass_desc = render_pass_task_descs[i];
+                        if (ImGui::Selectable(pass_desc->name.data(), selected_index == i))
+                        {
+                            selected_index = i;
+                        }
+                    }
+                    ImGui::EndChild();
+
+                    if (selected_index < std::size(render_pass_task_descs))
+                    {
+                        using namespace render_graph;
+                        const PassDesc* pass_desc = render_pass_task_descs[selected_index];
+                        const PassHandle pass_handle = pass_handles[selected_index];
+
+                        ImGui::Text(pass_desc->name.data());
+                        ImGui::Separator();
+                        bool enabled = render_task_list.get_pass_enabled(pass_handle);
+                        ImGui::Checkbox("Enabled", &enabled);
+                        render_task_list.set_pass_enabled(pass_handle, enabled);
+
+                        ImGui::Text("Queue Type: ");
+                        ImGui::SameLine();
+                        if (pass_desc->command_queue_type == CommandQueueType::GRAPHICS)
+                        {
+                            ImGui::Text("Graphics");
+                        }
+                        else
+                        {
+                            ImGui::Text("Compute");
+                        }
+
+                        const auto render_pass_resource_usage = [](const render_graph::PassResourceUsage& usage)
+                        {
+                            if (usage.type == PassResourceType::TEXTURE)
+                            {
+                                const auto& desc = get_texture_resource_desc(static_cast<EResourceIds>(usage.identifier.identifier));
+                                std::string input_name = wstring_to_ansi(desc.name.data());
+                                ImGui::Text(input_name.c_str());
+                            }
+                            else
+                            {
+                                const auto& desc = get_buffer_resource_desc(static_cast<EResourceIds>(usage.identifier.identifier));
+                                std::string input_name = wstring_to_ansi(desc.name.data());
+                                ImGui::Text(input_name.c_str());
+                            }
+                            ImGui::Indent();
+                            ImGui::BulletText("Usage: %s", get_usage_name(usage.usage));
+                            ImGui::BulletText("Type: %s", usage.type == render_graph::PassResourceType::BUFFER ? "Buffer" : "Texture");
+                            ImGui::Unindent();
+                        };
+
+                        ImGui::NewLine();
+                        static bool inputs_open = true;
+                        if (ImGui::CollapsingHeader("Inputs:", &inputs_open))
+                        {
+                            for (size_t i = 0; i < pass_desc->inputs.size(); i++)
+                            {
+                                if (i != 0)
+                                {
+                                    ImGui::Separator();
+                                }
+                                const auto& input = pass_desc->inputs[i];
+                                render_pass_resource_usage(input);
+                            }
+                        }
+
+                        ImGui::NewLine();
+                        static bool outputs_open = true;
+                        if (ImGui::CollapsingHeader("Outputs:", &outputs_open))
+                        {
+                            for (size_t i = 0; i < pass_desc->outputs.size(); i++)
+                            {
+                                if (i != 0)
+                                {
+                                    ImGui::Separator();
+                                }
+                                render_pass_resource_usage(pass_desc->outputs[i]);
+                            }
+                        }
                     }
                 }
                 ImGui::End();

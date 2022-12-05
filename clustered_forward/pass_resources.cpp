@@ -1,16 +1,18 @@
 #include "pass_resources.h"
 #include <array>
+#include <stdexcept>
 
 namespace clustered
 {
     using namespace zec;
     using namespace zec::render_graph;
 
+    // ----------------------------------------------------------------------------------------------------------------
     namespace pass_resource_descs
     {
         zec::render_graph::TextureResourceDesc DEPTH_TARGET = {
-            .identifier = pass_resources::DEPTH_TARGET,
-            .name = L"depth",
+            .identifier = to_rid(EResourceIds::DEPTH_TARGET),
+            .name = L"Depth Buffer",
             .sizing = zec::render_graph::Sizing::RELATIVE_TO_SWAP_CHAIN,
             .relative_width_factor = 1.0f,
             .relative_height_factor = 1.0f,
@@ -25,8 +27,8 @@ namespace clustered
             },
         };
         zec::render_graph::TextureResourceDesc HDR_TARGET = {
-            .identifier = pass_resources::HDR_TARGET,
-            .name = L"hdr",
+            .identifier = to_rid(EResourceIds::HDR_TARGET),
+            .name = L"HDR Render Target",
             .sizing = zec::render_graph::Sizing::RELATIVE_TO_SWAP_CHAIN,
             .relative_width_factor = 1.0f,
             .relative_height_factor = 1.0f,
@@ -41,8 +43,8 @@ namespace clustered
             },
         };
         zec::render_graph::TextureResourceDesc SDR_TARGET = {
-            .identifier = pass_resources::SDR_TARGET,
-            .name = L"sdr",
+            .identifier = to_rid(EResourceIds::SDR_TARGET),
+            .name = L"SDR Render Target",
             .sizing = zec::render_graph::Sizing::RELATIVE_TO_SWAP_CHAIN,
             .relative_width_factor = 1.0f,
             .relative_height_factor = 1.0f,
@@ -58,8 +60,8 @@ namespace clustered
         };
 
         zec::render_graph::BufferResourceDesc SPOT_LIGHT_INDICES = {
-            .identifier = pass_resources::SPOT_LIGHT_INDICES,
-            .name = L"spot light indices",
+            .identifier = to_rid(EResourceIds::SPOT_LIGHT_INDICES),
+            .name = L"Spot Light Indices",
             .initial_usage = zec::RESOURCE_USAGE_COMPUTE_WRITABLE,
             .desc = {
                 .usage = zec::RESOURCE_USAGE_COMPUTE_WRITABLE | zec::RESOURCE_USAGE_SHADER_READABLE,
@@ -69,8 +71,8 @@ namespace clustered
             }
         };
         zec::render_graph::BufferResourceDesc POINT_LIGHT_INDICES = {
-            .identifier = pass_resources::POINT_LIGHT_INDICES,
-            .name = L"point light indices",
+            .identifier = to_rid(EResourceIds::POINT_LIGHT_INDICES),
+            .name = L"Point Light Indices",
             .initial_usage = zec::RESOURCE_USAGE_COMPUTE_WRITABLE,
             .desc = {
                 .usage = zec::RESOURCE_USAGE_COMPUTE_WRITABLE | zec::RESOURCE_USAGE_SHADER_READABLE,
@@ -84,7 +86,8 @@ namespace clustered
     // TODO: Maybe include the enum value so we can validate that we're providing this data correctly
     // TODO: use SM 6.6 and get rid of some of this data
     // see https://microsoft.github.io/DirectX-Specs/d3d/HLSL_SM_6_6_DynamicResources.html
-    std::array<ResourceLayoutDesc, EResourceLayoutIds::RESOURCE_LAYOUT_COUNT> resource_layouts = {
+    // ----------------------------------------------------------------------------------------------------------------
+    std::array<ResourceLayoutDesc, static_cast<size_t>(EResourceLayoutIds::COUNT)> resource_layouts = {
         // DEPTH_PASS_RESOURCE_LAYOUT
         ResourceLayoutDesc{
             .constants = {
@@ -220,7 +223,8 @@ namespace clustered
         }
     };
 
-    std::array<ShaderCompilationDesc, EShaderIds::SHADERS_COUNT> shader_compilation_descs = {
+    // ----------------------------------------------------------------------------------------------------------------
+    std::array<ShaderCompilationDesc, static_cast<size_t>(EShaderIds::COUNT)> shader_compilation_descs = {
         // DEPTH_PASS_SHADER
         ShaderCompilationDesc{
             .used_stages = zec::PIPELINE_STAGE_VERTEX,
@@ -259,7 +263,8 @@ namespace clustered
         }
     };
 
-    std::array<PipelineStateObjectDesc, EPipelineIds::PIPELINES_COUNT> pipeline_descs = {
+    // ----------------------------------------------------------------------------------------------------------------
+    std::array<PipelineStateObjectDesc, static_cast<size_t>(EPipelineIds::COUNT)> pipeline_descs = {
         // DEPTH_PASS_PIPELINE
         PipelineStateObjectDesc{
             .input_assembly_desc = { {
@@ -346,18 +351,50 @@ namespace clustered
         }
     };
 
-    zec::ResourceLayoutDesc get_resource_layout_desc(const EResourceLayoutIds& layouts_enum)
+    const zec::ResourceLayoutDesc& get_resource_layout_desc(const EResourceLayoutIds layouts_enum)
     {
-        return resource_layouts.at(layouts_enum);
+        return resource_layouts.at(static_cast<size_t>(layouts_enum));
     }
 
-    zec::ShaderCompilationDesc get_shader_compilation_desc(const EShaderIds& shaders_enum)
+    const zec::ShaderCompilationDesc& get_shader_compilation_desc(const EShaderIds shaders_enum)
     {
-        return shader_compilation_descs.at(shaders_enum);
+        return shader_compilation_descs.at(static_cast<size_t>(shaders_enum));
     }
 
-    zec::PipelineStateObjectDesc get_pipeline_desc(const EPipelineIds& pipelines_enum)
+    const zec::PipelineStateObjectDesc& get_pipeline_desc(const EPipelineIds pipelines_enum)
     {
-        return pipeline_descs.at(pipelines_enum);
+        return pipeline_descs.at(static_cast<size_t>(pipelines_enum));
+    }
+
+
+
+    const zec::render_graph::TextureResourceDesc& get_texture_resource_desc(const EResourceIds resource_enum)
+    {
+        switch (resource_enum)
+        {
+        case EResourceIds::DEPTH_TARGET:
+            return pass_resource_descs::DEPTH_TARGET;
+        case EResourceIds::HDR_TARGET:
+            return pass_resource_descs::HDR_TARGET;
+        case EResourceIds::SDR_TARGET:
+            return pass_resource_descs::SDR_TARGET;
+        default:
+            throw std::runtime_error("No texture desc exists for this resource id");
+            break;
+        }
+    }
+
+    const zec::render_graph::BufferResourceDesc& get_buffer_resource_desc(const EResourceIds resource_enum)
+    {
+        switch (resource_enum)
+        {
+        case EResourceIds::POINT_LIGHT_INDICES:
+            return pass_resource_descs::POINT_LIGHT_INDICES;
+        case EResourceIds::SPOT_LIGHT_INDICES:
+            return pass_resource_descs::SPOT_LIGHT_INDICES;
+        default:
+            throw std::runtime_error("No buffer desc exists for this resource id");
+            break;
+        }
     }
 }

@@ -9,26 +9,25 @@ namespace clustered
 #define MAKE_IDENTIFIER(_VAR_NAME) \
     constexpr zec::render_graph::ResourceIdentifier _VAR_NAME = { .identifier = ctcrc32(#_VAR_NAME) };
 
-    namespace settings
+    template<typename Enum>
+    constexpr zec::render_graph::ResourceIdentifier to_rid(const Enum value)
     {
-        MAKE_IDENTIFIER(MAIN_PASS_VIEW_CB);
-        MAKE_IDENTIFIER(RENDERABLE_SCENE_PTR);
-        MAKE_IDENTIFIER(CLUSTER_GRID_SETUP);
-        MAKE_IDENTIFIER(BACKGROUND_CUBE_MAP);
-        MAKE_IDENTIFIER(FULLSCREEN_QUAD);
-        MAKE_IDENTIFIER(EXPOSURE);
-    };
-
-    namespace pass_resources
-    {
-        MAKE_IDENTIFIER(DEPTH_TARGET);
-        MAKE_IDENTIFIER(HDR_TARGET);
-        MAKE_IDENTIFIER(SDR_TARGET);
-        MAKE_IDENTIFIER(SPOT_LIGHT_INDICES);
-        MAKE_IDENTIFIER(POINT_LIGHT_INDICES);
+        return { static_cast<u32>(value) };
     }
 
-    enum EResourceLayoutIds : u32
+    enum struct ESettingsIds : u32
+    {
+        MAIN_PASS_VIEW_CB = 0,
+        RENDERABLE_SCENE_PTR,
+        CLUSTER_GRID_SETUP,
+        BACKGROUND_CUBE_MAP,
+        FULLSCREEN_QUAD,
+        EXPOSURE,
+
+        COUNT
+    };
+
+    enum struct EResourceLayoutIds : u32
     {
         DEPTH_PASS_RESOURCE_LAYOUT = 0,
         BACKGROUND_PASS_RESOURCE_LAYOUT,
@@ -36,11 +35,12 @@ namespace clustered
         TONE_MAPPING_PASS_RESOURCE_LAYOUT,
         LIGHT_BINNING_PASS_RESOURCE_LAYOUT,
         CLUSTERED_DEBUG_PASS_RESOURCE_LAYOUT,
-        RESOURCE_LAYOUT_COUNT
+
+        COUNT
     };
 
 
-    enum EShaderIds : u32
+    enum struct EShaderIds : u32
     {
         DEPTH_PASS_SHADER = 0,
         BACKGROUND_PASS_SHADER,
@@ -49,11 +49,12 @@ namespace clustered
         LIGHT_BINNING_PASS_SPOT_LIGHT_SHADER,
         LIGHT_BINNING_PASS_POINT_LIGHT_SHADER,
         CLUSTERED_DEBUG_PASS_SHADER,
-        SHADERS_COUNT
+
+        COUNT
     };
 
 
-    enum EPipelineIds : u32
+    enum struct EPipelineIds : u32
     {
         DEPTH_PASS_PIPELINE = 0,
         BACKGROUND_PASS_PIPELINE,
@@ -62,12 +63,26 @@ namespace clustered
         LIGHT_BINNING_PASS_POINT_LIGHT_PIPELINE,
         LIGHT_BINNING_PASS_SPOT_LIGHT_PIPELINE,
         CLUSTERED_DEBUG_PASS_PIPELINE,
-        PIPELINES_COUNT,
+
+        COUNT,
     };
 
-    zec::ResourceLayoutDesc get_resource_layout_desc(const EResourceLayoutIds& layouts_enum);
-    zec::ShaderCompilationDesc get_shader_compilation_desc(const EShaderIds& shaders_enum);
-    zec::PipelineStateObjectDesc get_pipeline_desc(const EPipelineIds& pipelines_enum);
+    enum struct EResourceIds : u32
+    {
+        DEPTH_TARGET = 0,
+        HDR_TARGET,
+        SDR_TARGET,
+        SPOT_LIGHT_INDICES,
+        POINT_LIGHT_INDICES,
+
+        COUNT
+    };
+
+    const zec::ResourceLayoutDesc& get_resource_layout_desc(const EResourceLayoutIds layouts_enum);
+    const zec::ShaderCompilationDesc& get_shader_compilation_desc(const EShaderIds shaders_enum);
+    const zec::PipelineStateObjectDesc& get_pipeline_desc(const EPipelineIds pipelines_enum);
+    const zec::render_graph::TextureResourceDesc& get_texture_resource_desc(const EResourceIds resource_enum);
+    const zec::render_graph::BufferResourceDesc& get_buffer_resource_desc(const EResourceIds resource_enum);
 
     namespace pass_resource_descs
     {
@@ -76,5 +91,6 @@ namespace clustered
         extern zec::render_graph::TextureResourceDesc SDR_TARGET;
         extern zec::render_graph::BufferResourceDesc SPOT_LIGHT_INDICES;
         extern zec::render_graph::BufferResourceDesc POINT_LIGHT_INDICES;
+
     }
 }
