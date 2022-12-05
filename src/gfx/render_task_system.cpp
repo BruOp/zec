@@ -1,7 +1,6 @@
-#include "render_task_system_v2.h"
+#include "render_task_system.h"
 #include "gfx.h"
 #include "profiling_utils.h"
-// TODO -- implement new system
 
 namespace zec::render_graph
 {
@@ -190,7 +189,7 @@ namespace zec::render_graph
         }
         else {
 
-            ASSERT(render_pass_desc.command_queue_type != CommandQueueType::COPY || render_pass_desc.command_queue_type != CommandQueueType::NUM_COMMAND_CONTEXT_POOLS);
+            ASSERT(render_pass_desc.command_queue_type != CommandQueueType::COPY && render_pass_desc.command_queue_type != CommandQueueType::NUM_COMMAND_CONTEXT_POOLS);
 
             // TODO: Want to validate that the inputs/outputs have been registered
             for (u32 i = 0; out_result.is_success() && i < render_pass_desc.inputs.size(); ++i)
@@ -238,6 +237,7 @@ namespace zec::render_graph
         {
             // If we've gotten this far, validation has succeeded
             const u32 pass_index = out_list->passes.size();
+            out_result.pass_handle = { pass_index };
             out_list->passes.push_back(RenderTaskList::Pass{
                 .requires_flush = false,
                 .dependency_index = dependency_index,
@@ -300,6 +300,11 @@ namespace zec::render_graph
         for (u64 pass_idx = 0; pass_idx < num_passes; ++pass_idx)
         {
             const auto& pass = passes[pass_idx];
+            if (!pass.enabled)
+            {
+                continue;
+            }
+
             auto& cmd_ctx = pass.desc.command_queue_type == CommandQueueType::ASYNC_COMPUTE ? async_compute_cmd_list : gfx_cmd_list;
 
             if (!is_valid(cmd_ctx))

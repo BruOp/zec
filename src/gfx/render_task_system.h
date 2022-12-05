@@ -8,8 +8,6 @@
 #include "../core/linear_allocator.h"
 #include "public_resources.h"
 
-// TODO: EASY -- Remove old task system
-
 namespace zec::render_graph
 {
     struct ResourceIdentifier
@@ -291,6 +289,7 @@ namespace zec::render_graph
     };
 
     class PassListBuilder;
+    RESOURCE_HANDLE(PassHandle);
 
     // TODO: rename this
     class RenderTaskList
@@ -299,6 +298,7 @@ namespace zec::render_graph
 
         struct Pass
         {
+            bool enabled = true;
             bool requires_flush = false;
             u32 dependency_index = UINT32_MAX;
             PassDesc desc = {};
@@ -324,16 +324,27 @@ namespace zec::render_graph
             return settings_context.get(settings_id);
         };
 
+        bool get_pass_enabled(const PassHandle pass_handle)
+        {
+            ASSERT(pass_handle.idx < passes.size());
+            return passes[pass_handle.idx].enabled;
+        }
+
         template<typename T>
         void set_settings(const ResourceIdentifier settings_id, const T data)
         {
             settings_context.set(settings_id, data);
         }
 
+        void set_pass_enabled(const PassHandle pass_handle, const bool pass_is_enabled)
+        {
+            ASSERT(pass_handle.idx < passes.size());
+            passes[pass_handle.idx].enabled = pass_is_enabled;
+        }
+
     private:
         std::vector<Pass> passes = {};
 
-        // TODO: Our render graph doesn't need to manage resource sizes, that can be a separate system.
         // TODO: Find a better naming for this. Settings vs Resources vs PerPass isn't really all that helpful I don't think.
         ResourceContext* resource_context = nullptr;
         PipelineStore* shader_store = nullptr;
@@ -341,12 +352,9 @@ namespace zec::render_graph
         PerPassDataStore per_pass_data_store = {};
     };
 
-
-
     class PassListBuilder
     {
     public:
-
         PassListBuilder(RenderTaskList* list_to_build);
 
         enum struct StatusCodes : u8
@@ -384,9 +392,16 @@ namespace zec::render_graph
                 return ResourceIdentifier{};
             }
 
+            PassHandle get_pass_handle()
+            {
+                ASSERT(is_success());
+                return pass_handle;
+            }
+
             bool is_success() { return code == StatusCodes::SUCCESS; };
         private:
             StatusCodes code = StatusCodes::SUCCESS;
+            PassHandle pass_handle;
             ResourceIdentifier resource_id;
         };
 
