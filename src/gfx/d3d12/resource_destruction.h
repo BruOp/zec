@@ -61,7 +61,7 @@ namespace zec::gfx::dx12
         for (size_t i = 0; i < list.size(); i++) {
             ID3D12Resource* resource = list.resources[i];
             D3D12MA::Allocation* allocation = list.allocations[i];
-            queue_destruction(queue, current_frame_idx, resource, allocation);
+            queue.enqueue(current_frame_idx, resource, allocation);
         }
     }
 
@@ -69,7 +69,7 @@ namespace zec::gfx::dx12
     inline void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, DXPtrArray<T, H>& resources)
     {
         for (T* resource : resources) {
-            queue_destruction(queue, current_frame_idx, resource);
+            queue.enqueue(current_frame_idx, resource);
         }
     }
 }
