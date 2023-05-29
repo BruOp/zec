@@ -16,6 +16,16 @@ namespace zec
             COMMIT = 0,
             RESERVE = 1
         };
+        
+        void copy(void* dest, void* src, size_t size) {
+            memcpy(dest, src, size);
+        }
+
+        size_t align(size_t size, size_t alignment) {
+            const size_t alignment_mask = alignment - 1;
+            return (size + alignment_mask) & ~alignment_mask;
+        }
+
 
         inline void* alloc(size_t size)
         {

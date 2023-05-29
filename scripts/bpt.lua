@@ -6,7 +6,8 @@ kind "WindowedApp"
 
 files {
   path.join(BPT_DIR, name, "**.cpp"),
-  path.join(BPT_DIR, name, "**.h")
+  path.join(BPT_DIR, name, "**.h"),
+  path.join(BPT_DIR, name, "**.hpp")
 }
 
 removefiles {

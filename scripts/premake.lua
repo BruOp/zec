@@ -113,6 +113,7 @@ project("zec_lib")
     path.join(ZEC_SRC_DIR, "shaders/**.hlsl"),
     path.join(ZEC_SRC_DIR, "**.cpp"),
     path.join(ZEC_SRC_DIR, "**.h"),
+    path.join(ZEC_SRC_DIR, "**.hpp"),
     path.join(ZEC_DIR, "external/src/*.cpp"),
     path.join(ZEC_DIR, "external/src/*.c"),
   }

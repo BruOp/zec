@@ -56,6 +56,56 @@ namespace zec::gfx::dx12
         DescriptorRangeHandle uav = {};
     };
 
+    class VertexBufferList
+    {
+    public:
+        VertexBufferList() = default;
+        ~VertexBufferList()
+        {
+            ASSERT(num_buffers == 0);
+            ASSERT(resources.size == 0);
+            ASSERT(allocations.size == 0);
+        }
+
+        void destroy();
+
+    private:
+        size_t num_buffers;
+        ResourceArray<ID3D12Resource*, BufferHandle> resources = {};
+        ResourceArray<D3D12MA::Allocation*, BufferHandle> allocations = {};
+        ResourceArray<BufferInfo, BufferHandle> infos = {};
+        ResourceArray<DescriptorRangeHandle, BufferHandle> vertex_buffer_views = {};
+        ResourceArray<DescriptorRangeHandle, BufferHandle> srvs = {};
+        ResourceArray<DescriptorRangeHandle, BufferHandle> uavs = {};
+    };
+
+    class IndexBufferList
+    {
+    public:
+        IndexBufferList() = default;
+        ~IndexBufferList()
+        {
+            ASSERT(num_buffers == 0);
+            ASSERT(resources.size == 0);
+            ASSERT(allocations.size == 0);
+        }
+
+        void destroy();
+
+        BufferHandle push_back(const Buffer& buffer);
+
+        size_t count() { return num_buffers; };
+
+    private:
+        size_t num_buffers;
+        ResourceArray<ID3D12Resource*, BufferHandle> resources = {};
+        ResourceArray<D3D12MA::Allocation*, BufferHandle> allocations = {};
+        ResourceArray<BufferInfo, BufferHandle> infos = {};
+        ResourceArray<DescriptorRangeHandle, BufferHandle> index_buffer_views = {};
+        ResourceArray<DescriptorRangeHandle, BufferHandle> srvs = {};
+        ResourceArray<DescriptorRangeHandle, BufferHandle> uavs = {};
+    };
+
     struct BufferList
     {
         BufferList() = default;

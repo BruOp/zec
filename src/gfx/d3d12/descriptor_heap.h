@@ -20,11 +20,14 @@ namespace zec::gfx::dx12
 
     struct DescriptorRangeHandle
     {
-        // Composite of 8-bit heap_type, 24-bit count (so most significant 8 bits is heap-type)
-        u32 composite_member = UINT32_MAX;
-        u32 offset = zec::k_invalid_handle;
+        static constexpr u32 invalid_heap_type = 0xFF;
+        static constexpr u32 invalid_count = 0x00FFFFFF;
+        static constexpr u32 invalid_offset = UINT32_MAX;
 
-        static constexpr u32 COUNT_MASK = 0x00FFFFFF;
+        // Composite of 8-bit heap_type, 24-bit count (so most significant 8 bits is heap-type)
+        u32 heap_type : 8 = 0xFF;
+        u32 count : 24 = 0x00FFFFFF;
+        u32 offset = UINT32_MAX;
 
         inline u32 get_offset() const
         {
@@ -33,26 +36,27 @@ namespace zec::gfx::dx12
 
         inline u32 get_count() const
         {
-            return composite_member & COUNT_MASK;
+            return count;
         }
 
         inline HeapType get_heap_type() const
         {
-            u8 heap_type = u8(composite_member >> 24);
             ASSERT(heap_type < u8(HeapType::NUM_HEAPS));
             return HeapType(heap_type);
         }
 
         static DescriptorRangeHandle encode(HeapType heap_type, const u32 offset, const u32 count)
         {
-            ASSERT(count < COUNT_MASK);
-            return { .composite_member = u32(heap_type) << 24 | count, .offset = offset, };
+            ASSERT(count < invalid_count);
+            return DescriptorRangeHandle{ .heap_type = u32(heap_type), .count = count, .offset = offset };
         }
     };
 
     inline bool is_valid(const DescriptorRangeHandle handle)
     {
-        return handle.offset != zec::k_invalid_handle && handle.composite_member != UINT32_MAX;
+        return handle.offset != DescriptorRangeHandle::invalid_offset
+            && handle.count != DescriptorRangeHandle::invalid_count
+            && handle.heap_type != DescriptorRangeHandle::invalid_heap_type;
     }
 
     // NOTE: Treat DescriptorRanges as immutable, they can only be allocated and destroyed.
