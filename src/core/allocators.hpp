@@ -12,7 +12,7 @@ namespace zec
         size_t bytes_allocated = 0;
         size_t total_capacity = 0;
         u32 allocation_count = 0;
-        
+
         void add(size_t additional_allocated_mem)
         {
             if (additional_allocated_mem > 0)
@@ -36,7 +36,7 @@ namespace zec
     {
     public:
         ~HeapAllocator() override;
-        
+
         void init(size_t size);
         void shutdown();
 
@@ -57,7 +57,7 @@ namespace zec
     {
     public:
         ~LinearAllocator() override;
-        
+
         void init(size_t size);
         void shutdown();
 
@@ -66,7 +66,7 @@ namespace zec
 
         void clear();
     private:
-        
+
         u8* ptr = nullptr;
         size_t bytes_allocated = 0;
         size_t total_capacity = 0;
@@ -76,41 +76,41 @@ namespace zec
     {
     public:
         ~StackAllocator() override;
-        
+
         void init(size_t size);
         void shutdown();
-        
+
         void* allocate(size_t size, size_t alignment) override;
         void free(void* pointer) override;
 
         size_t get_substack_offset();
         void free_substack(size_t offset);
-        
+
         void clear();
     private:
         u8* ptr = nullptr;
         size_t bytes_allocated = 0;
         size_t total_capacity = 0;
     };
-    
+
     // Basically just a Linear Allocate that uses virtual memory space
     class StretchyAllocator : public IAllocator
     {
     public:
         ~StretchyAllocator() override;
-        
+
         void init(size_t initial_size);
         void shutdown();
-        
+
         void* allocate(size_t size, size_t alignment) override;
         void free(void* pointer) override;
-        
+
         void clear();
     private:
         void grow(size_t size_to_grow_by);
-        
+
         u8* ptr = nullptr;
         size_t bytes_allocated = 0;
         size_t total_capacity = 0;
-    }
+    };
 }
