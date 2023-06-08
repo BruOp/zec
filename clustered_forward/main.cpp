@@ -157,7 +157,7 @@ namespace clustered
         PerspectiveCamera camera;
         PerspectiveCamera debug_camera;
 
-        MeshHandle fullscreen_mesh;
+        Draw fullscreen_mesh;
 
         // Scene data
         Array<SpotLight> spot_lights;
@@ -199,34 +199,42 @@ namespace clustered
 
             // Create fullscreen quad
             {
-                MeshDesc fullscreen_desc{
-                    .index_buffer_desc = {
-                        .usage = RESOURCE_USAGE_INDEX,
-                        .type = BufferType::DEFAULT,
-                        .byte_size = sizeof(geometry::k_fullscreen_indices),
-                        .stride = sizeof(geometry::k_fullscreen_indices[0]),
-                    },
-                    .vertex_buffer_descs = {
-                        {
-                            .usage = RESOURCE_USAGE_VERTEX,
-                            .type = BufferType::DEFAULT,
-                            .byte_size = sizeof(geometry::k_fullscreen_positions),
-                            .stride = 3 * sizeof(geometry::k_fullscreen_positions[0]),
-                        },
-                        {
-                            .usage = RESOURCE_USAGE_VERTEX,
-                            .type = BufferType::DEFAULT,
-                            .byte_size = sizeof(geometry::k_fullscreen_uvs),
-                            .stride = 2 * sizeof(geometry::k_fullscreen_uvs[0]),
-                        },
-                    },
-                    .index_buffer_data = geometry::k_fullscreen_indices,
-                    .vertex_buffer_data = {
-                        geometry::k_fullscreen_positions,
-                        geometry::k_fullscreen_uvs
-                    }
+                BufferDesc index_buffer_desc = {
+                    .usage = RESOURCE_USAGE_INDEX,
+                    .type = BufferType::DEFAULT,
+                    .byte_size = sizeof(geometry::k_fullscreen_indices),
+                    .stride = sizeof(geometry::k_fullscreen_indices[0]),
                 };
-                fullscreen_mesh = gfx::meshes::create(copy_ctx, fullscreen_desc);
+                fullscreen_mesh.index_buffer = gfx::buffers::create(index_buffer_desc);
+                gfx::buffers::set_data(copy_ctx, fullscreen_mesh.index_buffer, geometry::k_fullscreen_indices, index_buffer_desc.byte_size);
+                fullscreen_mesh.index_count = std::size(geometry::k_fullscreen_indices);
+
+                BufferDesc vertex_buffer_descs[] = {
+                    {
+                        .usage = RESOURCE_USAGE_VERTEX,
+                        .type = BufferType::DEFAULT,
+                        .byte_size = sizeof(geometry::k_fullscreen_positions),
+                        .stride = 3 * sizeof(geometry::k_fullscreen_positions[0]),
+                    },
+                    {
+                        .usage = RESOURCE_USAGE_VERTEX,
+                        .type = BufferType::DEFAULT,
+                        .byte_size = sizeof(geometry::k_fullscreen_uvs),
+                        .stride = 2 * sizeof(geometry::k_fullscreen_uvs[0]),
+                    },
+                };
+                float const* vertex_buffer_data[] = {
+                    geometry::k_fullscreen_positions,
+                    geometry::k_fullscreen_uvs
+                };
+
+                for (size_t i = 0; i < std::size(vertex_buffer_descs); ++i)
+                {
+                    fullscreen_mesh.vertex_buffers[i] = gfx::buffers::create(vertex_buffer_descs[i]);
+                    gfx::buffers::set_data(copy_ctx, fullscreen_mesh.vertex_buffers[i], vertex_buffer_data[i], vertex_buffer_descs[i].byte_size);
+                    fullscreen_mesh.vertex_offset = 0;
+                    ++fullscreen_mesh.num_vertex_buffers;
+                }
             }
 
             TextureDesc brdf_lut_desc{
@@ -326,9 +334,9 @@ namespace clustered
                 const mat4& model_transform = gltf_context.scene_graph.global_transforms[draw_call.scene_node_idx];
                 AABB aabb = gltf_context.aabbs[i];
 
-                renderable_scene.renderables.push_renderable(
+                renderable_scene.renderables.push_mesh(
                     draw_call.material_index,
-                    draw_call.mesh,
+                    gltf_context.draws[draw_call.draw_idx],
                     {
                         .model_transform = model_transform,
                         .normal_transform = gltf_context.scene_graph.normal_transforms[draw_call.scene_node_idx],

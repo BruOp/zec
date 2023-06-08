@@ -118,7 +118,7 @@ namespace clustered
             gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, scene_data->scene_constants, u32(BindingSlots::SCENE_CONSTANT_BUFFER));
             gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, pass_data.cluster_grid_cb, u32(BindingSlots::CLUSTER_GRID_CONSTANTS));
 
-            const Renderables& renderables = scene_data->renderables;
+            const MeshManager& renderables = scene_data->renderables;
             gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::RAW_BUFFERS_TABLE));
 
             u32 buffer_descriptors[2] = {
@@ -133,7 +133,7 @@ namespace clustered
                     renderables.material_indices[i]
                 };
                 gfx::cmd::bind_graphics_constants(cmd_ctx, &per_draw_indices, 2, u32(BindingSlots::PER_INSTANCE_CONSTANTS));
-                gfx::cmd::draw_mesh(cmd_ctx, renderables.meshes[i]);
+                gfx::cmd::draw(cmd_ctx, renderables.draws[i]);
             }
         };
 

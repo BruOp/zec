@@ -7,5 +7,5 @@ namespace zec
     constexpr u64 NUM_BACK_BUFFERS = RENDER_LATENCY;
     constexpr u64 NUM_CMD_ALLOCATORS = RENDER_LATENCY;
 
-    constexpr u64 MAX_NUM_MESH_VERTEX_BUFFERS = 8;
+    constexpr u64 MAX_NUM_DRAW_VERTEX_BUFFERS = 8;
 }

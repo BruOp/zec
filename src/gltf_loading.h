@@ -41,7 +41,7 @@ namespace zec
 
         struct DrawCall
         {
-            MeshHandle mesh = INVALID_HANDLE;
+            u32 draw_idx = UINT32_MAX;
             u32 scene_node_idx = UINT32_MAX;
             u32 material_index = UINT32_MAX;
         };
@@ -50,7 +50,7 @@ namespace zec
         {
             SceneGraph scene_graph = {};
             Array<TextureHandle> textures = {};
-            Array<MeshHandle> meshes = {};
+            Array<Draw> draws = {};
             Array<AABB> aabbs = {};
             Array<MaterialData> materials = {};
             Array<DrawCall> draw_calls = {};

@@ -4,7 +4,7 @@ using namespace zec;
 
 namespace clustered
 {
-    void Renderables::init(const u32 in_num_entities, const u32 in_num_materials)
+    void MeshManager::init(const u32 in_num_entities, const u32 in_num_materials)
     {
         max_num_entities = in_num_entities;
         max_num_materials = in_num_materials;
@@ -29,7 +29,7 @@ namespace clustered
         vs_buffer_idx = gfx::buffers::get_shader_readable_index(vs_buffer);
     }
 
-    void Renderables::copy()
+    void MeshManager::copy()
     {
         gfx::buffers::update(
             vs_buffer,
@@ -42,15 +42,15 @@ namespace clustered
             material_instances.size * sizeof(MaterialData));
     }
 
-    void Renderables::push_renderable(const u32 material_idx, const MeshHandle mesh_handle, const VertexShaderData& vs_data, const AABB& aabb)
+    void MeshManager::push_mesh(const u32 material_idx, const Draw& draw, const VertexShaderData& vs_data, const AABB& aabb)
     {
         ASSERT(num_entities < max_num_entities);
         num_entities++;
         material_indices.push_back(material_idx);
-        meshes.push_back(mesh_handle);
+        draws.push_back(draw);
         vertex_shader_data.push_back(vs_data);
         aabb_soa.push_back(aabb);
-        ASSERT(meshes.size == vertex_shader_data.size && meshes.size == num_entities);
+        ASSERT(draws.size == vertex_shader_data.size && draws.size == num_entities);
     }
 
     void RenderableScene::initialize(const RenderableSceneSettings& settings)

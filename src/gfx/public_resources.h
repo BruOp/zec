@@ -22,7 +22,6 @@ namespace zec
     RESOURCE_HANDLE(RenderingContextHandle);
     RESOURCE_HANDLE(BufferHandle);
     RESOURCE_HANDLE(TextureHandle);
-    RESOURCE_HANDLE(MeshHandle);
     RESOURCE_HANDLE(ResourceLayoutHandle);
     RESOURCE_HANDLE(PipelineStateHandle);
     RESOURCE_HANDLE(CommandContextPoolHandle);
@@ -316,15 +315,7 @@ namespace zec
             u32 aligned_byte_offset = 0;
         };
 
-        InputElementDesc elements[MAX_NUM_MESH_VERTEX_BUFFERS];
-    };
-
-    struct MeshDesc
-    {
-        BufferDesc index_buffer_desc;
-        BufferDesc vertex_buffer_descs[MAX_NUM_MESH_VERTEX_BUFFERS];
-        void const* index_buffer_data = nullptr;
-        void const* vertex_buffer_data[MAX_NUM_MESH_VERTEX_BUFFERS] = { nullptr };
+        InputElementDesc elements[MAX_NUM_DRAW_VERTEX_BUFFERS];
     };
 
     struct TextureDesc
@@ -570,5 +561,15 @@ namespace zec
         bool vsync = true;
         BufferFormat backbuffer_format = BufferFormat::R8G8B8A8_UNORM_SRGB;
         MSAASetting msaa = MSAASetting::OFF;
+    };
+
+    struct Draw
+    {
+        BufferHandle index_buffer;
+        BufferHandle vertex_buffers[MAX_NUM_DRAW_VERTEX_BUFFERS];
+        u32 num_vertex_buffers = 0;
+        u32 index_offset = 0;
+        u32 index_count = 0;
+        u32 vertex_offset = 0;
     };
 }

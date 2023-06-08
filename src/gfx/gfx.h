@@ -54,12 +54,6 @@ namespace zec::gfx
         void update(const BufferHandle buffer_id, const void* data, u64 byte_size);
     }
 
-    namespace meshes
-    {
-        MeshHandle create(const BufferHandle index_buffer, const BufferHandle* vertex_buffers, u32 num_vertex_buffers);
-        MeshHandle create(CommandContextHandle cmd_ctx, MeshDesc mesh_desc);
-    }
-
     namespace textures
     {
         TextureHandle create(TextureDesc texture_desc);
@@ -101,10 +95,8 @@ namespace zec::gfx
 
         // Draw
         void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices);
-        void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id, const size_t num_instances = 1);
-        void draw_mesh(const CommandContextHandle ctx, const MeshHandle mesh_id);
-
-
+        void draw(const CommandContextHandle ctx, const BufferHandle index_buffer_id, const size_t num_instances = 1);
+        void draw(const CommandContextHandle ctx, const Draw& draw);
 
         //--------- Resource Binding ----------
         void set_compute_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);

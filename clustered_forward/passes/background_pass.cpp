@@ -60,7 +60,7 @@ namespace clustered
 
             const TextureHandle background_cube_map = settings_context.get<TextureHandle>(to_rid(ESettingsIds::BACKGROUND_CUBE_MAP));
             const BufferHandle view_cb_handle = settings_context.get<BufferHandle>(to_rid(ESettingsIds::MAIN_PASS_VIEW_CB));
-            const MeshHandle fullscreen_mesh = settings_context.get<MeshHandle>(to_rid(ESettingsIds::FULLSCREEN_QUAD));
+            const Draw fullscreen_mesh = settings_context.get<Draw>(to_rid(ESettingsIds::FULLSCREEN_QUAD));
 
             struct Constants
             {
@@ -75,7 +75,7 @@ namespace clustered
             gfx::cmd::bind_graphics_constant_buffer(cmd_ctx, view_cb_handle, u32(BindingSlots::VIEW_CONSTANT_BUFFER));
             gfx::cmd::bind_graphics_resource_table(cmd_ctx, u32(BindingSlots::RESOURCE_TABLE));
 
-            gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
+            gfx::cmd::draw(cmd_ctx, fullscreen_mesh);
         };
 
         extern const render_graph::PassDesc pass_desc = {

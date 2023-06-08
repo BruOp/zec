@@ -791,11 +791,11 @@ namespace zec::gfx
                 else
                 {
                     // Create the input assembly desc
-                    std::string semantic_names[MAX_NUM_MESH_VERTEX_BUFFERS];
-                    D3D12_INPUT_ELEMENT_DESC d3d_elements[MAX_NUM_MESH_VERTEX_BUFFERS] = {};
+                    std::string semantic_names[MAX_NUM_DRAW_VERTEX_BUFFERS];
+                    D3D12_INPUT_ELEMENT_DESC d3d_elements[MAX_NUM_DRAW_VERTEX_BUFFERS] = {};
                     u32 num_input_elements = 0;
                     {
-                        for (size_t i = 0; i < MAX_NUM_MESH_VERTEX_BUFFERS; i++) {
+                        for (size_t i = 0; i < MAX_NUM_DRAW_VERTEX_BUFFERS; i++) {
                             D3D12_INPUT_ELEMENT_DESC& d3d_desc = d3d_elements[i];
                             const auto& input_entry = desc.input_assembly_desc.elements[i];
                             if (input_entry.attribute_type == MESH_ATTRIBUTE_INVALID) {
@@ -1595,7 +1595,7 @@ namespace zec::gfx
             cmd_list->DrawInstanced(u32(buffer_info.per_frame_size) / stride, 1, 0, 0);
         };
 
-        void draw_mesh(const CommandContextHandle ctx, const BufferHandle index_buffer_id, const size_t num_instances)
+        void draw(const CommandContextHandle ctx, const BufferHandle index_buffer_id, const size_t num_instances)
         {
             ID3D12GraphicsCommandList* cmd_list = get_command_list(ctx);
             const BufferInfo& buffer_info = g_context.buffers.infos[index_buffer_id];
@@ -1608,6 +1608,45 @@ namespace zec::gfx
             cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             cmd_list->IASetIndexBuffer(&view);
             cmd_list->DrawIndexedInstanced(u32(buffer_info.per_frame_size / buffer_info.stride), num_instances, 0, 0, 0);
+        }
+
+        void draw(const CommandContextHandle ctx, const Draw& draw)
+        {
+            RenderContext& render_context = get_render_context();
+            ID3D12GraphicsCommandList* cmd_list = get_command_list(render_context, ctx);
+
+            // Create Index buffer view
+            const BufferInfo& index_buffer_info = render_context.buffers.infos[draw.index_buffer];
+            D3D12_INDEX_BUFFER_VIEW index_buffer_view{};
+            index_buffer_view.BufferLocation = index_buffer_info.gpu_address;
+            ASSERT(index_buffer_info.total_size < u64(UINT32_MAX));
+            index_buffer_view.SizeInBytes = u32(index_buffer_info.total_size);
+
+            switch (index_buffer_info.stride) {
+                case 2u:
+                    index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
+                    break;
+                case 4u:
+                    index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
+                    break;
+                default:
+                    throw std::runtime_error("Cannot create an index buffer that isn't u16 or u32");
+            }
+            
+            D3D12_VERTEX_BUFFER_VIEW vertex_views[MAX_NUM_DRAW_VERTEX_BUFFERS] = {};
+            for (size_t i = 0; i < draw.num_vertex_buffers; ++i) {
+                const BufferInfo& vertex_info = render_context.buffers.infos[draw.vertex_buffers[i]];
+
+                D3D12_VERTEX_BUFFER_VIEW& view = vertex_views[i];
+                view.BufferLocation = vertex_info.gpu_address;
+                view.StrideInBytes = vertex_info.stride;
+                view.SizeInBytes = vertex_info.total_size;
+            }
+
+            cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            cmd_list->IASetIndexBuffer(&index_buffer_view);
+            cmd_list->IASetVertexBuffers(0, draw.num_vertex_buffers, vertex_views);
+            cmd_list->DrawIndexedInstanced(draw.index_count, 1, draw.index_offset, draw.vertex_offset, 0);
         }
 
         //--------- Resource Binding ----------

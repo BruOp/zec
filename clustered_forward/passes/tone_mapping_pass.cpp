@@ -63,8 +63,8 @@ namespace clustered
             gfx::cmd::bind_graphics_resource_table(cmd_ctx, 1);
 
             // TODO: Why isn't this just a resource? We just need three indices in a buffer actually
-            const MeshHandle fullscreen_mesh = settings_context.get<MeshHandle>(to_rid(ESettingsIds::FULLSCREEN_QUAD));
-            gfx::cmd::draw_mesh(cmd_ctx, fullscreen_mesh);
+            const Draw& fullscreen_mesh = settings_context.get<Draw>(to_rid(ESettingsIds::FULLSCREEN_QUAD));
+            gfx::cmd::draw(cmd_ctx, fullscreen_mesh);
         }
 
         extern const render_graph::PassDesc pass_desc = {

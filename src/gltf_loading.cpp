@@ -160,9 +160,9 @@ namespace zec
             for (size_t their_mesh_idx = 0; their_mesh_idx < model.meshes.size(); ++their_mesh_idx) {
                 const auto& mesh = model.meshes[their_mesh_idx];
                 // New entry for each gltf mesh
-                mesh_to_mesh_mapping.push_back({ .offset = u32(out_context.meshes.size), .count = u32(mesh.primitives.size()) });
+                mesh_to_mesh_mapping.push_back({ .offset = u32(out_context.draws.size), .count = u32(mesh.primitives.size()) });
                 for (const auto& primitive : mesh.primitives) {
-                    MeshDesc mesh_desc{};
+                    Draw draw{};
                     AABB aabb = {};
                     // Indices
                     {
@@ -175,13 +175,17 @@ namespace zec
                             throw std::runtime_error("TODO: Allow byte sized indices");
                         }
 
-                        mesh_desc.index_buffer_desc = {
+                        BufferDesc index_buffer_desc = {
                             .usage = RESOURCE_USAGE_INDEX,
                             .type = BufferType::DEFAULT,
                             .byte_size = u32(buffer_view.byteLength),
                             .stride = u32(accessor.ByteStride(buffer_view)),
                         };
-                        mesh_desc.index_buffer_data = (void*)(&buffer.data.at(offset));
+                        draw.index_buffer = gfx::buffers::create(index_buffer_desc);
+                        // Copy the index data into the new buffer
+                        gfx::buffers::set_data(cmd_ctx, draw.index_buffer, &buffer.data.at(offset), index_buffer_desc.byte_size);
+                        draw.index_count = index_buffer_desc.byte_size / index_buffer_desc.stride;
+                        draw.index_offset = 0;
                     }
 
                     const auto& attributes = primitive.attributes;
@@ -221,17 +225,21 @@ namespace zec
 
                         ASSERT_MSG(buffer_view.byteStride == 0, "We only allow tightly packed vertex attributes (sorry)");
 
-                        mesh_desc.vertex_buffer_descs[i] = {
+                        BufferDesc vertex_buffer_desc = {
                             .usage = RESOURCE_USAGE_VERTEX,
                             .type = BufferType::DEFAULT,
                             .byte_size = u32(buffer_view.byteLength),
                             .stride = u32(accessor.ByteStride(buffer_view)),
                         };
-                        mesh_desc.vertex_buffer_data[i] = (void*)(&buffer.data.at(offset));
+                        BufferHandle vertex_buffer = gfx::buffers::create(vertex_buffer_desc);
+                        gfx::buffers::set_data(cmd_ctx, vertex_buffer, &buffer.data.at(offset), vertex_buffer_desc.byte_size);
+                        draw.vertex_buffers[i] = vertex_buffer;
+                        draw.num_vertex_buffers++;
                     }
+                    draw.vertex_offset = 0;
 
                     // Create mesh
-                    out_context.meshes.push_back(gfx::meshes::create(cmd_ctx, mesh_desc));
+                    out_context.draws.push_back(draw);
                 }
             }
         }
@@ -329,11 +337,11 @@ namespace zec
                     const auto& gltf_mesh = model.meshes[node.mesh];
                     const auto& mesh_info = mesh_to_mesh_mapping[node.mesh];
 
-                    for (size_t primitive_offset = 0; primitive_offset < mesh_info.count; ++primitive_offset) {
+                    for (u32 primitive_offset = 0; primitive_offset < mesh_info.count; ++primitive_offset) {
                         const auto& gltf_primitive = gltf_mesh.primitives[primitive_offset];
 
                         out_context.draw_calls.push_back(DrawCall{
-                            .mesh = out_context.meshes[mesh_info.offset + primitive_offset],
+                            .draw_idx = mesh_info.offset + primitive_offset,
                             .scene_node_idx = u32(our_node_idx),
                             .material_index = u32(gltf_primitive.material),
                             });

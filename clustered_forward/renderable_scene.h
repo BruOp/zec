@@ -91,25 +91,25 @@ namespace clustered
 
     static_assert(sizeof(MaterialData) == 128);
 
-    class Renderables
+    class MeshManager
     {
     public:
 
         // Owning
-        size_t max_num_entities;
-        size_t num_entities;
+        size_t max_num_entities = 0;
+        size_t num_entities = 0;
 
-        zec::Array<zec::MeshHandle> meshes;
+        zec::Array<zec::Draw> draws;
         zec::Array<MaterialData> material_instances = {};
         zec::Array<VertexShaderData> vertex_shader_data;
 
         AABB_SoA aabb_soa;
 
-        size_t max_num_materials;
+        size_t max_num_materials = 0;
         zec::Array<u32> material_indices;
 
-        u32 material_buffer_idx = {};
-        u32 vs_buffer_idx = {};
+        u32 material_buffer_idx = 0;
+        u32 vs_buffer_idx = 0;
 
         zec::BufferHandle materials_buffer = {};
         zec::BufferHandle vs_buffer = {};
@@ -122,7 +122,7 @@ namespace clustered
             material_instances.push_back(material);
         }
 
-        void push_renderable(const u32 material_idx, const zec::MeshHandle mesh_handle, const VertexShaderData& vs_data, const zec::AABB& aabb);
+        void push_mesh(const u32 material_idx, const zec::Draw& draw, const VertexShaderData& vs_data, const zec::AABB& aabb);
 
     };
 
@@ -137,7 +137,7 @@ namespace clustered
     struct RenderableScene
     {
         RenderableSceneSettings settings;
-        Renderables renderables = {};
+        MeshManager renderables = {};
         SceneConstantData scene_constant_data = {};
 
         zec::BufferHandle scene_constants = {};
