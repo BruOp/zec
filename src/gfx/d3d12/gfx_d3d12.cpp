@@ -12,7 +12,6 @@
 #include "shader_utils.h"
 #include "render_context.h"
 #include "upload_manager.h"
-#include "meshes.h"
 
 #include "dx_utils.h"
 #include "utils/utils.h"
@@ -1632,7 +1631,7 @@ namespace zec::gfx
                 default:
                     throw std::runtime_error("Cannot create an index buffer that isn't u16 or u32");
             }
-            
+
             D3D12_VERTEX_BUFFER_VIEW vertex_views[MAX_NUM_DRAW_VERTEX_BUFFERS] = {};
             for (size_t i = 0; i < draw.num_vertex_buffers; ++i) {
                 const BufferInfo& vertex_info = render_context.buffers.infos[draw.vertex_buffers[i]];

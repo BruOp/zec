@@ -14,10 +14,10 @@
 
 namespace zec
 {
-    constexpr float k_pi = 3.14159265358979323846;
-    constexpr float k_half_pi = 1.57079632679489661923;
-    constexpr float k_quarter_pi = 0.785398163397448309616;
-    constexpr float k_inv_pi = 0.318309886183790671538;
+    constexpr float k_pi = 3.14159265358979323846f;
+    constexpr float k_half_pi = 1.57079632679489661923f;
+    constexpr float k_quarter_pi = 0.785398163397448309616f;
+    constexpr float k_inv_pi = 0.318309886183790671538f;
     constexpr float k_2_pi = k_pi * 2.0f;
 
     constexpr float deg_to_rad(const float degrees)
