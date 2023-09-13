@@ -3,12 +3,14 @@
 #include "constants.h"
 #include "core/zec_types.h"
 
+// Foward declaration
 namespace zec
 {
-    // ---------- Constants ----------
+    class Window;
+}
 
-    constexpr u32 k_invalid_handle = UINT32_MAX;
-
+namespace zec::rhi
+{
     // Copied from BGFX and others
 #define RESOURCE_HANDLE(_name)      \
 	struct _name { u32 idx = k_invalid_handle; }; \
@@ -280,9 +282,6 @@ namespace zec
         X4,
         X8,
     };
-
-    // Foward declaration
-    class Window;
 
     // ---------- Creation Descriptions ----------
     struct RendererDesc

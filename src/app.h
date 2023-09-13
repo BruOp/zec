@@ -2,7 +2,7 @@
 #include "window.h"
 #include "timer.h"
 #include "input_manager.h"
-#include "gfx/gfx.h"
+#include "gfx/rhi.h"
 #include "gfx/ui.h"
 
 namespace zec

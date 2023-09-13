@@ -4,10 +4,10 @@
 
 #include "core/array.h"
 #include "core/ring_buffer.h"
-#include "gfx/public_resources.h"
+#include "gfx/rhi_public_resources.h"
 #include "gfx/constants.h"
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     enum struct HeapType : u8
     {

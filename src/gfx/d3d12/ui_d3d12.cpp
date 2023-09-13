@@ -10,7 +10,7 @@
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-using namespace zec::gfx::dx12;
+using namespace zec::rhi::dx12;
 
 namespace zec::ui
 {
@@ -18,7 +18,7 @@ namespace zec::ui
 
     struct UIState
     {
-        DescriptorRangeHandle srv_handle = {};
+        rhi::dx12::DescriptorRangeHandle srv_handle = {};
     };
 
     static UIState g_ui_state;
@@ -40,7 +40,7 @@ namespace zec::ui
 
         window.register_message_callback(window_callback, nullptr);
 
-        RenderContext& render_context = gfx::dx12::get_render_context();
+        RenderContext& render_context = rhi::dx12::get_render_context();
         ASSERT(!is_valid(g_ui_state.srv_handle));
         g_ui_state.srv_handle = render_context.descriptor_heap_manager.allocate_descriptors(HeapType::CBV_SRV_UAV, 1);
         ID3D12DescriptorHeap* heap = render_context.descriptor_heap_manager.get_d3d_heaps(HeapType::CBV_SRV_UAV);
@@ -59,7 +59,7 @@ namespace zec::ui
     void destroy()
     {
         ASSERT(g_is_ui_initialized);
-        RenderContext& render_context = gfx::dx12::get_render_context();
+        RenderContext& render_context = rhi::dx12::get_render_context();
         render_context.descriptor_heap_manager.free_descriptors(render_context.current_frame_idx, g_ui_state.srv_handle);
         ImGui_ImplDX12_Shutdown();
         ImGui_ImplWin32_Shutdown();
@@ -82,10 +82,10 @@ namespace zec::ui
         ImGui::Render();
     }
 
-    void draw_frame(CommandContextHandle handle)
+    void draw_frame(rhi::CommandContextHandle handle)
     {
         ASSERT(g_is_ui_initialized);
-        RenderContext& render_context = gfx::dx12::get_render_context();
+        RenderContext& render_context = rhi::dx12::get_render_context();
         ID3D12GraphicsCommandList* cmd_list = get_command_list(render_context, handle);
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
     }

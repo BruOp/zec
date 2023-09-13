@@ -3,11 +3,11 @@
 
 #include "core/array.h"
 #include "core/ring_buffer.h"
-#include "gfx/public_resources.h"
-#include "gfx/gfx.h"
+#include "gfx/rhi_public_resources.h"
+#include "gfx/rhi.h"
 #include "wrappers.h"
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     template<typename IndexType, size_t capacity>
     struct AsyncFreeList

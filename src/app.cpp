@@ -1,6 +1,6 @@
 #include <Windows.h>
 #include "app.h"
-#include "gfx/gfx.h"
+#include "gfx/rhi.h"
 #include "gfx/profiling_utils.h"
 
 namespace zec
@@ -64,7 +64,7 @@ namespace zec
                 app->window.get_client_area(width, height);
                 app->input_manager.set_dimensions(width, height);
 
-                gfx::on_window_resize(width, height);
+                rhi::on_window_resize(width, height);
                 app->width = width;
                 app->height = height;
             }
@@ -78,13 +78,13 @@ namespace zec
         init_time_data(time_data);
         window.show(true);
 
-        RendererDesc renderer_desc{ };
+        rhi::RendererDesc renderer_desc{ };
         renderer_desc.width = width;
         renderer_desc.height = height;
         renderer_desc.fullscreen = false;
         renderer_desc.vsync = true;
         renderer_desc.window = &window;
-        gfx::init_renderer(renderer_desc);
+        rhi::init_renderer(renderer_desc);
 
         ui::initialize(window);
 
@@ -95,10 +95,10 @@ namespace zec
 
     void App::shutdown_internal()
     {
-        gfx::flush_gpu();
+        rhi::flush_gpu();
         ui::destroy();
         shutdown();
-        gfx::destroy_renderer();
+        rhi::destroy_renderer();
     }
 
     void App::update_internal()
@@ -113,7 +113,7 @@ namespace zec
 
     void App::render_internal()
     {
-        gfx::reset_for_frame();
+        rhi::reset_for_frame();
         {
             PROFILE_EVENT("App Copy");
             copy();
@@ -124,7 +124,7 @@ namespace zec
             render();
         }
 
-        gfx::present_frame();
+        rhi::present_frame();
     }
 
     void App::before_reset_internal()

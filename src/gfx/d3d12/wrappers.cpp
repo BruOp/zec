@@ -3,7 +3,7 @@
 
 #include "optick/optick.h"
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     Fence create_fence(ID3D12Device* device, const u64 initial_value)
     {

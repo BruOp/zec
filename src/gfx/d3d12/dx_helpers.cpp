@@ -2,16 +2,16 @@
 #include <stdexcept>
 #include <d3dx12/d3dx12.h>
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     D3D12_SHADER_VISIBILITY to_d3d_visibility(ShaderVisibility visibility)
     {
         switch (visibility) {
-        case zec::ShaderVisibility::PIXEL:
+        case ShaderVisibility::PIXEL:
             return D3D12_SHADER_VISIBILITY_PIXEL;
-        case zec::ShaderVisibility::VERTEX:
+        case ShaderVisibility::VERTEX:
             return D3D12_SHADER_VISIBILITY_VERTEX;
-        case zec::ShaderVisibility::ALL:
+        case ShaderVisibility::ALL:
         default:
             return D3D12_SHADER_VISIBILITY_ALL;
         }
@@ -68,7 +68,7 @@ namespace zec::gfx::dx12
         case BufferFormat::FLOAT_3:
             return DXGI_FORMAT_R32G32B32_FLOAT;
         case BufferFormat::UINT8_4:
-            //case BufferFormat::R8G8B8A8_UINT:              
+            //case BufferFormat::R8G8B8A8_UINT:
             return DXGI_FORMAT_R8G8B8A8_UINT;
         case BufferFormat::UNORM8_4:
             //case BufferFormat::R8G8B8A8_UNORM:

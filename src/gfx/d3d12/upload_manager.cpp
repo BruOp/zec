@@ -1,7 +1,7 @@
 #include "upload_manager.h"
 
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
-void zec::gfx::dx12::UploadContextStore::destroy()
+void zec::rhi::dx12::UploadContextStore::destroy()
 {
     for (auto& pair : upload_contexts) {
         for (Upload& upload : pair.second) {

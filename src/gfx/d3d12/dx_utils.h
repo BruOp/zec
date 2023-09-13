@@ -10,7 +10,7 @@ typedef long HRESULT;
 typedef ID3D10Blob ID3DBlob;
 
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     std::string get_string(IDxcBlobUtf8* blob);
     std::wstring get_wstring(IDxcBlobUtf8* blob);
@@ -57,7 +57,7 @@ namespace zec::gfx::dx12
 #define DXCall(x)   \
         do {                                                                        \
         HRESULT hr_ = x;                                                            \
-        ASSERT_MSG(SUCCEEDED(hr_), zec::gfx::dx12::GetDXErrorStringUTF8(hr_).c_str());   \
+        ASSERT_MSG(SUCCEEDED(hr_), zec::rhi::dx12::GetDXErrorStringUTF8(hr_).c_str());   \
         } while (0);
 #endif // DXCall
 #else // USE_ASSERTS

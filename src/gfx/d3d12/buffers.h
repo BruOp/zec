@@ -1,5 +1,5 @@
 #pragma once
-#include "gfx/public_resources.h"
+#include "gfx/rhi_public_resources.h"
 #include "gfx/resource_array.h"
 #include "dx_helpers.h"
 //TODO: Remove
@@ -10,7 +10,7 @@ namespace D3D12MA
     class Allocation;
 }
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     constexpr size_t CONSTANT_BUFFER_ALIGNMENT = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
     constexpr size_t VERTEX_BUFFER_ALIGNMENT = 4;

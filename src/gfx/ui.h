@@ -1,6 +1,6 @@
 #pragma once
 #include "imgui/imgui.h"
-#include "gfx/public_resources.h"
+#include "gfx/rhi_public_resources.h"
 
 class Window;
 
@@ -12,5 +12,5 @@ namespace zec::ui
 
     void begin_frame();
     void end_frame();
-    void draw_frame(CommandContextHandle context_handle);
+    void draw_frame(rhi::CommandContextHandle context_handle);
 }

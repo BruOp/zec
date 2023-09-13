@@ -4,9 +4,9 @@
 
 #include "core/array.h"
 #include "gfx/constants.h"
-#include "gfx/public_resources.h"
+#include "gfx/rhi_public_resources.h"
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     constexpr u32 INVALID_DESCRIPTOR_INDEX = UINT32_MAX;
     constexpr D3D12_CPU_DESCRIPTOR_HANDLE INVALID_CPU_HANDLE = { 0 };

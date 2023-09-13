@@ -1,9 +1,9 @@
 #pragma once
 #include <d3d12.h>
 #include "core/array.h"
-#include "gfx/public_resources.h"
+#include "gfx/rhi_public_resources.h"
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     template<typename DXPtr>
     inline void dx_destroy(DXPtr** ptr);

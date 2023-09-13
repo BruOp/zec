@@ -3,7 +3,7 @@
 #include "dx_utils.h"
 #include "utils/utils.h"
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     constexpr u64 CMD_LIST_IDX_BIT_WIDTH = 8;
     constexpr u64 CMD_ALLOCATOR_IDX_BIT_WIDTH = 16;
@@ -30,13 +30,13 @@ namespace zec::gfx::dx12
     D3D12_COMMAND_LIST_TYPE to_d3d_queue_type(const CommandQueueType type)
     {
         switch (type) {
-        case zec::CommandQueueType::GRAPHICS:
+        case CommandQueueType::GRAPHICS:
             return D3D12_COMMAND_LIST_TYPE_DIRECT;
-        case zec::CommandQueueType::ASYNC_COMPUTE:
+        case CommandQueueType::ASYNC_COMPUTE:
             return D3D12_COMMAND_LIST_TYPE_COMPUTE;
-        case zec::CommandQueueType::COPY:
+        case CommandQueueType::COPY:
             return D3D12_COMMAND_LIST_TYPE_COPY;
-        case zec::CommandQueueType::NUM_COMMAND_CONTEXT_POOLS:
+        case CommandQueueType::NUM_COMMAND_CONTEXT_POOLS:
         default:
             throw std::runtime_error("Cannot map NUM_COMMAND_CONTEXT_POOLS to D3D12_COMMAND_LIST_TYPE");
         }
@@ -139,13 +139,13 @@ namespace zec::gfx::dx12
         DXCall(device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&queue)));
 
         switch (type) {
-        case zec::CommandQueueType::GRAPHICS:
+        case CommandQueueType::GRAPHICS:
             queue->SetName(L"Graphics Queue");
             break;
-        case zec::CommandQueueType::ASYNC_COMPUTE:
+        case CommandQueueType::ASYNC_COMPUTE:
             queue->SetName(L"Compute Queue");
             break;
-        case zec::CommandQueueType::COPY:
+        case CommandQueueType::COPY:
             queue->SetName(L"Copy Queue");
             break;
         }
@@ -177,7 +177,7 @@ namespace zec::gfx::dx12
     }
 }
 
-namespace zec::gfx::dx12::cmd_utils
+namespace zec::rhi::dx12::cmd_utils
 {
     CommandQueueType get_command_queue_type(const CommandContextHandle context_handle)
     {

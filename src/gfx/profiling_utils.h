@@ -1,7 +1,7 @@
 #pragma once
 #include <d3d12.h>
 
-#include "gfx/gfx.h"
+#include "gfx/rhi.h"
 
 // Pix for Windows
 #define USE_PIX
@@ -16,7 +16,7 @@
 
 namespace zec
 {
-    namespace gfx::dx12
+    namespace rhi::dx12
     {
         ID3D12GraphicsCommandList* get_command_list(const CommandContextHandle cmd_ctx);
     }
@@ -42,7 +42,7 @@ namespace zec
         {
             PIXBeginEvent(cmd_list, 0, description);
         }
-        ScopedPixGPUEvent(char const* description, CommandContextHandle cmd_ctx) : cmd_list{ gfx::dx12::get_command_list(cmd_ctx) }
+        ScopedPixGPUEvent(char const* description, rhi::CommandContextHandle cmd_ctx) : cmd_list{ rhi::dx12::get_command_list(cmd_ctx) }
         {
             PIXBeginEvent(cmd_list, 0, description);
         };
@@ -66,7 +66,7 @@ namespace zec
 
 #ifndef PROFILE_GPU_EVENT
 #define PROFILE_GPU_EVENT(NAME, CMD_CTX) \
-    ID3D12GraphicsCommandList* cmd_list{ gfx::dx12::get_command_list(CMD_CTX) }; \
+    ID3D12GraphicsCommandList* cmd_list{ rhi::dx12::get_command_list(CMD_CTX) }; \
     ::zec::ScopedPixGPUEvent ZEC_CONCAT(pix_event_, __LINE__)(NAME, cmd_list); \
     OPTICK_GPU_CONTEXT(cmd_list); \
     OPTICK_GPU_EVENT(NAME);

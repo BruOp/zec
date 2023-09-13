@@ -1,8 +1,8 @@
-#include "gfx/gfx.h"
+#include "gfx/rhi.h"
 #include "buffers.h"
 #include "dx_utils.h"
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     void BufferList::destroy()
     {
@@ -15,7 +15,7 @@ namespace zec::gfx::dx12
         num_buffers = 0;
     }
 
-    BufferHandle zec::gfx::dx12::BufferList::push_back(const Buffer& buffer)
+    BufferHandle BufferList::push_back(const Buffer& buffer)
     {
         ASSERT(resources.size < UINT32_MAX);
         ++num_buffers;

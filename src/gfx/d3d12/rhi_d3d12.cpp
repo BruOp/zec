@@ -5,8 +5,8 @@
 
 #include "core/zec_types.h"
 #include "core/zec_math.h"
-#include "gfx/public_resources.h"
-#include "gfx/gfx.h"
+#include "gfx/rhi_public_resources.h"
+#include "gfx/rhi.h"
 #include "window.h"
 
 #include "shader_utils.h"
@@ -26,7 +26,7 @@
 #define USE_GPU_VALIDATION 1
 #endif
 
-namespace zec::gfx
+namespace zec::rhi
 {
     using namespace dx12;
     static RenderContext g_context{};
@@ -465,7 +465,7 @@ namespace zec::gfx
 
     CommandContextHandle begin_frame()
     {
-        CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::GRAPHICS);
+        CommandContextHandle cmd_ctx = rhi::cmd::provision(CommandQueueType::GRAPHICS);
         const TextureHandle backbuffer = get_current_back_buffer_handle();
 
         D3D12_RESOURCE_BARRIER barrier{  };

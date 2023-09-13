@@ -3,7 +3,7 @@
 #include <d3d12.h>
 
 #include "core/ring_buffer.h"
-#include "gfx/public_resources.h"
+#include "gfx/rhi_public_resources.h"
 
 namespace D3D12MA
 {
@@ -18,9 +18,9 @@ namespace DirectX
 namespace std
 {
     template<>
-    struct hash<zec::CommandContextHandle>
+    struct hash<zec::rhi::CommandContextHandle>
     {
-        size_t operator()(const zec::CommandContextHandle& handle) const noexcept
+        size_t operator()(const zec::rhi::CommandContextHandle& handle) const noexcept
         {
             return size_t(handle.idx);
         }
@@ -28,7 +28,7 @@ namespace std
 
 }
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     class UploadContextStore
     {

@@ -1,7 +1,7 @@
 #include "shader_utils.h"
 #include "dx_utils.h"
 
-namespace zec::gfx::dx12::shader_utils
+namespace zec::rhi::dx12::shader_utils
 {
     ZecResult compile_shader(const wchar* file_name, const PipelineStage stage, IDxcBlob** out_blob, std::string& errors)
     {

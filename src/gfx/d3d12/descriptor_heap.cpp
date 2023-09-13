@@ -2,7 +2,7 @@
 #include "dx_utils.h"
 
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     namespace HeapSizes
     {

@@ -4,7 +4,7 @@
 
 #include <d3dcommon.h>
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     IDxcBlob* cast_blob(CompiledShaderBlobs::Blob blob)
     {

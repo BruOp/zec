@@ -8,4 +8,6 @@ namespace zec
     constexpr u64 NUM_CMD_ALLOCATORS = RENDER_LATENCY;
 
     constexpr u64 MAX_NUM_DRAW_VERTEX_BUFFERS = 8;
+
+    constexpr u32 k_invalid_handle = UINT32_MAX;
 }

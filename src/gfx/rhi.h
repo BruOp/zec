@@ -1,10 +1,10 @@
 #pragma once
 #include "core/zec_types.h"
 #include "core/zec_math.h"
-#include "public_resources.h"
+#include "rhi_public_resources.h"
 #include "utils/string_fwd.h"
 
-namespace zec::gfx
+namespace zec::rhi
 {
     void init_renderer(const RendererDesc& renderer_desc);
     void destroy_renderer();

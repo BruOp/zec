@@ -2,8 +2,8 @@
 
 #include "core/array.h"
 #include "core/zec_math.h"
-#include "gfx/public_resources.h"
-#include "gfx/gfx.h"
+#include "gfx/rhi_public_resources.h"
+#include "gfx/rhi.h"
 
 namespace zec
 {
@@ -49,13 +49,13 @@ namespace zec
         struct Context
         {
             SceneGraph scene_graph = {};
-            Array<TextureHandle> textures = {};
-            Array<Draw> draws = {};
+            Array<rhi::TextureHandle> textures = {};
+            Array<rhi::Draw> draws = {};
             Array<AABB> aabbs = {};
             Array<MaterialData> materials = {};
             Array<DrawCall> draw_calls = {};
         };
 
-        void load_gltf_file(const char* gltf_file_path, CommandContextHandle cmd_ctx, Context& context, const LoaderFlags flags = GLTF_LOADING_FLAG_NONE);
+        void load_gltf_file(const char* gltf_file_path, rhi::CommandContextHandle cmd_ctx, Context& context, const LoaderFlags flags = GLTF_LOADING_FLAG_NONE);
     };
 }

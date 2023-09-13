@@ -1,5 +1,5 @@
 #pragma once
-#include "gfx/public_resources.h"
+#include "gfx/rhi_public_resources.h"
 #include "gfx/constants.h"
 #include "dx_helpers.h"
 #include "wrappers.h"
@@ -16,7 +16,7 @@ namespace D3D12MA
     class Allocator;
 }
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
 
     template<typename T>

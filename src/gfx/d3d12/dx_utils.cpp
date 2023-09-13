@@ -15,17 +15,17 @@ void DXCall(HRESULT hr)
 {
     if (FAILED(hr)) {
         if (hr == DXGI_ERROR_DEVICE_REMOVED) {
-            throw zec::gfx::dx12::DXException(zec::gfx::dx12::get_render_context().device->GetDeviceRemovedReason());
+            throw zec::rhi::dx12::DXException(zec::rhi::dx12::get_render_context().device->GetDeviceRemovedReason());
         }
         else {
-            throw zec::gfx::dx12::DXException(hr);
+            throw zec::rhi::dx12::DXException(hr);
         }
     }
 }
 
 #endif // USE_ASSERTS
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     std::string get_string(IDxcBlobUtf8* blob)
     {

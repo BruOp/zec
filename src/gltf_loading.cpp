@@ -134,7 +134,7 @@ namespace zec
         }
 
 
-        void process_textures(const tinygltf::Model& model, CommandContextHandle cmd_ctx, const char* gltf_file_path, Context& out_context)
+        void process_textures(const tinygltf::Model& model, rhi::CommandContextHandle cmd_ctx, const char* gltf_file_path, Context& out_context)
         {
             const std::filesystem::path file_path{ gltf_file_path };
             const std::filesystem::path folder_path = file_path.parent_path();
@@ -146,7 +146,7 @@ namespace zec
                 const auto& image = model.images[texture.source];
                 std::filesystem::path image_path = folder_path / std::filesystem::path{ image.uri };
 
-                const TextureHandle texture = gfx::textures::create_from_file(cmd_ctx, image_path.string().c_str());
+                const rhi::TextureHandle texture = rhi::textures::create_from_file(cmd_ctx, image_path.string().c_str());
                 out_context.textures.push_back(texture);
 
                 // TODO: Process Samplers?
@@ -154,7 +154,7 @@ namespace zec
 
         }
 
-        void process_primitives(const tinygltf::Model& model, CommandContextHandle cmd_ctx, Array<MeshArrayView>& mesh_to_mesh_mapping, Context& out_context, const LoaderFlags flags)
+        void process_primitives(const tinygltf::Model& model, rhi::CommandContextHandle cmd_ctx, Array<MeshArrayView>& mesh_to_mesh_mapping, Context& out_context, const LoaderFlags flags)
         {
 
             for (size_t their_mesh_idx = 0; their_mesh_idx < model.meshes.size(); ++their_mesh_idx) {
@@ -162,7 +162,7 @@ namespace zec
                 // New entry for each gltf mesh
                 mesh_to_mesh_mapping.push_back({ .offset = u32(out_context.draws.size), .count = u32(mesh.primitives.size()) });
                 for (const auto& primitive : mesh.primitives) {
-                    Draw draw{};
+                    rhi::Draw draw{};
                     AABB aabb = {};
                     // Indices
                     {
@@ -175,15 +175,15 @@ namespace zec
                             throw std::runtime_error("TODO: Allow byte sized indices");
                         }
 
-                        BufferDesc index_buffer_desc = {
-                            .usage = RESOURCE_USAGE_INDEX,
-                            .type = BufferType::DEFAULT,
+                        rhi::BufferDesc index_buffer_desc = {
+                            .usage = rhi::RESOURCE_USAGE_INDEX,
+                            .type = rhi::BufferType::DEFAULT,
                             .byte_size = u32(buffer_view.byteLength),
                             .stride = u32(accessor.ByteStride(buffer_view)),
                         };
-                        draw.index_buffer = gfx::buffers::create(index_buffer_desc);
+                        draw.index_buffer = rhi::buffers::create(index_buffer_desc);
                         // Copy the index data into the new buffer
-                        gfx::buffers::set_data(cmd_ctx, draw.index_buffer, &buffer.data.at(offset), index_buffer_desc.byte_size);
+                        rhi::buffers::set_data(cmd_ctx, draw.index_buffer, &buffer.data.at(offset), index_buffer_desc.byte_size);
                         draw.index_count = index_buffer_desc.byte_size / index_buffer_desc.stride;
                         draw.index_offset = 0;
                     }
@@ -225,14 +225,14 @@ namespace zec
 
                         ASSERT_MSG(buffer_view.byteStride == 0, "We only allow tightly packed vertex attributes (sorry)");
 
-                        BufferDesc vertex_buffer_desc = {
-                            .usage = RESOURCE_USAGE_VERTEX,
-                            .type = BufferType::DEFAULT,
+                        rhi::BufferDesc vertex_buffer_desc = {
+                            .usage = rhi::RESOURCE_USAGE_VERTEX,
+                            .type = rhi::BufferType::DEFAULT,
                             .byte_size = u32(buffer_view.byteLength),
                             .stride = u32(accessor.ByteStride(buffer_view)),
                         };
-                        BufferHandle vertex_buffer = gfx::buffers::create(vertex_buffer_desc);
-                        gfx::buffers::set_data(cmd_ctx, vertex_buffer, &buffer.data.at(offset), vertex_buffer_desc.byte_size);
+                        rhi::BufferHandle vertex_buffer = rhi::buffers::create(vertex_buffer_desc);
+                        rhi::buffers::set_data(cmd_ctx, vertex_buffer, &buffer.data.at(offset), vertex_buffer_desc.byte_size);
                         draw.vertex_buffers[i] = vertex_buffer;
                         draw.num_vertex_buffers++;
                     }
@@ -260,32 +260,32 @@ namespace zec
                 {
                     const auto& color_texture = material.values.find("baseColorTexture");
                     if (color_texture != values_end) {
-                        const TextureHandle handle = out_context.textures[color_texture->second.TextureIndex()];
-                        material_data.base_color_texture_idx = gfx::textures::get_shader_readable_index(handle);
+                        const rhi::TextureHandle handle = out_context.textures[color_texture->second.TextureIndex()];
+                        material_data.base_color_texture_idx = rhi::textures::get_shader_readable_index(handle);
                     }
 
                     const auto& m_r_texture = material.values.find("metallicRoughnessTexture");
                     if (m_r_texture != values_end) {
-                        const TextureHandle handle = out_context.textures[m_r_texture->second.TextureIndex()];
-                        material_data.metallic_roughness_texture_idx = gfx::textures::get_shader_readable_index(handle);
+                        const rhi::TextureHandle handle = out_context.textures[m_r_texture->second.TextureIndex()];
+                        material_data.metallic_roughness_texture_idx = rhi::textures::get_shader_readable_index(handle);
                     }
 
                     const auto& normal_texture = material.additionalValues.find("normalTexture");
                     if (normal_texture != additional_values_end) {
-                        const TextureHandle handle = out_context.textures[normal_texture->second.TextureIndex()];
-                        material_data.normal_texture_idx = gfx::textures::get_shader_readable_index(handle);
+                        const rhi::TextureHandle handle = out_context.textures[normal_texture->second.TextureIndex()];
+                        material_data.normal_texture_idx = rhi::textures::get_shader_readable_index(handle);
                     }
 
                     const auto& occlusion_texture = material.additionalValues.find("occlusionTexture");
                     if (occlusion_texture != additional_values_end) {
-                        const TextureHandle handle = out_context.textures[occlusion_texture->second.TextureIndex()];
-                        material_data.occlusion_texture_idx = gfx::textures::get_shader_readable_index(handle);
+                        const rhi::TextureHandle handle = out_context.textures[occlusion_texture->second.TextureIndex()];
+                        material_data.occlusion_texture_idx = rhi::textures::get_shader_readable_index(handle);
                     }
 
                     const auto& emissive_texture = material.additionalValues.find("emissiveTexture");
                     if (emissive_texture != additional_values_end) {
-                        const TextureHandle handle = out_context.textures[emissive_texture->second.TextureIndex()];
-                        material_data.emissive_texture_idx = gfx::textures::get_shader_readable_index(handle);
+                        const rhi::TextureHandle handle = out_context.textures[emissive_texture->second.TextureIndex()];
+                        material_data.emissive_texture_idx = rhi::textures::get_shader_readable_index(handle);
                     }
                 }
 
@@ -350,7 +350,7 @@ namespace zec
             }
         }
 
-        void load_gltf_file(const char* gltf_file_path, CommandContextHandle cmd_ctx, Context& out_context, const LoaderFlags flags)
+        void load_gltf_file(const char* gltf_file_path, rhi::CommandContextHandle cmd_ctx, Context& out_context, const LoaderFlags flags)
         {
             tinygltf::TinyGLTF loader;
             loader.SetImageLoader(loadImageDataCallback, nullptr);

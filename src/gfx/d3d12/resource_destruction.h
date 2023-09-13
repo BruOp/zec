@@ -1,11 +1,11 @@
 #pragma once
 #include "core/array.h"
-#include "gfx/public_resources.h"
+#include "gfx/rhi_public_resources.h"
 #include "wrappers.h"
 #include "dx_helpers.h"
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     class ResourceDestructionQueue
     {

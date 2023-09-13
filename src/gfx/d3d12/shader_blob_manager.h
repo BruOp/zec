@@ -3,11 +3,11 @@
 #include "./core/zec_types.h"
 
 #include "../resource_array.h"
-#include "../public_resources.h"
+#include "../rhi_public_resources.h"
 
 struct IDxcBlob;
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     struct  CompiledShaderBlobs
     {

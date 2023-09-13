@@ -2,7 +2,7 @@
 #include <unordered_map>
 
 #include "core/zec_types.h"
-#include "gfx/public_resources.h"
+#include "gfx/rhi_public_resources.h"
 #include "gfx/resource_array.h"
 #include "dx_helpers.h"
 // TODO: Remove this
@@ -16,9 +16,9 @@ namespace D3D12MA
 namespace std
 {
     template<>
-    struct hash<zec::TextureHandle>
+    struct hash<zec::rhi::TextureHandle>
     {
-        std::size_t operator()(const zec::TextureHandle texture_handle) const
+        std::size_t operator()(const zec::rhi::TextureHandle texture_handle) const
         {
             u32 x = ((texture_handle.idx >> 16) ^ texture_handle.idx) * 0x45d9f3b;
             x = ((x >> 16) ^ x) * 0x45d9f3b;
@@ -28,7 +28,7 @@ namespace std
     };
 }
 
-namespace zec::gfx::dx12
+namespace zec::rhi::dx12
 {
     struct RenderTargetInfo
     {
@@ -61,7 +61,7 @@ namespace zec::gfx::dx12
             internal_map[handle] = dsv;
         }
 
-        DescriptorRangeHandle& operator[](const TextureHandle handle) { 
+        DescriptorRangeHandle& operator[](const TextureHandle handle) {
             return internal_map.at(handle);
         };
         const DescriptorRangeHandle& operator[](const TextureHandle handle) const
@@ -122,9 +122,6 @@ namespace zec::gfx::dx12
         ResourceArray<DescriptorRangeHandle, TextureHandle> rtvs = {};
         ResourceArray<TextureInfo, TextureHandle> infos = {};
         ResourceArray<RenderTargetInfo, TextureHandle> render_target_infos = {};
-        // Note, this is not 1-1 like other arrays in this structure.
-        // Instead, we loop through and find the dsv_info with matching TextureHandle.
-        // Since we have so few DSVs, this should be pretty cheap.
         DSVStore dsvs = {};
     };
 }
