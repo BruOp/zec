@@ -1,10 +1,7 @@
 #pragma once
-#include <filesystem>
-#include <wrl.h>
-#include <dxcompiler/dxcapi.h>
-
 #include "gfx/rhi.h"
-#include "dx_helpers.h"
+
+struct IDxcBlob;
 
 namespace zec::rhi::dx12::shader_utils
 {

@@ -11,6 +11,7 @@
 #else // USE_ASSERTS
 
 // Throws a DXException on failing HRESULT
+// TODO: Can I move this rhi_d3d12.cpp?
 void DXCall(HRESULT hr)
 {
     if (FAILED(hr)) {

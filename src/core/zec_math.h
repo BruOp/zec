@@ -6,7 +6,7 @@
 /// Vectors are _column-major_ and we use _post-multiplication_
 /// so to transform a vector you would do M * v
 ///
-/// Matrices are layed out in row-major form, so data[1][2] refers to the third element
+/// Matrices are laid out in row-major form, so data[1][2] refers to the third element
 /// in the second row (A_2,3)
 ///
 /// To use the matrices produced by this lib with HLSL we'll have to enable row-major storage.
@@ -48,6 +48,146 @@ namespace zec
     inline T max(T a, T b)
     {
         return a < b ? b : a;
+    }
+
+    // ---------- vec2 ----------
+    template<typename T>
+    struct Vector2
+    {
+        union
+        {
+            T data[2] = {};
+            struct { T x, y; };
+            struct { T r, g; };
+        };
+
+        inline T& operator[](const size_t idx)
+        {
+            return data[idx];
+        }
+
+        inline const T& operator[](const size_t idx) const
+        {
+            return data[idx];
+        }
+    };
+
+    using uvec2 = Vector2<u32>;
+    using vec2 = Vector2<float>;
+
+    template<typename T>
+    inline Vector2<T> operator+(const Vector2<T>& v1, const T s)
+    {
+        return { v1.x + s, v1.y + s };
+    }
+    template<typename T>
+    inline Vector2<T> operator+(const Vector2<T>& v1, const Vector2<T>& v2)
+    {
+        return { v1.x + v2.x, v1.y + v2.y };
+    }
+    template<typename T>
+    inline Vector2<T> operator-(const Vector2<T>& v1)
+    {
+        return { -v1.x, -v1.y };
+    }
+    template<typename T>
+    inline Vector2<T> operator-(const Vector2<T>& v1, const Vector2<T>& v2)
+    {
+        return { v1.x - v2.x, v1.y - v2.y };
+    }
+    template<typename T>
+    inline Vector2<T> operator-(const Vector2<T>& v, const T s)
+    {
+        return { v.x - s, v.y - s };
+    }
+    template<typename T>
+    inline Vector2<T> operator-(const T s, const Vector2<T>& v)
+    {
+        return v - s;
+    }
+    template<typename T>
+    inline Vector2<T> operator*(const Vector2<T>& v1, const T s)
+    {
+        return { v1.x * s, v1.y * s };
+    }
+    template<typename T>
+    inline Vector2<T> operator*(const T s, const Vector2<T>& v1)
+    {
+        return v1 * s;
+    }
+    template<typename T>
+    inline Vector2<T> operator*(const Vector2<T>& v1, const Vector2<T>& v2)
+    {
+        return { v1.x * v2.x, v1.y * v2.y };
+    }
+    template<typename T>
+    inline Vector2<T> operator/(const Vector2<T>& v1, const T s)
+    {
+        float inv_s = 1.0f / s;
+        return { v1.x * inv_s, v1.y * inv_s };
+    }
+    template<typename T>
+    inline Vector2<T> operator/(const float s, const Vector2<T>& v)
+    {
+        return { s / v.x, s / v.y };
+    }
+
+    template<typename T>
+    inline Vector2<T>& operator+=(Vector2<T>& v1, const Vector2<T>& v2)
+    {
+        v1.x += v2.x;
+        v1.y += v2.y;
+        return v1;
+    }
+    template<typename T>
+    inline Vector2<T>& operator-=(Vector2<T>& v1, const Vector2<T>& v2)
+    {
+        v1.x -= v2.x;
+        v1.y -= v2.y;
+        return v1;
+    }
+    template<typename T>
+    inline Vector2<T>& operator*=(Vector2<T>& v1, const T s)
+    {
+        v1.x *= s;
+        v1.y *= s;
+        return v1;
+    }
+
+    template<typename T>
+    inline T length_squared(Vector2<T> v)
+    {
+        return v.x * v.x + v.y * v.y;
+    }
+
+    template<typename T>
+    inline T length(Vector2<T> v)
+    {
+        return sqrtf(length_squared(v));
+    }
+
+    template<typename T>
+    inline Vector2<T> normalize(Vector2<T> v)
+    {
+        return v / length(v);
+    }
+
+    template<typename T>
+    T dot(const Vector2<T>& a, const Vector2<T>& b)
+    {
+        return a.x * b.x + a.y * b.y;
+    };
+
+    template<typename T>
+    Vector2<T> min(const Vector2<T>& a, const Vector2<T>& b)
+    {
+        return Vector2<T>{ min(a.x, b.x), min(a.y, b.y) };
+    }
+
+    template<typename T>
+    Vector2<T> max(const Vector2<T>& a, const Vector2<T>& b)
+    {
+        return Vector2<T>{ max(a.x, b.x), max(a.y, b.y) };
     }
 
     // ---------- vec3 ----------
@@ -98,12 +238,12 @@ namespace zec
     extern vec3 k_up;
 
     template<typename T>
-    inline vec3 operator+(const Vector3<T>& v1, const T s)
+    inline Vector3<T> operator+(const Vector3<T>& v1, const T s)
     {
         return { v1.x + s, v1.y + s, v1.z + s };
     }
     template<typename T>
-    inline vec3 operator+(const Vector3<T>& v1, const Vector3<T>& v2)
+    inline Vector3<T> operator+(const Vector3<T>& v1, const Vector3<T>& v2)
     {
         return { v1.x + v2.x, v1.y + v2.y, v1.z + v2.z };
     }
@@ -230,7 +370,7 @@ namespace zec
 
     // ---------- vec4 ----------
 
-    struct vec4
+    __declspec(align(16)) struct vec4
     {
         union
         {
@@ -306,7 +446,7 @@ namespace zec
 
     //
 
-    struct mat3
+    __declspec(align(16)) struct mat3
     {
         union
         {
@@ -355,6 +495,88 @@ namespace zec
 
     vec3 operator*(const mat3& m, const vec3& v);
     mat3 operator*(const mat3& m1, const mat3& m2);
+
+
+    // ---------- mat34 ----------
+
+    __declspec(align(16)) struct mat34
+    {
+        union
+        {
+            vec4 rows[3] = {};
+            float data[3][4];
+            float linear_data[12];
+        };
+
+        mat34() : rows{ {}, {}, {} } { };
+        mat34(const vec4& r1, const vec4& r2, const vec4& r3)
+        {
+            memory::copy(&rows[0], &r1, sizeof(r1));
+            memory::copy(&rows[1], &r2, sizeof(r1));
+            memory::copy(&rows[2], &r3, sizeof(r1));
+        }
+        mat34(const vec4 in_rows[3])
+        {
+            memory::copy(data, in_rows, sizeof(data));
+        }
+        mat34(const float in_data[12])
+        {
+            memory::copy(linear_data, in_data, sizeof(linear_data));
+        }
+        mat34(const mat3& rotation, const vec3& translation)
+        {
+            memory::copy(&rows[0], &rotation.rows[0], sizeof(vec3));
+            memory::copy(&rows[1], &rotation.rows[1], sizeof(vec3));
+            memory::copy(&rows[2], &rotation.rows[2], sizeof(vec3));
+            data[0][3] = translation.x;
+            data[1][3] = translation.y;
+            data[2][3] = translation.z;
+        }
+
+        inline vec3 column(const size_t col_idx) const
+        {
+            return { rows[0][col_idx], rows[1][col_idx], rows[2][col_idx] };
+        }
+
+        inline float* operator[](const size_t index)
+        {
+            return data[index];
+        }
+
+        inline const float* operator[](const size_t index) const
+        {
+            return data[index];
+        }
+    };
+
+    bool operator==(const mat34& m1, const mat34& m2);
+    mat34 operator*(const mat34& m1, const mat34& m2);
+    mat34& operator/=(mat34& m, const float s);
+
+    vec4 operator*(const mat34& m, const vec4& v);
+
+    inline mat34 identity_mat34()
+    {
+        return mat34{
+            { 1.0f, 0.0f, 0.0f, 0.0f },
+            { 0.0f, 1.0f, 0.0f, 0.0f },
+            { 0.0f, 0.0f, 1.0f, 0.0f }
+        };
+    };
+
+    vec3 get_right(const mat34& m);
+    vec3 get_up(const mat34& m);
+    vec3 get_dir(const mat34& m);
+    vec3 get_translation(const mat34& m);
+
+    mat34 look_at3x4(const vec3& pos, const vec3& target);
+
+    mat34 invert(const mat34& m);
+
+    mat34 transpose(const mat34& m);
+
+    mat3 to_mat3(const mat34& m);
+
 
     // ---------- mat4 ----------
 
@@ -431,7 +653,7 @@ namespace zec
     vec3 get_dir(const mat4& m);
     vec3 get_translation(const mat4& m);
 
-    mat4 look_at(const vec3& pos, const vec3& target);
+    mat4 look_at4x4(const vec3& pos, const vec3& target);
 
     mat4 invert(const mat4& m);
 
@@ -439,6 +661,7 @@ namespace zec
 
     mat3 to_mat3(const mat4& m);
 
+    mat4 to_mat4(const mat34& m);
     // ---------- quaternion ----------
 
     struct quaternion
@@ -496,6 +719,9 @@ namespace zec
         return v / length(v);
     }
 
+
+    mat3 quat_to_mat3(const quaternion& q);
+    mat34 quat_to_mat34(const quaternion& q);
     mat4 quat_to_mat4(const quaternion& q);
 
     // ---------- Transformation helpers ----------
@@ -505,6 +731,12 @@ namespace zec
         mat = quat_to_mat4(q) * mat;
     }
 
+    inline void set_translation(mat34& mat, const vec3& translation)
+    {
+        mat[0][3] = translation.x;
+        mat[1][3] = translation.y;
+        mat[2][3] = translation.z;
+    };
     inline void set_translation(mat4& mat, const vec3& translation)
     {
         mat[0][3] = translation.x;
@@ -513,6 +745,12 @@ namespace zec
     };
 
     inline void set_scale(mat3& mat, const vec3& scale)
+    {
+        mat[0][0] = scale.x;
+        mat[1][1] = scale.y;
+        mat[2][2] = scale.z;
+    }
+    inline void set_scale(mat34& mat, const vec3& scale)
     {
         mat[0][0] = scale.x;
         mat[1][1] = scale.y;

@@ -83,7 +83,7 @@ namespace zec
             sinf(pitch) * sinf(yaw),
         };
         camera.position = camera.position * radius + origin;
-        set_camera_view(camera, look_at(camera.position, origin));
+        set_camera_view(camera, look_at4x4(camera.position, origin));
     }
 
     void FPSCameraController::update(const PerspectiveCamera& camera, const input::InputState& input_state, const float delta_time)
@@ -151,6 +151,6 @@ namespace zec
             sinf(pitch) * sinf(yaw),
         };
         camera.position += displacement;
-        set_camera_view(camera, look_at(camera.position, camera.position + forward));
+        set_camera_view(camera, look_at4x4(camera.position, camera.position + forward));
     }
 }

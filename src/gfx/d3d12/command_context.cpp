@@ -76,7 +76,7 @@ namespace zec::rhi::dx12
             // No free index
 
             // Create and push into our list
-            ASSERT(allocators.size < allocators.capacity);
+            ASSERT(allocators.size < allocators.capacity());
             DXCall(device->CreateCommandAllocator(to_d3d_queue_type(queue_type), IID_PPV_ARGS(&cmd_allocator)
             ));
             allocator_idx = u16(allocators.push_back(cmd_allocator));
@@ -165,7 +165,7 @@ namespace zec::rhi::dx12
         }
     }
 
-    ID3D12GraphicsCommandList* CommandContextPool::get_graphics_command_list(const CommandContextHandle context_handle)
+    ID3D12GraphicsCommandList* CommandContextPool::get_graphics_command_list(const CommandContextHandle context_handle) const
     {
         ASSERT(is_valid(context_handle));
         return cmd_lists[get_command_list_idx(context_handle)];

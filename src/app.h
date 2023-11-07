@@ -37,6 +37,9 @@ namespace zec
         std::wstring app_name;
 
         input::InputManager input_manager = {};
+
+        rhi::Renderer renderer = {};
+        ui::UIRenderer ui_renderer = {};
     private:
 
         //void parse_command_line(const wchar* cmdLine);

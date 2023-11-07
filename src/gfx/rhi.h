@@ -4,157 +4,147 @@
 #include "rhi_public_resources.h"
 #include "utils/string_fwd.h"
 
+namespace zec::ui
+{
+    class UIRenderer;
+}
+
 namespace zec::rhi
 {
-    void init_renderer(const RendererDesc& renderer_desc);
-    void destroy_renderer();
+    class RenderContext;
 
-    RenderConfigState get_config_state();
-
-    u64 get_current_frame_idx();
-
-    void flush_gpu();
-
-    CommandContextHandle begin_frame();
-    void end_frame(CommandContextHandle command_context);
-
-    void reset_for_frame();
-    CmdReceipt present_frame();
-
-    TextureHandle get_current_back_buffer_handle();
-
-    void on_window_resize(u32 width, u32 height);
-
-    namespace shader_compilation
+    class Renderer
     {
-        // Please release the blobs after you've used them to create the pipeline
-        ZecResult compile_shaders(const ShaderCompilationDesc& shader_compilation_desc, ShaderBlobsHandle& inout_blobs, std::string& inout_errors);
+    public:
+        UNCOPIABLE(Renderer);
+        UNMOVABLE(Renderer);
 
-        void release_blobs(ShaderBlobsHandle& blobs);
-    }
+        Renderer() = default;
+        ~Renderer();
 
-    namespace pipelines
-    {
-        ResourceLayoutHandle    create_resource_layout(const ResourceLayoutDesc& desc);
-        PipelineStateHandle     create_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc);
-        // This basically creates a new PSO and replaces the existing pipeline_state_handle that's stored at the index. Obviously you probably don't want to do this in the middle of a frame, but it _should_ be safe to do so.
-        ZecResult               recreate_pipeline_state_object(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const PipelineStateHandle pipeline_state_handle);
-    }
+        void init(const RendererDesc& renderer_desc);
+        void destroy();
 
-    namespace buffers
-    {
-        BufferHandle create(BufferDesc buffer_desc);
+        // Getters
+        RenderConfigState get_config_state() const;
+        u64 get_current_frame_idx() const;
+        TextureHandle get_current_back_buffer_handle();
 
-        u32 get_shader_readable_index(const BufferHandle handle);
-        u32 get_shader_writable_index(const BufferHandle handle);
+        // Returns indices for use inside shaders (for direct indexing into our bindless descriptor tables)
+        u32 get_readable_index(const BufferHandle handle) const;
+        u32 get_writable_index(const BufferHandle handle) const;
+        u32 get_readable_index(const TextureHandle handle) const;
+        u32 get_writable_index(const TextureHandle handle) const;
 
-        void set_data(const BufferHandle handle, const void* data, const u64 data_byte_size);
-        void set_data(CommandContextHandle cmd_ctx, const BufferHandle handle, const void* data, const u64 data_byte_size);
+        // Frame lifecycle methods
+        void flush_gpu();
+        CommandContextHandle begin_frame();
+        void end_frame(CommandContextHandle command_context);
+        void reset_for_frame();
+        CmdReceipt present_frame();
 
-        void update(const BufferHandle buffer_id, const void* data, u64 byte_size);
-    }
+        // Additional life cycle methods
+        void on_window_resize(u32 width, u32 height);
 
-    namespace textures
-    {
-        TextureHandle create(TextureDesc texture_desc);
+        // ------------ Shader Compilation ------------
+        // Please release the blobs after you've used them to create the pipeline!
+        ZecResult shaders_compile(const ShaderCompilationDesc& shader_compilation_desc, ShaderBlobsHandle& inout_blobs, std::string& inout_errors);
+        void shaders_release_blobs(ShaderBlobsHandle& blobs);
 
-        u32 get_shader_readable_index(const TextureHandle handle);
-        u32 get_shader_writable_index(const TextureHandle handle);
+        // ------------ Pipelines ------------
+        ResourceLayoutHandle resource_layouts_create(const ResourceLayoutDesc& desc);
+        PipelineStateHandle pipelines_create(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc);
+        // This basically creates a new PSO and replaces the existing pipeline_state_handle that's stored at the index.
+        // Obviously you probably don't want to do this in the middle of a frame, but it _should_ be safe to do so.
+        ZecResult pipelines_recreate(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const PipelineStateHandle pipeline_state_handle);
 
-        const TextureInfo& get_texture_info(const TextureHandle texture_handle);
+        // ------------ Buffers ------------
+        BufferHandle buffers_create(BufferDesc buffer_desc);
+        void buffers_set_data(const BufferHandle handle, const void* data, const u64 data_byte_size);
+        void buffers_set_data(CommandContextHandle cmd_ctx, const BufferHandle handle, const void* data, const u64 data_byte_size);
+        void buffers_update(const BufferHandle buffer_id, const void* data, u64 byte_size);
 
-        TextureHandle create_from_file(CommandContextHandle cmd_ctx, const char* file_path);
-        void save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);
-    }
+        // ------------ Textures ------------
+        TextureHandle textures_create(TextureDesc texture_desc);
+        TextureHandle textures_create_from_file(CommandContextHandle cmd_ctx, const char* file_path);
+        void textures_save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);
 
-    namespace cmd
-    {
+        const TextureInfo& textures_get_info(const TextureHandle texture_handle);
+
+        // The following all involved command queues or lists. All functions are prefixed with cmd for searchability
+        // For functions that accept a CommandContextHandle, you may NOT call them on different threads with the same CommandContext
+        // However, with different handles they should be safe to call on separate threads.
         // ---------- Command Contexts ----------
-        CommandContextHandle provision(CommandQueueType type);
+        CommandContextHandle cmd_provision(CommandQueueType type);
+        CmdReceipt cmd_return_and_execute(CommandContextHandle* context_handles, const size_t num_contexts);
 
-        CmdReceipt return_and_execute(CommandContextHandle* context_handles, const size_t num_contexts);
+        //--------- Synchronization ----------
+        bool cmd_check_status(const CmdReceipt receipt);
+        void cmd_flush_queue(const CommandQueueType type);
+        void cmd_cpu_wait(const CmdReceipt receipt);
+        void cmd_gpu_wait(const CommandQueueType queue_to_insert_wait, const CmdReceipt receipt_to_wait_on);
+        void cmd_compute_write_barrier(CommandContextHandle ctx, BufferHandle buffer_handle);
+        void cmd_compute_write_barrier(CommandContextHandle ctx, TextureHandle texture_handle);
 
-        bool check_status(const CmdReceipt receipt);
-
-        void flush_queue(const CommandQueueType type);
-
-        void cpu_wait(const CmdReceipt receipt);
-
-        void gpu_wait(const CommandQueueType queue_to_insert_wait, const CmdReceipt receipt_to_wait_on);
-
-        //--------- Resource Binding ----------
-        void set_graphics_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
-
-        void set_graphics_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle);
-
-        void bind_graphics_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
-
-        void bind_graphics_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot);
-
-        void bind_graphics_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
-
-        // Draw
-        void draw_lines(const CommandContextHandle ctx, const BufferHandle vertices);
-        void draw(const CommandContextHandle ctx, const BufferHandle index_buffer_id, const size_t num_instances = 1);
-        void draw(const CommandContextHandle ctx, const Draw& draw);
-
-        //--------- Resource Binding ----------
-        void set_compute_resource_layout(const CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id);
-
-        void set_compute_pipeline_state(const CommandContextHandle ctx, const PipelineStateHandle pso_handle);
-
-        void bind_compute_resource_table(const CommandContextHandle ctx, const u32 resource_layout_entry_idx);
-
-        void bind_compute_constants(const CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot);
-
-        void bind_compute_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, const u32 binding_slot);
-
-        // Dispatch
-        void dispatch(
-            const CommandContextHandle ctx,
-            const u32 thread_group_count_x,
-            const u32 thread_group_count_y,
-            const u32 thread_group_count_z
-        );
-
-        // Misc
-        void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const float* clear_color);
-        inline void clear_render_target(const CommandContextHandle ctx, const TextureHandle render_texture, const vec4 clear_color)
-        {
-            clear_render_target(ctx, render_texture, clear_color.data);
-        };
-
-        void clear_depth_target(const CommandContextHandle ctx, const TextureHandle depth_stencil_buffer, const float depth_value, const u8 stencil_value);
-
-        void set_viewports(const CommandContextHandle ctx, const Viewport* viewports, const u32 num_viewports);
-
-        void set_scissors(const CommandContextHandle ctx, const Scissor* scissors, const u32 num_scissors);
-
-        void set_render_targets(
-            const CommandContextHandle ctx,
-            TextureHandle* render_textures,
-            const u32 num_render_targets,
-            const TextureHandle depth_target = INVALID_HANDLE
-        );
-
-        void transition_textures(
-            const CommandContextHandle ctx,
-            TextureTransitionDesc* transition_descs,
-            u64 num_transitions
-        );
-
-        void transition_resources(
-            const CommandContextHandle ctx,
+        //--------- Resource Transitions ----------
+        void cmd_transition_resources(
+            CommandContextHandle ctx,
             ResourceTransitionDesc* transition_descs,
             u64 num_transitions
         );
 
-        void compute_write_barrier(const CommandContextHandle ctx, BufferHandle buffer_handle);
-        void compute_write_barrier(const CommandContextHandle ctx, TextureHandle texture_handle);
-    }
+        //--------- Resource Binding ----------
+        void cmd_set_graphics_resource_layout(CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id) const;
+        void cmd_set_graphics_pipeline_state(CommandContextHandle ctx, const PipelineStateHandle pso_handle) const;
+        void cmd_bind_graphics_resource_table(CommandContextHandle ctx, const u32 resource_layout_entry_idx) const;
+        void cmd_bind_graphics_constants(CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot) const;
+        void cmd_bind_graphics_constant_buffer(CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot) const;
 
-    void set_debug_name(const ResourceLayoutHandle handle, const wchar* name);
-    void set_debug_name(const PipelineStateHandle handle, const wchar* name);
-    void set_debug_name(const BufferHandle handle, const wchar* name);
-    void set_debug_name(const TextureHandle handle, const wchar* name);
+        void cmd_set_compute_resource_layout(CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id) const;
+        void cmd_set_compute_pipeline_state(CommandContextHandle ctx, const PipelineStateHandle pso_handle) const;
+        void cmd_bind_compute_resource_table(CommandContextHandle ctx, const u32 resource_layout_entry_idx) const;
+        void cmd_bind_compute_constants(CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot) const;
+        void cmd_bind_compute_constant_buffer(CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
+        //--------- Drawing ----------
+        void cmd_draw_lines(CommandContextHandle ctx, const BufferHandle vertices) const;
+        void cmd_draw(CommandContextHandle ctx, const BufferHandle index_buffer_view_id, const size_t num_instances = 1) const;
+        void cmd_draw(CommandContextHandle ctx, const Draw& draw) const;
+
+        //--------- Dispatch ----------
+        void cmd_dispatch(
+            CommandContextHandle ctx,
+            const u32 thread_group_count_x,
+            const u32 thread_group_count_y,
+            const u32 thread_group_count_z
+        ) const;
+
+        //--------- Pipeline State Setup ---------
+        void cmd_clear_render_target(CommandContextHandle ctx, const TextureHandle render_texture, const float* clear_color) const;
+        inline void cmd_clear_render_target(CommandContextHandle ctx, const TextureHandle render_texture, const vec4 clear_color) const
+        {
+            cmd_clear_render_target(ctx, render_texture, clear_color.data);
+        };
+        void cmd_clear_depth_target(CommandContextHandle ctx, const TextureHandle depth_stencil_buffer, const float depth_value, const u8 stencil_value) const;
+        void cmd_set_viewports(CommandContextHandle ctx, const Viewport* viewports, const u32 num_viewports) const;
+        void cmd_set_scissors(CommandContextHandle ctx, const Scissor* scissors, const u32 num_scissors) const;
+        void cmd_set_render_targets(
+            CommandContextHandle ctx,
+            TextureHandle* render_textures,
+            const u32 num_render_targets,
+            const TextureHandle depth_target = INVALID_HANDLE
+        ) const;
+
+        //--------- Debug ----------
+        void set_debug_name(const ResourceLayoutHandle handle, const wchar* name);
+        void set_debug_name(const PipelineStateHandle handle, const wchar* name);
+        void set_debug_name(const BufferHandle handle, const wchar* name);
+        void set_debug_name(const TextureHandle handle, const wchar* name);
+
+    private:
+        friend class ::zec::ui::UIRenderer;
+
+        RenderContext& get_render_context();
+
+        RenderContext* pcontext = nullptr;
+    };
 }

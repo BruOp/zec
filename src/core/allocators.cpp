@@ -98,12 +98,13 @@ namespace zec
     {
         clear();
         memory::free_mem(static_cast<void*>(ptr));
+        ptr = nullptr;
     }
 
     void* LinearAllocator::allocate(size_t size, size_t alignment)
     {
         ASSERT(size > 0);
-
+        alignment = alignment == 0 ? 1 : alignment;
         const size_t aligned_offset = memory::align(bytes_allocated, alignment);
         ASSERT(aligned_offset < total_capacity);
         const size_t new_bytes_allocated = aligned_offset + size;
@@ -233,7 +234,7 @@ namespace zec
             ASSERT(total_capacity % sys_info.page_size == 0u);
             size_t pages_used = size_t(total_capacity / sys_info.page_size);
             u8* current_end = ptr + total_capacity;
-            
+
             // Round up to the pages required
             size_t additional_pages_required = (size_to_grow_by + sys_info.page_size - 1u) / sys_info.page_size;
             size_t additional_capacity_required = additional_pages_required * sys_info.page_size;

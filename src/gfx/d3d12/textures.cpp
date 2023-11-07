@@ -23,42 +23,4 @@ namespace zec::rhi::dx12
     }
 
     // TODO: Add function for destroying individual textures
-
-    // TODO: Rename this function so it's not confusing
-    void TextureList::destroy(void(*resource_destruction_callback)(ID3D12Resource*, D3D12MA::Allocation*), void(*descriptor_destruction_callback)(DescriptorRangeHandle))
-    {
-        for (size_t i = 0; i < count; i++) {
-            resource_destruction_callback(resources[i], allocations[i]);
-            resources[i] = nullptr;
-            allocations[i] = nullptr;
-        }
-        resources.empty();
-        allocations.empty();
-
-        for (size_t i = 0; i < count; i++) {
-            if (is_valid(srvs[i])) {
-                descriptor_destruction_callback(srvs[i]);
-                srvs[i] = INVALID_HANDLE;
-            }
-
-            if (is_valid(uavs[i])) {
-                descriptor_destruction_callback(uavs[i]);
-                uavs[i] = INVALID_HANDLE;
-            }
-
-            if (is_valid(rtvs[i])) {
-                descriptor_destruction_callback(rtvs[i]);
-                rtvs[i] = INVALID_HANDLE;
-            }
-        }
-        srvs.empty();
-        uavs.empty();
-        rtvs.empty();
-
-        for (auto [ handle, dsv] : dsvs) {
-            descriptor_destruction_callback(dsv);
-        }
-        dsvs.empty();
-        count = 0;
-    }
 }

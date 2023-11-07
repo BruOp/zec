@@ -5,8 +5,8 @@
 
 #include "../core/zec_types.h"
 #include "../core/array.h"
-#include "../core/linear_allocator.h"
-#include "public_resources.h"
+#include "../core/allocators.hpp"
+#include "rhi.h"
 
 namespace zec::render_graph
 {
@@ -51,8 +51,8 @@ namespace zec::render_graph
     {
         ResourceIdentifier identifier = {};
         std::wstring_view name = L"";
-        ResourceUsage initial_usage = RESOURCE_USAGE_UNUSED;
-        BufferDesc desc = {};
+        rhi::ResourceUsage initial_usage = rhi::RESOURCE_USAGE_UNUSED;
+        rhi::BufferDesc desc = {};
     };
 
     struct TextureResourceDesc
@@ -66,14 +66,14 @@ namespace zec::render_graph
         // Sizing factors are only used if sizing == Sizing::RELATIVE_TO_SWAP_CHAIN
         float relative_width_factor = 1.0f;
         float relative_height_factor = 1.0f;
-        TextureDesc desc = {};
+        rhi::TextureDesc desc = {};
     };
 
     // Tracks the state that the resource is in during the execution of the render graph
     struct BarrierState
     {
-        ResourceUsage resource_usage;
-        CommandQueueType queue_type;
+        rhi::ResourceUsage resource_usage;
+        rhi::CommandQueueType queue_type;
     };
 
 
@@ -83,7 +83,7 @@ namespace zec::render_graph
     {
     public:
         ResourceContext() = default;
-        ResourceContext(const RenderConfigState& render_config_state) : render_config_state{ render_config_state } {};
+        ResourceContext(const rhi::RenderConfigState& render_config_state) : render_config_state{ render_config_state } {};
 
         void register_buffer(const BufferResourceDesc& buffer_desc);
         void register_texture(const TextureResourceDesc& texture_desc);
@@ -92,10 +92,10 @@ namespace zec::render_graph
         void set_backbuffer_id(const ResourceIdentifier id);
         void set_barrier_state(const ResourceIdentifier id, const BarrierState barrier_state);
         // TODO handle resize
-        void set_render_config_state(const RenderConfigState& config_state) { render_config_state = config_state; };
+        void set_render_config_state(const rhi::RenderConfigState& config_state) { render_config_state = config_state; };
 
-        BufferHandle get_buffer(const ResourceIdentifier buffer_identifier) const;
-        TextureHandle get_texture(const ResourceIdentifier texture_identifier) const;
+        rhi::BufferHandle get_buffer(const ResourceIdentifier buffer_identifier) const;
+        rhi::TextureHandle get_texture(const ResourceIdentifier texture_identifier) const;
         BarrierState get_barrier_state(const ResourceIdentifier resource_identifier) const;
         ResourceIdentifier get_backbuffer_id();
 
@@ -107,14 +107,15 @@ namespace zec::render_graph
         // Tracks the state that the resource is in during the execution of the render graph
         struct ResourceState
         {
-            BufferHandle buffer;
-            TextureHandle texture;
-            ResourceUsage resource_usage;
-            CommandQueueType queue_type;
+            rhi::BufferHandle buffer;
+            rhi::TextureHandle texture;
+            rhi::ResourceUsage resource_usage;
+            rhi::CommandQueueType queue_type;
         };
 
+        rhi::Renderer* prenderer = nullptr;
         ResourceIdentifier backbuffer_id = {};
-        RenderConfigState render_config_state;
+        rhi::RenderConfigState render_config_state;
         std::unordered_map< ResourceIdentifier, ResourceState[RENDER_LATENCY]> resource_states;
     };
 
@@ -155,12 +156,12 @@ namespace zec::render_graph
     struct PipelineCompilationDesc
     {
         std::wstring_view name;
-        ResourceLayoutHandle resource_layout;
-        ShaderCompilationDesc shader_compilation_desc;
-        PipelineStateObjectDesc pso_desc;
+        rhi::ResourceLayoutHandle resource_layout;
+        rhi::ShaderCompilationDesc shader_compilation_desc;
+        rhi::PipelineStateObjectDesc pso_desc;
     };
 
-    using ResourceLayoutStore = Store<ResourceLayoutId, ResourceLayoutHandle>;
+    using ResourceLayoutStore = Store<ResourceLayoutId, rhi::ResourceLayoutHandle>;
 
     class PipelineStore
     {
@@ -168,12 +169,12 @@ namespace zec::render_graph
         ZecResult compile(const PipelineId id, const PipelineCompilationDesc& desc, std::string& errors);
         ZecResult recompile(const PipelineId id, std::string& errors);
 
-        PipelineStateHandle get_pipeline(const PipelineId id) const
+        rhi::PipelineStateHandle get_pipeline(const PipelineId id) const
         {
             return pso_handles.get(id);
         };
 
-        ResourceLayoutHandle get_resource_layout(const PipelineId id) const
+        rhi::ResourceLayoutHandle get_resource_layout(const PipelineId id) const
         {
             return recompilation_infos.get(id).resource_layout;
         };
@@ -193,7 +194,8 @@ namespace zec::render_graph
             return recompilation_infos.end();
         }
     private:
-        Store<PipelineId, PipelineStateHandle> pso_handles;
+        rhi::Renderer* prenderer;
+        Store<PipelineId, rhi::PipelineStateHandle> pso_handles;
         Store<PipelineId, PipelineCompilationDesc> recompilation_infos;
     };
 
@@ -205,6 +207,15 @@ namespace zec::render_graph
             const size_t byte_size = 0;
         };
     public:
+        void init()
+        {
+            allocator.init(kallocator_byte_size);
+        }
+
+        void shutdown()
+        {
+            allocator.shutdown();
+        }
 
         template<typename T>
         void emplace(const ResourceIdentifier id, const T& data)
@@ -241,7 +252,8 @@ namespace zec::render_graph
         }
 
     private:
-        FixedLinearAllocator<1024> allocator = {};
+        static constexpr size_t kallocator_byte_size = 1024;
+        LinearAllocator allocator = {};
         std::unordered_map<ResourceIdentifier, DataEntry> entries = {};
     };
 
@@ -259,7 +271,7 @@ namespace zec::render_graph
     {
         ResourceIdentifier identifier = {};
         PassResourceType type = PassResourceType::INVALID;
-        ResourceUsage usage = RESOURCE_USAGE_UNUSED;
+        rhi::ResourceUsage usage = rhi::RESOURCE_USAGE_UNUSED;
     };
 
     struct PassExecutionContext
@@ -269,7 +281,7 @@ namespace zec::render_graph
         const PipelineStore* pipeline_context = nullptr;
         const SettingsStore* settings_context = nullptr;
         const PerPassDataStore* per_pass_data_store = nullptr;
-        CommandContextHandle cmd_context = {};
+        rhi::CommandContextHandle cmd_context = {};
     };
 
     typedef void(*PassSetupFn)(const SettingsStore* settings_context, PerPassDataStore* per_pass_data_store);
@@ -280,7 +292,7 @@ namespace zec::render_graph
     struct PassDesc
     {
         const std::string_view name = "";
-        const CommandQueueType command_queue_type = CommandQueueType::GRAPHICS;
+        const rhi::CommandQueueType command_queue_type = rhi::CommandQueueType::GRAPHICS;
         const PassSetupFn setup_fn = nullptr;
         const PassExecuteFn execute_fn = nullptr;
         const PassTeardownFn teardown_fn = nullptr;
@@ -345,6 +357,7 @@ namespace zec::render_graph
     private:
         std::vector<Pass> passes = {};
 
+        rhi::Renderer* prenderer = nullptr;
         // TODO: Find a better naming for this. Settings vs Resources vs PerPass isn't really all that helpful I don't think.
         ResourceContext* resource_context = nullptr;
         PipelineStore* shader_store = nullptr;
@@ -416,6 +429,7 @@ namespace zec::render_graph
             u32 last_written_to_by = UINT32_MAX;
         };
 
+        rhi::Renderer* prenderer = nullptr;
         RenderTaskList* out_list = nullptr;
         std::unordered_map<ResourceIdentifier, u32> resource_write_ledger = {};
         std::unordered_map<ResourceIdentifier, BuilderResourceState> resource_states;

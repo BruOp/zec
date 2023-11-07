@@ -14,8 +14,8 @@ namespace zec
             app_name,
             WS_OVERLAPPEDWINDOW,
             WS_EX_APPWINDOW,
-            width,
-            height },
+            i32(width),
+            i32(height) },
             input_manager{ width, height }
     {
     }
@@ -64,7 +64,7 @@ namespace zec
                 app->window.get_client_area(width, height);
                 app->input_manager.set_dimensions(width, height);
 
-                rhi::on_window_resize(width, height);
+                app->renderer.on_window_resize(width, height);
                 app->width = width;
                 app->height = height;
             }
@@ -84,9 +84,9 @@ namespace zec
         renderer_desc.fullscreen = false;
         renderer_desc.vsync = true;
         renderer_desc.window = &window;
-        rhi::init_renderer(renderer_desc);
+        renderer.init(renderer_desc);
 
-        ui::initialize(window);
+        ui_renderer.init(renderer, window);
 
         window.register_message_callback(window_message_callback, this);
 
@@ -95,10 +95,10 @@ namespace zec
 
     void App::shutdown_internal()
     {
-        rhi::flush_gpu();
-        ui::destroy();
+        renderer.flush_gpu();
+        ui_renderer.destroy();
         shutdown();
-        rhi::destroy_renderer();
+        renderer.destroy();
     }
 
     void App::update_internal()
@@ -113,7 +113,7 @@ namespace zec
 
     void App::render_internal()
     {
-        rhi::reset_for_frame();
+        renderer.reset_for_frame();
         {
             PROFILE_EVENT("App Copy");
             copy();
@@ -124,7 +124,7 @@ namespace zec
             render();
         }
 
-        rhi::present_frame();
+        renderer.present_frame();
     }
 
     void App::before_reset_internal()

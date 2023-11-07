@@ -65,6 +65,8 @@ namespace zec::rhi
         MESH_ATTRIBUTE_BLENDWEIGHTS = (1 << 5)
     };
 
+    constexpr size_t kMeshAttributeCount = 6;
+
     enum struct BufferType : u16
     {
         DEFAULT = 0,
@@ -497,23 +499,6 @@ namespace zec::rhi
         INVALID = 0,
         BUFFER,
         TEXTURE,
-    };
-    //struct BufferTransitionDesc
-    //{
-    //    BufferHandle buffer;
-    //    // Note: before and after must both be subsets of the usage that the resource was created with
-    //    ResourceUsage before;
-    //    // Note: before and after must both be subsets of the usage that the resource was created with
-    //    ResourceUsage after;
-    //};
-
-    struct TextureTransitionDesc
-    {
-        TextureHandle texture;
-        // Note: before and after must both be subsets of the usage that the resource was created with
-        ResourceUsage before;
-        // Note: before and after must both be subsets of the usage that the resource was created with
-        ResourceUsage after;
     };
 
     struct ResourceTransitionDesc

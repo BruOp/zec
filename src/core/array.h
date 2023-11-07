@@ -10,8 +10,52 @@ namespace zec
 
     struct ArrayView
     {
-        u32 offset = 0;
         u32 size = 0;
+        u32 offset = 0;
+
+        u32 get_size() { return size; };
+    };
+
+    // Only for POD types
+    template<typename T>
+    class TypedArrayView
+    {
+        static_assert(std::is_trivially_copyable<T>::value&& std::is_trivially_destructible<T>::value);
+    public:
+        TypedArrayView() = default;
+        TypedArrayView(const size_t size, T* ptr) : data(ptr), size(size) {};
+        TypedArrayView(const size_t size, void* ptr) : data(static_cast<T*>(ptr)), size(size) {};
+
+        TypedArrayView(const TypedArrayView<T>& other) = default;
+        TypedArrayView& operator=(TypedArrayView<T>& other) = default;
+        TypedArrayView& operator=(const TypedArrayView<T>& other) = default;
+        TypedArrayView(TypedArrayView<T>&& other) = default;
+        TypedArrayView& operator=(TypedArrayView<T>&& other) = default;
+
+        inline T& operator[](size_t idx)
+        {
+            ASSERT_MSG(idx < size, "Cannot access elements beyond Array size.");
+            return data[idx];
+        };
+
+        inline const T& operator[](size_t idx) const
+        {
+            ASSERT_MSG(idx < size, "Cannot access elements beyond Array size.");
+            return data[idx];
+        };
+
+
+        inline size_t get_size() const { return size; }
+        size_t get_byte_size() const { return sizeof(T) * size; }
+
+        T* begin() { return data; }
+        const T* begin() const { return data; }
+
+        T* end() { return data + size; }
+        const T* end() const { return data + size; }
+    private:
+        size_t size = 0;
+        T* data = nullptr;
     };
 
     template<typename T, size_t Capacity>
@@ -20,16 +64,19 @@ namespace zec
         static_assert(std::is_trivially_copyable<T>::value&& std::is_trivially_destructible<T>::value);
     public:
         T data[Capacity] = {};
-        const size_t capacity = Capacity;
         size_t size = 0;
 
         FixedArray() = default;
+        FixedArray(const FixedArray<T, Capacity>& other) = default;
+        //{
+        //    memory::copy(data, other.data, other.size * sizeof(T));
+        //};
 
-        FixedArray(FixedArray& other) = delete;
-        FixedArray& operator=(FixedArray& other) = delete;
-
-        FixedArray(FixedArray&& other) = delete;
-        FixedArray& operator=(FixedArray&& other) = delete;
+        FixedArray& operator=(const FixedArray<T, Capacity>& other) = default;
+        //{
+        //    size = other.size;
+        //    memory::copy(data, other.data, other.size * sizeof(T));
+        //};
 
         T* begin()
         {
@@ -47,14 +94,14 @@ namespace zec
         };
 
         inline const T& operator[](size_t idx) const
-        {
+       {
             ASSERT_MSG(idx < size, "Cannot access elements beyond Array size.");
             return data[idx];
         };
 
         size_t push_back(const T& val)
         {
-            ASSERT(size < capacity);
+            ASSERT(size < Capacity);
             data[size] = val;
             return size++;
         };
@@ -68,9 +115,17 @@ namespace zec
         template<typename ...Args>
         size_t create_back(Args... args)
         {
-            ASSERT(size < capacity);
+            ASSERT(size < Capacity);
             data[size] = T{ args... };
             return size++;
+        };
+
+        // Grow both reserves and increases the size, so new items are indexable
+        size_t grow(size_t additional_slots)
+        {
+            ASSERT(additional_slots + size > Capacity);
+            size += additional_slots;
+            return size;
         };
 
         void empty()
@@ -93,6 +148,8 @@ namespace zec
         {
             return sizeof(T) * size;
         }
+
+        inline size_t capacity() { return Capacity; };
     };
 
     template <typename T>
@@ -227,6 +284,8 @@ namespace zec
             }
             return UINT64_MAX;
         }
+
+        size_t get_size() const { return size; };
 
         size_t get_byte_size() const
         {

@@ -55,7 +55,7 @@ namespace zec
 
         inline u64 remaining_capacity() const
         {
-            return elements.capacity - write_idx + read_idx;
+            return Capacity - write_idx + read_idx;
         }
 
         inline void reset()

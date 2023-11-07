@@ -4,13 +4,28 @@
 
 class Window;
 
+namespace zec::rhi
+{
+    class Renderer;
+}
+
 namespace zec::ui
 {
+    struct UIRenderState;
 
-    void initialize(Window& window);
-    void destroy();
+    class UIRenderer
+    {
+    public:
+        ~UIRenderer();
 
-    void begin_frame();
-    void end_frame();
-    void draw_frame(rhi::CommandContextHandle context_handle);
+        void init(rhi::Renderer& renderer, Window& window);
+        void destroy();
+
+        void begin_frame();
+        void end_frame();
+        void draw_frame(rhi::CommandContextHandle context_handle);
+    private:
+        rhi::Renderer* renderer = nullptr;
+        UIRenderState* state = nullptr;
+    };
 }

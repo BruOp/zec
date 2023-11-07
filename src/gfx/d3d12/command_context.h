@@ -66,7 +66,7 @@ namespace zec::rhi::dx12
 
         void reset(const u64 fence_value);
 
-        ID3D12GraphicsCommandList* get_graphics_command_list(const CommandContextHandle context_handle);
+        ID3D12GraphicsCommandList* get_graphics_command_list(const CommandContextHandle context_handle) const;
     };
 
     struct CommandQueue

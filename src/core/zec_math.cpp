@@ -20,6 +20,44 @@ namespace zec
         };
     }
 
+    mat3 quat_to_mat3(const quaternion& q)
+    {
+        quaternion nq = normalize(q);
+        float qx2 = nq.x * nq.x;
+        float qy2 = nq.y * nq.y;
+        float qz2 = nq.z * nq.z;
+        float qxy = nq.x * nq.y;
+        float qxz = nq.x * nq.z;
+        float qxw = nq.x * nq.w;
+        float qyz = nq.y * nq.z;
+        float qyw = nq.y * nq.w;
+        float qzw = nq.z * nq.w;
+
+        return {
+            { 1 - 2 * (qy2 + qz2),  2 * (qxy - qzw),        2 * (qxz + qyw) },
+            { 2 * (qxy + qzw),      1 - 2 * (qx2 + qz2),     2 * (qyz - qxw) },
+            { 2 * (qxz - qyw),      2 * (qyz + qxw),        1 - 2 * (qx2 + qy2) },
+        };
+    }
+    mat34 quat_to_mat34(const quaternion& q)
+    {
+        quaternion nq = normalize(q);
+        float qx2 = nq.x * nq.x;
+        float qy2 = nq.y * nq.y;
+        float qz2 = nq.z * nq.z;
+        float qxy = nq.x * nq.y;
+        float qxz = nq.x * nq.z;
+        float qxw = nq.x * nq.w;
+        float qyz = nq.y * nq.z;
+        float qyw = nq.y * nq.w;
+        float qzw = nq.z * nq.w;
+
+        return {
+            { 1 - 2 * (qy2 + qz2),  2 * (qxy - qzw),        2 * (qxz + qyw),        0 },
+            { 2 * (qxy + qzw),      1 - 2 * (qx2 + qz2),     2 * (qyz - qxw),        0 },
+            { 2 * (qxz - qyw),      2 * (qyz + qxw),        1 - 2 * (qx2 + qy2),    0 },
+        };
+    }
     mat4 quat_to_mat4(const quaternion& q)
     {
         quaternion nq = normalize(q);
@@ -86,13 +124,84 @@ namespace zec
         return res;
     }
 
+    bool operator==(const mat34& m1, const mat34& m2)
+    {
+        constexpr size_t N = _countof(m1.rows);
+
+        for (size_t i = 0; i < N; i++) {
+            for (size_t j = 0; j < 4; j++) {
+                if (m1[i][j] != m2[i][j]) return false;
+            }
+        }
+        return true;
+    }
+
+    mat34 operator*(const mat34& m1, const mat34& m2)
+    {
+        constexpr size_t N = _countof(m1.rows);
+        mat34 res{};
+        for (size_t i = 0; i < N; i++) {
+            for (size_t j = 0; j < 4; j++) {
+                for (size_t k = 0; k < N; k++) {
+                    res[i][j] += m1[i][k] * m2[k][j];
+                }
+                // Make up for our missing last row in the second matrix, which would only have a 1 in [i][3]
+                res[i][j] += m1[i][3];
+            }
+        }
+        return res;
+    }
+
+    mat34& operator/=(mat34& m, const float s)
+    {
+        for (size_t i = 0; i < _countof(m.rows); i++) {
+            for (size_t j = 0; j < 4; j++) {
+                m.data[i][j] *= s;
+            }
+        }
+        return m;
+    }
+
+    vec4 operator*(const mat34& m, const vec4& v)
+    {
+        vec4 res{};
+        for (size_t i = 0; i < _countof(m.rows); i++) {
+            for (size_t j = 0; j < 4; j++) {
+                res[i] += m[i][j] * v[j];
+            }
+        }
+        return res;
+    }
+
+    vec3 get_right(const mat34& m)
+    {
+        return { m[0][0], m[0][1], m[0][2] };
+    }
+
+    vec3 get_up(const mat34& m)
+    {
+        return { m[1][0], m[1][1], m[1][2] };
+    }
+
+    vec3 get_dir(const mat34& m)
+    {
+        return { m[2][0], m[2][1], m[2][2] };
+    }
+
+    vec3 get_translation(const mat34& m)
+    {
+        return { m[0][3], m[1][3], m[2][3] };
+    }
+
     bool operator==(const mat4& m1, const mat4& m2)
     {
         constexpr size_t N = _countof(m1.rows);
 
         for (size_t i = 0; i < N; i++) {
             for (size_t j = 0; j < N; j++) {
-                if (m1[i][j] != m2[i][j]) return false;
+                if (m1[i][j] != m2[i][j]) {
+                    return false;
+                }
             }
         }
         return true;
@@ -101,7 +210,6 @@ namespace zec
     mat4 operator*(const mat4& m1, const mat4& m2)
     {
         constexpr size_t N = _countof(m1.rows);
-
         mat4 res{};
         for (size_t i = 0; i < N; i++) {
             for (size_t j = 0; j < N; j++) {
@@ -154,7 +262,21 @@ namespace zec
         return { m[0][3], m[1][3], m[2][3] };
     }
 
-    mat4 look_at(const vec3& pos, const vec3& target)
+    mat34 look_at3x4(const vec3& pos, const vec3& target)
+    {
+        vec3 dir = normalize(pos - target);
+        const vec3& world_up = dir == k_up ? k_right : k_up;
+        vec3 right = normalize(cross(world_up, dir));
+        vec3 up = cross(dir, right);
+
+        return {
+            vec4{ right, -dot(right, pos) },
+            vec4{ up,    -dot(up, pos) },
+            vec4{ dir,   -dot(dir, pos) }
+        };
+    }
+
+    mat4 look_at4x4(const vec3& pos, const vec3& target)
     {
         vec3 dir = normalize(pos - target);
         const vec3& world_up = dir == k_up ? k_right : k_up;
@@ -165,7 +287,26 @@ namespace zec
             vec4{ right, -dot(right, pos) },
             vec4{ up,    -dot(up, pos) },
             vec4{ dir,   -dot(dir, pos) },
-            vec4{ 0.0f, 0.0f, 0.0f, 1.0f },
+            vec4{ 0, 0, 0, 1 }
+        };
+    }
+
+    mat3 to_mat3(const mat34& m)
+    {
+        return {
+            vec3{ m[0][0], m[0][1], m[0][2] },
+            vec3{ m[1][0], m[1][1], m[1][2] },
+            vec3{ m[2][0], m[2][1], m[2][2] },
+        };
+    }
+
+    mat4 to_mat4(const mat34& m)
+    {
+        return {
+            vec4{ m[0][0], m[0][1], m[0][2], m[0][3] },
+            vec4{ m[1][0], m[1][1], m[1][2], m[1][3] },
+            vec4{ m[2][0], m[2][1], m[2][2], m[2][3] },
+            vec4{ 0, 0, 0, 1},
         };
     }
 

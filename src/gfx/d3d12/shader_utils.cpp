@@ -1,4 +1,8 @@
 #include "shader_utils.h"
+#include <filesystem>
+#include <wrl.h>
+#include "dxcompiler/dxcapi.h"
+#include "dx_helpers.h"
 #include "dx_utils.h"
 
 namespace zec::rhi::dx12::shader_utils
