@@ -59,7 +59,7 @@ namespace zec::rhi::dx12
             return upload_contexts.contains(cmd_ctx);
         }
 
-        inline Array<Upload>* get_staged_uploads(const CommandContextHandle cmd_ctx)
+        inline VirtualArray<Upload>* get_staged_uploads(const CommandContextHandle cmd_ctx)
         {
             return &upload_contexts[cmd_ctx];
         }
@@ -70,6 +70,6 @@ namespace zec::rhi::dx12
         };
 
     private:
-        std::unordered_map<CommandContextHandle, Array<Upload>> upload_contexts;
+        std::unordered_map<CommandContextHandle, VirtualArray<Upload>> upload_contexts;
     };
 }

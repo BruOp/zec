@@ -31,12 +31,12 @@ namespace zec
 
         struct SceneGraph
         {
-            Array<u32> parent_ids = {};
-            Array<vec3> positions = {};
-            Array<quaternion> rotations = {};
-            Array<vec3> scales = {};
-            Array<mat4> global_transforms = {};
-            Array<mat3> normal_transforms = {};
+            VirtualArray<u32> parent_ids = {};
+            VirtualArray<vec3> positions = {};
+            VirtualArray<quaternion> rotations = {};
+            VirtualArray<vec3> scales = {};
+            VirtualArray<mat4> global_transforms = {};
+            VirtualArray<mat3> normal_transforms = {};
         };
 
         struct DrawCall
@@ -49,11 +49,11 @@ namespace zec
         struct Context
         {
             SceneGraph scene_graph = {};
-            Array<rhi::TextureHandle> textures = {};
-            Array<rhi::Draw> draws = {};
-            Array<AABB> aabbs = {};
-            Array<MaterialData> materials = {};
-            Array<DrawCall> draw_calls = {};
+            VirtualArray<rhi::TextureHandle> textures = {};
+            VirtualArray<rhi::Draw> draws = {};
+            VirtualArray<AABB> aabbs = {};
+            VirtualArray<MaterialData> materials = {};
+            VirtualArray<DrawCall> draw_calls = {};
         };
 
         void load_gltf_file(const char* gltf_file_path, rhi::CommandContextHandle cmd_ctx, Context& context, const LoaderFlags flags = GLTF_LOADING_FLAG_NONE);

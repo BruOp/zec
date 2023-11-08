@@ -1511,7 +1511,7 @@ namespace zec::rhi
         // and if so put any resources in that context onto our async destruction queue
         for (size_t i = 0; i < num_contexts; i++) {
             if (context.upload_store.get_staged_uploads(context_handles[i])) {
-                Array<UploadContextStore::Upload>* uploads = context.upload_store.get_staged_uploads(context_handles[i]);
+                VirtualArray<UploadContextStore::Upload>* uploads = context.upload_store.get_staged_uploads(context_handles[i]);
                 for (UploadContextStore::Upload& upload : *uploads) {
                     context.async_destruction_queue.enqueue(receipt, upload.resource, upload.allocation);
                 }

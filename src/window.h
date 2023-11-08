@@ -88,7 +88,7 @@ namespace zec
             void* context;
         };
 
-        Array<Callback> message_callbacks;		    // Message callback list
+        VirtualArray<Callback> message_callbacks;		    // Message callback list
     };
 
 }

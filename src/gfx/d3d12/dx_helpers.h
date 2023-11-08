@@ -81,7 +81,7 @@ namespace zec::rhi::dx12
             return { static_cast<u32>(ptrs.push_back(ptr)) };
         }
 
-        Array<T*> ptrs;
+        VirtualArray<T*> ptrs;
 
     };
 

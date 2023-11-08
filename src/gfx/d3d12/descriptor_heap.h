@@ -73,7 +73,7 @@ namespace zec::rhi::dx12
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_start = {};
         D3D12_GPU_DESCRIPTOR_HANDLE gpu_start = {};
 
-        Array<DescriptorRangeHandle> free_list;
+        VirtualArray<DescriptorRangeHandle> free_list;
 
         DescriptorHeap(HeapType heap_type, size_t heap_size);
         ~DescriptorHeap();
@@ -203,6 +203,6 @@ namespace zec::rhi::dx12
         DescriptorHeap dsv_heap;
         DescriptorHeap sampler_heap;
 
-        Array<DescriptorRangeHandle> descriptors_to_destroy[RENDER_LATENCY] = {};
+        VirtualArray<DescriptorRangeHandle> descriptors_to_destroy[RENDER_LATENCY] = {};
     };
 }

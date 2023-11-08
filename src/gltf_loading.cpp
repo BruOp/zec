@@ -38,7 +38,7 @@
 //            u32 count = 1;
 //        };
 //
-//        void traverse_scene_graph(const tinygltf::Model& model, const u32 parent_idx, const u32 node_idx, Array<ChildParentPair>& node_processing_list)
+//        void traverse_scene_graph(const tinygltf::Model& model, const u32 parent_idx, const u32 node_idx, VirtualArray<ChildParentPair>& node_processing_list)
 //        {
 //            u32 new_parent_idx = u32(node_processing_list.push_back({ node_idx, parent_idx }));
 //
@@ -52,12 +52,12 @@
 //        // are always before the child nodes. We need to do this so we can compute global
 //        // transforms in a single pass.
 //        // The resulting list also provides a mapping between our_node_idx -> gltf_node_idx
-//        void flatten_gltf_scene_graph(const tinygltf::Model& model, Array<ChildParentPair>& node_processing_list)
+//        void flatten_gltf_scene_graph(const tinygltf::Model& model, VirtualArray<ChildParentPair>& node_processing_list)
 //        {
 //            u32 scene_idx = model.defaultScene >= 0 ? u32(model.defaultScene) : 0;
 //            ASSERT(model.scenes.size() > 0);
 //            const tinygltf::Scene& scene = model.scenes[scene_idx];
-//            Array<ChildParentPair> node_queue = {};
+//            VirtualArray<ChildParentPair> node_queue = {};
 //            node_processing_list.reserve(model.nodes.size());
 //
 //            // Push root of scene tree into queue
@@ -66,7 +66,7 @@
 //            }
 //        }
 //
-//        void process_scene_graph(const tinygltf::Model& model, const Array<ChildParentPair>& node_processing_list, Context& out_context)
+//        void process_scene_graph(const tinygltf::Model& model, const VirtualArray<ChildParentPair>& node_processing_list, Context& out_context)
 //        {
 //            const u64 num_nodes = model.nodes.size();
 //
@@ -154,7 +154,7 @@
 //
 //        }
 //
-//        void process_primitives(const tinygltf::Model& model, rhi::CommandContextHandle cmd_ctx, Array<MeshArrayView>& mesh_to_mesh_mapping, Context& out_context, const LoaderFlags flags)
+//        void process_primitives(const tinygltf::Model& model, rhi::CommandContextHandle cmd_ctx, VirtualArray<MeshArrayView>& mesh_to_mesh_mapping, Context& out_context, const LoaderFlags flags)
 //        {
 //
 //            for (size_t their_mesh_idx = 0; their_mesh_idx < model.meshes.size(); ++their_mesh_idx) {
@@ -246,7 +246,7 @@
 //
 //        void process_materials(
 //            const tinygltf::Model& model,
-//            const Array<ChildParentPair>& node_processing_list,
+//            const VirtualArray<ChildParentPair>& node_processing_list,
 //            Context& out_context
 //        )
 //        {
@@ -324,8 +324,8 @@
 //
 //        void process_draw_calls(
 //            const tinygltf::Model& model,
-//            const Array<ChildParentPair>& node_processing_list,
-//            const Array<MeshArrayView>& mesh_to_mesh_mapping,
+//            const VirtualArray<ChildParentPair>& node_processing_list,
+//            const VirtualArray<MeshArrayView>& mesh_to_mesh_mapping,
 //            Context& out_context
 //        )
 //        {
@@ -382,7 +382,7 @@
 //            }
 //
 //            // Flatten gltf node graph
-//            Array<ChildParentPair> node_processing_list{};
+//            VirtualArray<ChildParentPair> node_processing_list{};
 //            flatten_gltf_scene_graph(model, node_processing_list);
 //
 //            // Copy Node List
@@ -394,7 +394,7 @@
 //            process_textures(model, cmd_ctx, gltf_file_path, out_context);
 //
 //            // Process Primitives
-//            Array<MeshArrayView> mesh_to_mesh_mapping = {};
+//            VirtualArray<MeshArrayView> mesh_to_mesh_mapping = {};
 //            process_primitives(model, cmd_ctx, mesh_to_mesh_mapping, out_context, flags);
 //
 //            // Process Materials

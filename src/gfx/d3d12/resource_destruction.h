@@ -27,7 +27,7 @@ namespace zec::rhi::dx12
 
         void enqueue(const u64 current_frame_idx, IUnknown* d3d_ptr, D3D12MA::Allocation* allocation = nullptr);
     private:
-        Array<ResourceToDelete> internal_queues[RENDER_LATENCY] = {};
+        VirtualArray<ResourceToDelete> internal_queues[RENDER_LATENCY] = {};
     };
 
     class AsyncResourceDestructionQueue
@@ -50,7 +50,7 @@ namespace zec::rhi::dx12
         }
 
     private:
-        Array<Node> internal_queue;
+        VirtualArray<Node> internal_queue;
     };
 
     void destroy(ResourceDestructionQueue& queue, const u64 current_frame_idx, Fence& fence);

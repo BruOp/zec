@@ -44,7 +44,7 @@ namespace zec::rhi::dx12
         void release_blobs(ShaderBlobsHandle& handle);
 
     private:
-        Array<uint32_t> free_list = {};
+        VirtualArray<uint32_t> free_list = {};
         ResourceArray<CompiledShaderBlobs, ShaderBlobsHandle> shader_blobs = {};
     };
 }

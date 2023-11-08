@@ -5,7 +5,7 @@
 namespace zec
 {
     template <typename T, typename Handle>
-    class ResourceArray : public Array<T>
+    class ResourceArray : public VirtualArray<T>
     {
     public:
         T& operator[](const u64 i)

@@ -89,9 +89,9 @@ namespace zec
         void push_draw_data(rhi::Renderer& renderer, rhi::BufferHandle draw_data_sb);
 
     private:
-        Array<Mesh> meshes{};
-        Array<rhi::Draw> submeshes{};
-        Array<MeshTransformData> mesh_draw_data{};
+        VirtualArray<Mesh> meshes{};
+        VirtualArray<rhi::Draw> submeshes{};
+        VirtualArray<MeshTransformData> mesh_draw_data{};
     };
 
 }

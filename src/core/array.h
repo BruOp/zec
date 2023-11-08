@@ -153,7 +153,7 @@ namespace zec
     };
 
     template <typename T>
-    class Array
+    class VirtualArray
     {
         /*
         This is basically equivalent to std::vector, with a few key exceptions:
@@ -168,13 +168,13 @@ namespace zec
         size_t capacity = 0;
         size_t size = 0;
 
-        Array() : Array{ 0 } { };
-        Array(size_t cap) : data{ nullptr }, capacity{ 0 }, size{ 0 } {
+        VirtualArray() : VirtualArray{ 0 } { };
+        VirtualArray(size_t cap) : data{ nullptr }, capacity{ 0 }, size{ 0 } {
             data = static_cast<T*>(memory::virtual_reserve((void*)data, g_GB));
             grow(cap);
         }
 
-        ~Array()
+        ~VirtualArray()
         {
             if (data != nullptr) {
                 memory::virtual_free((void*)data);
@@ -187,11 +187,11 @@ namespace zec
         T* end() { return data + size; }
         const T* end() const { return data + size; }
 
-        Array(Array& other) = delete;
-        Array& operator=(Array& other) = delete;
+        VirtualArray(VirtualArray& other) = delete;
+        VirtualArray& operator=(VirtualArray& other) = delete;
 
-        Array(Array&& other) = default;
-        Array& operator=(Array&& other) = default;
+        VirtualArray(VirtualArray&& other) = default;
+        VirtualArray& operator=(VirtualArray&& other) = default;
 
         inline T& operator[](size_t idx)
         {
