@@ -441,5 +441,144 @@ namespace zec
         }
     };
 
+    template <typename T>
+    class Array
+    {
+        /*
+        This is basically equivalent to std::vector, with a few key exceptions:
+        - ONLY FOR POD TYPES! We don't initialize or destroy the elements and use things like memcpy for copies
+        - it's guaranteed to never move since we're using virtual alloc to allocate about 1 GB per array (in Virtual memory)
+        */
+
+        static_assert(std::is_trivially_copyable<T>::value);
+        static_assert(std::is_trivially_destructible<T>::value);
+    public:
+        Array() : Array{ 0 } { };
+        Array(size_t cap) : data{ nullptr }, capacity{ 0 }, size{ 0 } {
+            data = static_cast<T*>(memory::virtual_reserve((void*)data, g_GB));
+            grow(cap);
+        }
+
+        ~Array()
+        {
+            if (data != nullptr) {
+                memory::virtual_free((void*)data);
+            }
+        };
+
+        T* begin() { return data; }
+        const T* begin() const { return data; }
+
+        T* end() { return data + size; }
+        const T* end() const { return data + size; }
+
+        Array(Array& other) = delete;
+        Array& operator=(Array& other) = delete;
+
+        Array(Array&& other) = default;
+        Array& operator=(Array&& other) = default;
+
+        inline T& operator[](size_t idx)
+        {
+            ASSERT_MSG(idx < size, "Cannot access elements beyond Array size.");
+            return data[idx];
+        };
+
+        inline const T& operator[](size_t idx) const
+        {
+            ASSERT_MSG(idx < size, "Cannot access elements beyond Array size.");
+            return data[idx];
+        };
+
+        size_t push_back(const T& val)
+        {
+            if (size >= capacity) {
+                reserve(capacity + 1);
+            }
+            data[size] = val;
+            return size++;
+        };
+
+        T pop_back()
+        {
+            ASSERT(size > 0);
+            return data[--size];
+        }
+
+        template<typename ...Args>
+        size_t create_back(Args... args)
+        {
+            if (size >= capacity) {
+                reserve(capacity + 1);
+            }
+            data[size] = T{ args... };
+            return size++;
+        };
+
+        // Grow both reserves and increases the size, so new items are indexable
+        size_t grow(size_t additional_slots)
+        {
+            if (additional_slots + size > capacity) {
+                reserve(additional_slots + size);
+            }
+            size += additional_slots;
+            return size;
+        };
+
+        // Reserve grows the allocation, but does not increase the size.
+        // Do not try to index into the new space though, push to increase size first
+        // or use `grow` instead
+        size_t reserve(size_t new_capacity)
+        {
+            if (new_capacity < capacity) {
+                // Array can only grow at the moment!
+                return capacity;
+            }
+
+            // Need to 
+
+            size_t additional_memory_required = (new_capacity * sizeof(T)) - current_size;
+            // Grows the new memory required to the next page boundary
+            size_t additional_pages_required = size_t(ceil(double(additional_memory_required) / double(sys_info.page_size)));
+            additional_memory_required = additional_pages_required * sys_info.page_size;
+
+            // Commit the new page(s) of our reserved virtual memory
+            memory::virtual_commit(current_end, additional_memory_required);
+            // Update capacity to reflect new size
+            capacity = (current_size + additional_memory_required) / sizeof(T);
+            // Since capacity is potentiall larger than just old_capacity + additional_slots, we return it
+            return capacity;
+        }
+
+        void empty()
+        {
+            // I don't think this is actually necessary
+            // memset((void*)data, 0, size * sizeof(T));
+            size = 0;
+        }
+
+        size_t find_index(const T value_to_compare, const size_t starting_idx = 0)
+        {
+            for (size_t i = starting_idx; i < size; i++) {
+                if (data[i] == value_to_compare) {
+                    return i;
+                }
+            }
+            return UINT64_MAX;
+        }
+
+        size_t get_size() const { return size; };
+
+        size_t get_byte_size() const
+        {
+            return sizeof(T) * size;
+        }
+    private:
+        IAllocator* allocator = nullptr;
+        T* data = nullptr;
+        size_t capacity = 0;
+        size_t size = 0;
+        float 
+    };
 
 } // namespace zec
