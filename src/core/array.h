@@ -3,6 +3,7 @@
 #include <type_traits>
 #include "utils/assert.h"
 #include "utils/memory.h"
+#include "allocators.hpp"
 
 namespace zec
 {
@@ -94,7 +95,7 @@ namespace zec
         };
 
         inline const T& operator[](size_t idx) const
-       {
+        {
             ASSERT_MSG(idx < size, "Cannot access elements beyond Array size.");
             return data[idx];
         };
@@ -447,23 +448,43 @@ namespace zec
         /*
         This is basically equivalent to std::vector, with a few key exceptions:
         - ONLY FOR POD TYPES! We don't initialize or destroy the elements and use things like memcpy for copies
-        - it's guaranteed to never move since we're using virtual alloc to allocate about 1 GB per array (in Virtual memory)
+        - Unlike VirtualArray, we can't assume this doesn't move around.
         */
-
         static_assert(std::is_trivially_copyable<T>::value);
         static_assert(std::is_trivially_destructible<T>::value);
     public:
-        Array() : Array{ 0 } { };
-        Array(size_t cap) : data{ nullptr }, capacity{ 0 }, size{ 0 } {
-            data = static_cast<T*>(memory::virtual_reserve((void*)data, g_GB));
-            grow(cap);
-        }
+        Array() { };
+        Array(size_t in_max_capacity) : max_capacity(in_max_capacity) { };
 
         ~Array()
         {
             if (data != nullptr) {
-                memory::virtual_free((void*)data);
+                ASSERT_FAIL("We should've already called shutdown!");
             }
+        };
+
+        UNCOPIABLE(Array);
+        UNMOVABLE(Array);
+
+        // Note that we'll be holding a reference to in_allocator!
+        void initialize(IAllocator* in_allocator, const size_t inital_capacity)
+        {
+            ASSERT(size == 0 && capacity == 0 && allocator == nullptr && data == nullptr);
+            allocator = in_allocator;
+            reserve(inital_capacity);
+        };
+
+        void shutdown()
+        {
+            if (capacity > 0)
+            {
+                ASSERT(data != nullptr);
+                allocator->free(data);
+                data = nullptr;
+                capacity = 0;
+            }
+            ASSERT(data == nullptr);
+            size = 0;
         };
 
         T* begin() { return data; }
@@ -471,12 +492,6 @@ namespace zec
 
         T* end() { return data + size; }
         const T* end() const { return data + size; }
-
-        Array(Array& other) = delete;
-        Array& operator=(Array& other) = delete;
-
-        Array(Array&& other) = default;
-        Array& operator=(Array&& other) = default;
 
         inline T& operator[](size_t idx)
         {
@@ -534,26 +549,33 @@ namespace zec
                 // Array can only grow at the moment!
                 return capacity;
             }
+            if (new_capacity > max_capacity)
+            {
+                ASSERT_FAIL("Cannot grow past max capacity %u, new capacity requested: %u!", max_capacity, new_capacity);
+                return;
+            }
+            ASSERT(capacity < UINT64_MAX); // Really should have a more sensible max but w/e
+            size_t capacity_to_alloc = capacity > 4 ? capacity + (capacity / 2u) : 4;
+            if (new_capacity > capacity_to_alloc)
+            {
+                capacity_to_alloc = new_capacity;
+            }
 
-            // Need to 
+            size_t additional_memory_required = capacity_to_alloc * sizeof(T);
+            T* new_data = (T*)allocator->allocate(additional_memory_required, alignof(T));
+            if (capacity)
+            {
+                memory::copy(new_data, data, get_byte_size());
+                allocator->free(data);
+            }
 
-            size_t additional_memory_required = (new_capacity * sizeof(T)) - current_size;
-            // Grows the new memory required to the next page boundary
-            size_t additional_pages_required = size_t(ceil(double(additional_memory_required) / double(sys_info.page_size)));
-            additional_memory_required = additional_pages_required * sys_info.page_size;
-
-            // Commit the new page(s) of our reserved virtual memory
-            memory::virtual_commit(current_end, additional_memory_required);
-            // Update capacity to reflect new size
-            capacity = (current_size + additional_memory_required) / sizeof(T);
+            capacity = capacity_to_alloc;
             // Since capacity is potentiall larger than just old_capacity + additional_slots, we return it
             return capacity;
         }
 
         void empty()
         {
-            // I don't think this is actually necessary
-            // memset((void*)data, 0, size * sizeof(T));
             size = 0;
         }
 
@@ -574,11 +596,12 @@ namespace zec
             return sizeof(T) * size;
         }
     private:
+        inline constexpr static float growth_factor = 1.5f;
         IAllocator* allocator = nullptr;
         T* data = nullptr;
         size_t capacity = 0;
+        size_t max_capacity = 0;
         size_t size = 0;
-        float 
     };
 
 } // namespace zec
