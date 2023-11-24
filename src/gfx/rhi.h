@@ -69,7 +69,7 @@ namespace zec::rhi
         TextureHandle textures_create_from_file(CommandContextHandle cmd_ctx, const char* file_path);
         void textures_save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);
 
-        const TextureInfo& textures_get_info(const TextureHandle texture_handle);
+        const TextureInfo& textures_get_info(const TextureHandle texture_handle) const;
 
         // The following all involved command queues or lists. All functions are prefixed with cmd for searchability
         // For functions that accept a CommandContextHandle, you may NOT call them on different threads with the same CommandContext

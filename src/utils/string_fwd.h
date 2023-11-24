@@ -14,4 +14,10 @@ namespace std
 
     typedef basic_string<wchar_t, char_traits<wchar_t>, allocator<wchar_t>> wstring;
     typedef basic_string<char, char_traits<char>, allocator<char>> string;
+
+    template <class _Elem, class _Traits>
+    class basic_string_view;
+
+    typedef basic_string_view<char, char_traits<char>> string_view;
+    typedef basic_string_view<wchar_t, char_traits<wchar_t>> wstring_view;
 }

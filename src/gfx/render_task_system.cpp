@@ -6,7 +6,7 @@ namespace zec::render_graph
 {
     namespace
     {
-        PassListBuilder::Result validate_usage(const ResourceContext* resource_context, const PassResourceUsage& resource_usage)
+        PassListBuilder::Result validate_usage(const ResourceManager* resource_context, const PassResourceUsage& resource_usage)
         {
             if (resource_usage.usage == rhi::RESOURCE_USAGE_UNUSED) {
                 return PassListBuilder::Result{ PassListBuilder::StatusCodes::RESOURCE_USAGE_INVALID, resource_usage.identifier };
@@ -29,7 +29,7 @@ namespace zec::render_graph
         }
     }
 
-    void ResourceContext::register_buffer(const BufferResourceDesc& buffer_desc)
+    void ResourceManager::register_buffer(const BufferResourceDesc& buffer_desc)
     {
         ASSERT(resource_states.count(buffer_desc.identifier) == 0);
         ResourceState (&resource_state)[RENDER_LATENCY] = resource_states[buffer_desc.identifier];
@@ -43,7 +43,7 @@ namespace zec::render_graph
         }
     }
 
-    void ResourceContext::register_texture(const TextureResourceDesc& texture_desc)
+    void ResourceManager::register_texture(const TextureResourceDesc& texture_desc)
     {
         ASSERT(resource_states.count(texture_desc.identifier) == 0);
 
@@ -63,7 +63,7 @@ namespace zec::render_graph
         }
     }
 
-    void ResourceContext::set_backbuffer_id(const ResourceIdentifier id)
+    void ResourceManager::set_backbuffer_id(const ResourceIdentifier id)
     {
         ASSERT_MSG(!backbuffer_id.is_valid(), "Backbuffer resource has already been set for this context.");
         backbuffer_id = id;
@@ -77,7 +77,7 @@ namespace zec::render_graph
         }
     }
 
-    void ResourceContext::refresh_backbuffer()
+    void ResourceManager::refresh_backbuffer()
     {
         ASSERT_MSG(backbuffer_id.is_valid(), "We need valid backbuffer ID, to store the current backbuffer handle with");
         rhi::TextureHandle backbuffer_handle = prenderer->get_current_back_buffer_handle();
@@ -88,7 +88,7 @@ namespace zec::render_graph
         }
     }
 
-    void ResourceContext::set_barrier_state(const ResourceIdentifier id, const BarrierState barrier_state)
+    void ResourceManager::set_barrier_state(const ResourceIdentifier id, const BarrierState barrier_state)
     {
         const u64 idx = prenderer->get_current_frame_idx() % RENDER_LATENCY;
         ResourceState(&resource_state)[RENDER_LATENCY] = resource_states.at(id);
@@ -96,19 +96,19 @@ namespace zec::render_graph
         resource_state[idx].queue_type = barrier_state.queue_type;
     }
 
-    rhi::BufferHandle ResourceContext::get_buffer(const ResourceIdentifier buffer_identifier) const
+    rhi::BufferHandle ResourceManager::get_buffer(const ResourceIdentifier buffer_identifier) const
     {
         const u64 idx = prenderer->get_current_frame_idx() % RENDER_LATENCY;
         return resource_states.at(buffer_identifier)[idx].buffer;
     }
 
-    rhi::TextureHandle ResourceContext::get_texture(const ResourceIdentifier texture_identifier) const
+    rhi::TextureHandle ResourceManager::get_texture(const ResourceIdentifier texture_identifier) const
     {
         const u64 idx = prenderer->get_current_frame_idx() % RENDER_LATENCY;
         return resource_states.at(texture_identifier)[idx].texture;
     }
 
-    BarrierState ResourceContext::get_barrier_state(const ResourceIdentifier resource_identifier) const
+    BarrierState ResourceManager::get_barrier_state(const ResourceIdentifier resource_identifier) const
     {
         const u64 idx = prenderer->get_current_frame_idx() % RENDER_LATENCY;
         const ResourceState(&resource_state)[RENDER_LATENCY] = resource_states.at(resource_identifier);
@@ -118,7 +118,7 @@ namespace zec::render_graph
         };
     }
 
-    ResourceIdentifier ResourceContext::get_backbuffer_id()
+    ResourceIdentifier ResourceManager::get_backbuffer_id()
     {
         return backbuffer_id;
     }
@@ -180,7 +180,7 @@ namespace zec::render_graph
 
         if (out_list->resource_context == nullptr)
         {
-            out_result = Result{ StatusCodes::MISSING_RESOURCE_CONTEXT };
+            out_result = Result{ StatusCodes::MISSING_RESOURCE_MANAGER };
         }
         else if (!out_list->resource_context->get_backbuffer_id().is_valid())
         {
@@ -267,7 +267,7 @@ namespace zec::render_graph
     }
 
 
-    void PassListBuilder::set_resource_context(ResourceContext* resource_context)
+    void PassListBuilder::set_resource_context(ResourceManager* resource_context)
     {
         out_list->resource_context = resource_context;
     }
@@ -277,7 +277,7 @@ namespace zec::render_graph
         out_list->shader_store = shader_store;
     }
 
-    RenderTaskList::RenderTaskList(ResourceContext* resource_context, PipelineStore* shader_store)
+    RenderTaskList::RenderTaskList(ResourceManager* resource_context, PipelineStore* shader_store)
         : resource_context{ resource_context }
         , shader_store{ shader_store }
         , settings_context{}

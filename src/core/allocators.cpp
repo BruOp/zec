@@ -20,6 +20,12 @@ namespace zec
         }
     }
 
+    HeapAllocator::~HeapAllocator()
+    {
+        ASSERT(bytes_allocated == 0);
+        ASSERT(ptr == nullptr);
+    };
+
     void HeapAllocator::init(size_t size_in_bytes)
     {
         total_capacity = size_in_bytes;

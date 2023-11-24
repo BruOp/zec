@@ -13,7 +13,7 @@ namespace zec::rhi
 {
     // Copied from BGFX and others
 #define RESOURCE_HANDLE(_name)      \
-	struct _name { u32 idx = k_invalid_handle; }; \
+	struct _name { u32 idx = zec::k_invalid_handle; }; \
     inline bool is_valid(const _name _handle) { return _handle.idx != zec::k_invalid_handle; }; \
     inline bool operator==(const _name handle1, const _name handle2) { return handle1.idx == handle2.idx; };
 

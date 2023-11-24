@@ -1312,7 +1312,7 @@ namespace zec::rhi
             return context.textures.push_back(texture);
         };
 
-        const TextureInfo& Renderer::textures_get_info(const TextureHandle texture_handle)
+        const TextureInfo& Renderer::textures_get_info(const TextureHandle texture_handle) const
         {
             return pcontext->textures.infos[texture_handle];
         };

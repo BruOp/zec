@@ -21,7 +21,6 @@ namespace zec
     template<typename T>
     class TypedArrayView
     {
-        static_assert(std::is_trivially_copyable<T>::value&& std::is_trivially_destructible<T>::value);
     public:
         TypedArrayView() = default;
         TypedArrayView(const size_t size, T* ptr) : data(ptr), size(size) {};
@@ -335,8 +334,8 @@ namespace zec
         ManagedArray(ManagedArray& other) = delete;
         ManagedArray& operator=(ManagedArray& other) = delete;
 
-        ManagedArray(ManagedArray&& other) = delete;
-        ManagedArray& operator=(ManagedArray&& other) = delete;
+        ManagedArray(ManagedArray&& other) = default;
+        ManagedArray& operator=(ManagedArray&& other) = default;
 
         inline T& operator[](size_t idx)
         {
@@ -467,11 +466,20 @@ namespace zec
         UNMOVABLE(Array);
 
         // Note that we'll be holding a reference to in_allocator!
-        void initialize(IAllocator* in_allocator, const size_t inital_capacity)
+        // If you've set a max capacity, feel free to omit initial capacity
+        void init(IAllocator* in_allocator, const size_t inital_capacity = 0)
         {
             ASSERT(size == 0 && capacity == 0 && allocator == nullptr && data == nullptr);
             allocator = in_allocator;
-            reserve(inital_capacity);
+            if (inital_capacity == 0 && max_capacity > 0)
+            {
+                reserve(max_capacity);
+            }
+            else
+            {
+                ASSERT(inital_capacity > 0);
+                reserve(inital_capacity);
+            }
         };
 
         void shutdown()
@@ -549,16 +557,24 @@ namespace zec
                 // Array can only grow at the moment!
                 return capacity;
             }
-            if (new_capacity > max_capacity)
+            if (max_capacity > 0 && new_capacity > max_capacity)
             {
                 ASSERT_FAIL("Cannot grow past max capacity %u, new capacity requested: %u!", max_capacity, new_capacity);
-                return;
+                return max_capacity;
             }
             ASSERT(capacity < UINT64_MAX); // Really should have a more sensible max but w/e
-            size_t capacity_to_alloc = capacity > 4 ? capacity + (capacity / 2u) : 4;
+
+            // 1. We try to grow by a factor of 1.5
+            // 2. If the requested capacity is larger, use that
+            // 3. If we didn't do the above, make sure that our factor hasn't put us past the max capacity
+            size_t capacity_to_alloc = capacity + (capacity / 2u);
             if (new_capacity > capacity_to_alloc)
             {
                 capacity_to_alloc = new_capacity;
+            }
+            else if (max_capacity > 0 && capacity_to_alloc > max_capacity)
+            {
+                capacity_to_alloc = max_capacity;
             }
 
             size_t additional_memory_required = capacity_to_alloc * sizeof(T);
@@ -600,7 +616,7 @@ namespace zec
         IAllocator* allocator = nullptr;
         T* data = nullptr;
         size_t capacity = 0;
-        size_t max_capacity = 0;
+        const size_t max_capacity = 0;
         size_t size = 0;
     };
 

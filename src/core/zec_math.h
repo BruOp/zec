@@ -662,6 +662,7 @@ namespace zec
     mat3 to_mat3(const mat4& m);
 
     mat4 to_mat4(const mat34& m);
+    mat34 to_mat34(const mat4& m);
     // ---------- quaternion ----------
 
     struct quaternion

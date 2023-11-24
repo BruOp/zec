@@ -51,11 +51,11 @@ namespace zec::render_graph
 
     // TODO: Should _all_ resources go through this context? Even the creation of e.g. transient constant buffers?
     // TODO: Should we separate resources managed by the render graph and resources that are updated but the client (like e.g. light buffers)?
-    class ResourceContext
+    class ResourceManager
     {
     public:
-        ResourceContext() = default;
-        ResourceContext(const rhi::RenderConfigState& render_config_state) : render_config_state{ render_config_state } {};
+        ResourceManager() = default;
+        ResourceManager(const rhi::RenderConfigState& render_config_state) : render_config_state{ render_config_state } {};
 
         void register_buffer(const BufferResourceDesc& buffer_desc);
         void register_texture(const TextureResourceDesc& texture_desc);
@@ -168,7 +168,7 @@ namespace zec::render_graph
 
     struct PassExecutionContext
     {
-        const ResourceContext* resource_context = nullptr;
+        const ResourceManager* resource_context = nullptr;
         // TODO: Do we even need this? Can we not just get it through our recompilation desc?
         const PipelineStore* pipeline_context = nullptr;
         const SettingsStore* settings_context = nullptr;
@@ -209,7 +209,7 @@ namespace zec::render_graph
         };
     public:
         RenderTaskList() = default;
-        RenderTaskList(ResourceContext* resource_context, PipelineStore* pipeline_context);
+        RenderTaskList(ResourceManager* resource_context, PipelineStore* pipeline_context);
         // TODO: Either call or ensure that PassTeardownFn has been called for all passes
         ~RenderTaskList() = default;
 
@@ -251,7 +251,7 @@ namespace zec::render_graph
 
         rhi::Renderer* prenderer = nullptr;
         // TODO: Find a better naming for this. Settings vs Resources vs PerPass isn't really all that helpful I don't think.
-        ResourceContext* resource_context = nullptr;
+        ResourceManager* resource_context = nullptr;
         PipelineStore* shader_store = nullptr;
         SettingsStore settings_context = {};
         PerPassDataStore per_pass_data_store = {};
@@ -265,7 +265,7 @@ namespace zec::render_graph
         enum struct StatusCodes : u8
         {
             SUCCESS = 0,
-            MISSING_RESOURCE_CONTEXT,
+            MISSING_RESOURCE_MANAGER,
             UNSPECIFIED_BACKBUFFER_RESOURCE,
             MISSING_OUTPUT,
             BACKBUFFER_READ,
@@ -310,7 +310,7 @@ namespace zec::render_graph
             ResourceIdentifier resource_id;
         };
 
-        void set_resource_context(ResourceContext* resource_context);
+        void set_resource_context(ResourceManager* resource_context);
         void set_shader_store(PipelineStore* shader_store);
         void set_pass_list(RenderTaskList* pass_list);
         Result add_pass(const PassDesc& render_pass_desc);
