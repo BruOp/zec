@@ -432,7 +432,7 @@ namespace zec::render_graph
             }
 
             {
-                PROFILE_GPU_EVENT(pass.desc.name.data(), cmd_ctx);
+                rhi::ScopedGPUProfilingEvent GPU_profile_event(prenderer->profiling_event(pass.desc.name.data(), cmd_ctx));
 
                 if (transition_descs.size > 0)
                 {

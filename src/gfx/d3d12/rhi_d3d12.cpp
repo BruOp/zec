@@ -21,6 +21,8 @@
 #include "DirectXTex.h"
 #include "optick/optick.h"
 
+#include "../profiling_utils.h"
+
 #if _DEBUG
 #define USE_DEBUG_DEVICE 1
 #define BREAK_ON_DX_ERROR (USE_DEBUG_DEVICE && 1)
@@ -141,6 +143,13 @@ namespace zec::rhi
 
             recreate_swap_chain_rtv_descriptors(context, swap_chain);
         }
+
+        //ID3D12GraphicsCommandList* get_command_list(const Renderer& renderer, const CommandContextHandle& handle)
+        //{
+        //    CommandQueueType type = cmd_utils::get_command_queue_type(handle);
+        //    const CommandContextPool& command_pool = renderer.render_context.command_pools[type];
+        //    return command_pool.get_graphics_command_list(handle);
+        //};
     }
 
     Renderer::~Renderer()
@@ -1851,10 +1860,29 @@ namespace zec::rhi
         pcontext->textures.resources[handle]->SetName(name);
     }
 
+    ScopedGPUProfilingEvent Renderer::profiling_event(char const* description, CommandContextHandle ctx) const
+    {
+        return ScopedGPUProfilingEvent(pcontext, description, ctx);
+    }
+
     RenderContext& Renderer::get_render_context()
     {
         ASSERT(pcontext != nullptr);
         return *pcontext;
     }
-    ;
+
+    ScopedGPUProfilingEvent::ScopedGPUProfilingEvent(const RenderContext* render_context, const char* description, CommandContextHandle cmd_ctx)
+        : prender_context(render_context)
+        , cmd_ctx{ cmd_ctx }
+    {
+        PIXBeginEvent(get_command_list(*prender_context, cmd_ctx), 0, description);
+    }
+
+    ScopedGPUProfilingEvent::~ScopedGPUProfilingEvent()
+    {
+        if (prender_context != nullptr && is_valid(cmd_ctx))
+        {
+            PIXEndEvent(get_command_list(*prender_context, cmd_ctx));
+        }
+    }
 }

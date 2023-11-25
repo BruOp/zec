@@ -23,6 +23,8 @@ namespace zec
     {
     public:
         TypedArrayView() = default;
+        template<size_t N>
+        TypedArrayView(const T(&arr)[N]) : data(arr), size(N) { };
         TypedArrayView(const size_t size, T* ptr) : data(ptr), size(size) {};
         TypedArrayView(const size_t size, void* ptr) : data(static_cast<T*>(ptr)), size(size) {};
 

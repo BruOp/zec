@@ -13,6 +13,16 @@ namespace zec::rhi
 {
     class RenderContext;
 
+    class ScopedGPUProfilingEvent
+    {
+    public:
+        ScopedGPUProfilingEvent(const RenderContext* render_context, const char* descripition, CommandContextHandle cmd_ctx);
+        ~ScopedGPUProfilingEvent();
+    private:
+        const RenderContext* prender_context = nullptr;
+        CommandContextHandle cmd_ctx = {};
+    };
+
     class Renderer
     {
     public:
@@ -139,6 +149,8 @@ namespace zec::rhi
         void set_debug_name(const PipelineStateHandle handle, const wchar* name);
         void set_debug_name(const BufferHandle handle, const wchar* name);
         void set_debug_name(const TextureHandle handle, const wchar* name);
+
+        ScopedGPUProfilingEvent profiling_event(char const* description, CommandContextHandle ctx) const;
 
     private:
         friend class ::zec::ui::UIRenderer;
