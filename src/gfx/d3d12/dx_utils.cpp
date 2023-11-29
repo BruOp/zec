@@ -14,14 +14,14 @@
 // TODO: Can I move this rhi_d3d12.cpp?
 void DXCall(HRESULT hr)
 {
-    if (FAILED(hr)) {
+    /*if (FAILED(hr)) {
         if (hr == DXGI_ERROR_DEVICE_REMOVED) {
             throw zec::rhi::dx12::DXException(zec::rhi::dx12::get_render_context().device->GetDeviceRemovedReason());
         }
         else {
             throw zec::rhi::dx12::DXException(hr);
         }
-    }
+    }*/
 }
 
 #endif // USE_ASSERTS

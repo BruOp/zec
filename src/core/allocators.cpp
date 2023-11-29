@@ -54,6 +54,12 @@ namespace zec
         {
             // TODO: LOG successful shutdown
         }
+
+        tlsf_destroy(tlsf_handle);
+        tlsf_handle = nullptr;
+        memory::free_mem(ptr);
+        ptr = nullptr;
+        bytes_allocated = 0;
     }
 
     void HeapAllocator::debug_ui()
@@ -84,7 +90,7 @@ namespace zec
         size_t actual_size = tlsf_block_size(pointer);
         bytes_allocated -= actual_size;
 #endif
-        tlsf_free(tlsf_handle, ptr);
+        tlsf_free(tlsf_handle, pointer);
     }
 
     LinearAllocator::~LinearAllocator()
@@ -145,6 +151,8 @@ namespace zec
     void StackAllocator::shutdown()
     {
         memory::free_mem(ptr);
+        ptr = nullptr;
+        bytes_allocated = 0;
     }
 
     void* StackAllocator::allocate(size_t size, size_t alignment)

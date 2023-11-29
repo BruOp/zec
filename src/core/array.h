@@ -579,14 +579,14 @@ namespace zec
                 capacity_to_alloc = max_capacity;
             }
 
-            size_t additional_memory_required = capacity_to_alloc * sizeof(T);
-            T* new_data = (T*)allocator->allocate(additional_memory_required, alignof(T));
+            size_t new_byte_size = capacity_to_alloc * sizeof(T);
+            T* new_data = (T*)allocator->allocate(new_byte_size, alignof(T));
             if (capacity)
             {
                 memory::copy(new_data, data, get_byte_size());
                 allocator->free(data);
             }
-
+            data = new_data;
             capacity = capacity_to_alloc;
             // Since capacity is potentiall larger than just old_capacity + additional_slots, we return it
             return capacity;

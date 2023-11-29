@@ -46,8 +46,8 @@ namespace zec
         void free(void* pointer) override;
 
     private:
-        // Depends on the TLSF library
-        void* tlsf_handle;
+        // Depends on the TLSF Library
+        void* tlsf_handle = nullptr;
         void* ptr = nullptr;
         size_t bytes_allocated = 0;
         size_t total_capacity = 0;

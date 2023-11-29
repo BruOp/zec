@@ -26,8 +26,10 @@
 #if _DEBUG
 #define USE_DEBUG_DEVICE 1
 #define BREAK_ON_DX_ERROR (USE_DEBUG_DEVICE && 1)
-#define USE_GPU_VALIDATION 1
-#endif
+#define USE_GPU_VALIDATION 0
+
+#include <dxgidebug.h>
+#endif // _DEBUG
 
 namespace zec::rhi
 {
@@ -174,21 +176,21 @@ namespace zec::rhi
 
         {
             UINT factory_flags = 0;
-        #ifdef USE_DEBUG_DEVICE
+        #if USE_DEBUG_DEVICE
             ID3D12Debug* debug_ptr;
             DXCall(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_ptr)));
             debug_ptr->EnableDebugLayer();
 
             factory_flags = DXGI_CREATE_FACTORY_DEBUG;
 
-        #ifdef USE_GPU_VALIDATION
+        #if USE_GPU_VALIDATION
             ID3D12Debug1* debug1;
             debug_ptr->QueryInterface(IID_PPV_ARGS(&debug1));
             debug1->SetEnableGPUBasedValidation(true);
             debug1->Release();
         #endif // USE_GPU_VALIDATION
             debug_ptr->Release();
-        #endif // DEBUG
+        #endif // USE_DEBUG_DEVICE
 
             DXCall(CreateDXGIFactory2(factory_flags, IID_PPV_ARGS(&context.factory)));
 
@@ -251,7 +253,7 @@ namespace zec::rhi
                 throw Exception(L"The context.device doesn't support the minimum feature level required to run this sample (DX" + majorLevel + L"." + minorLevel + L")");
             }
 
-        #ifdef USE_DEBUG_DEVICE
+        #if USE_DEBUG_DEVICE
             ID3D12InfoQueue* infoQueue;
             DXCall(context.device->QueryInterface(IID_PPV_ARGS(&infoQueue)));
 
@@ -430,14 +432,22 @@ namespace zec::rhi
         context.async_destruction_queue.flush();
         dx_destroy(&context.allocator);
 
-    #ifdef USE_DEBUG_DEVICE
-        ID3D12DebugDevice* debug_device = nullptr;
-        DXCall(context.device->QueryInterface(&debug_device));
-        if (debug_device) {
-            DXCall(debug_device->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL | D3D12_RLDO_IGNORE_INTERNAL));
-            debug_device->Release();
-        }
-    #endif // USE_DEBUG_DEVICE
+//#if USE_DEBUG_DEVICE
+//        ID3D12DebugDevice* debug_device = nullptr;
+//        DXCall(context.device->QueryInterface(&debug_device));
+//        if (debug_device) {
+//            DXCall(debug_device->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL | D3D12_RLDO_IGNORE_INTERNAL));
+//
+//            debug_device->Release();
+//        }
+//
+//        IDXGIDebug1* pDebug = nullptr;
+//        if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&pDebug))))
+//        {
+//            pDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_SUMMARY);
+//            pDebug->Release();
+//        }
+//#endif // USE_DEBUG_DEVICE
 
         dx_destroy(&context.device);
         dx_destroy(&context.adapter);
