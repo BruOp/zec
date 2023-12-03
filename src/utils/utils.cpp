@@ -131,4 +131,10 @@ namespace zec
         OutputDebugStringW(output.c_str());
         std::printf("%ls", output.c_str());
     }
+    u32 get_lowest_set_bit(u32 mask, u32& set_bit_index, bool& is_not_zero)
+    {
+        is_not_zero = bool(_BitScanForward((unsigned long*)&set_bit_index, mask));
+        return mask & ~(1 << set_bit_index);
+    }
+
 }

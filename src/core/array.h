@@ -540,7 +540,7 @@ namespace zec
             return size++;
         };
 
-        // Grow both reserves and increases the size, so new items are indexable
+        // Grow increases the size AND if needed, the capacity. The former means that items are indexable
         size_t grow(size_t additional_slots)
         {
             if (additional_slots + size > capacity) {
@@ -551,7 +551,7 @@ namespace zec
         };
 
         // Reserve grows the allocation, but does not increase the size.
-        // Do not try to index into the new space though, push to increase size first
+        // Do not try to index into the new space, push to increase size first
         // or use `grow` instead
         size_t reserve(size_t new_capacity)
         {

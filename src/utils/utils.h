@@ -93,6 +93,19 @@ namespace zec
         return N;
     }
 
+    /// <summary>
+    /// Computes the lowest set bit
+    /// If the mask is zero, is_not_zero is set to false
+    /// </summary>
+    /// <param name="mask">The mask we want to compute the lowest set bit for.</param>
+    /// <param name="set_bit_index">
+    /// Output reference. If the mask is zero, it is set to UINT32_MAX.
+    /// Otherwise it is set to the lowest set bit in mask
+    /// </param>
+    /// <param name="is_not_zero">Output reference. If the mask is zero, set to false</param>
+    /// <returns>A copy of the mask, but with the previously lowest set bit now zeroed</returns>
+    u32 get_lowest_set_bit(u32 mask, u32& set_bit_index, bool& is_not_zero);
+
 #define VAR_NAME_HELPER(name) #name
 #define VAR_NAME(x) VAR_NAME_HELPER(x)
 
