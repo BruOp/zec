@@ -4,7 +4,8 @@
 
 struct ID3D10Blob;
 struct IDxcBlobUtf8;
-struct IDxcBlobUtf16;
+struct IDxcBlobWide;
+typedef IDxcBlobWide IDxcBlobUtf16;
 
 typedef long HRESULT;
 typedef ID3D10Blob ID3DBlob;

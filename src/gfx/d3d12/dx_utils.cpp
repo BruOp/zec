@@ -2,8 +2,8 @@
 
 #include <d3d12.h>
 #include <d3dcommon.h>
+#include "dxcapi.h"
 
-#include <dxcompiler/dxcapi.h>
 #include "render_context.h"
 #include "utils/utils.h"
 

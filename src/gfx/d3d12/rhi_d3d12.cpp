@@ -16,9 +16,9 @@
 #include "dx_utils.h"
 #include "utils/utils.h"
 #include <d3dx12/d3dx12.h>
-#include <dxcompiler/dxcapi.h>
+#include <dxcapi.h>
 #include "D3D12MemAlloc/D3D12MemAlloc.h"
-#include "DirectXTex.h"
+#include <DirectXTex.h>
 #include "optick/optick.h"
 
 #include "../profiling_utils.h"

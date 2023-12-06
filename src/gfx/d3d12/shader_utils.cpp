@@ -1,7 +1,7 @@
 #include "shader_utils.h"
 #include <filesystem>
 #include <wrl.h>
-#include "dxcompiler/dxcapi.h"
+#include "dxcapi.h"
 #include "dx_helpers.h"
 #include "dx_utils.h"
 
@@ -38,15 +38,15 @@ namespace zec::rhi::dx12::shader_utils
         ASSERT(stage != PIPELINE_STAGE_INVALID);
         if (stage == PIPELINE_STAGE_VERTEX) {
             lstrcpy(entry, L"VSMain");
-            lstrcpy(target, L"vs_6_1");
+            lstrcpy(target, L"vs_6_6");
         }
         else if (stage == PIPELINE_STAGE_PIXEL) {
             lstrcpy(entry, L"PSMain");
-            lstrcpy(target, L"ps_6_1");
+            lstrcpy(target, L"ps_6_6");
         }
         else if (stage == PIPELINE_STAGE_COMPUTE) {
             lstrcpy(entry, L"CSMain");
-            lstrcpy(target, L"cs_6_1");
+            lstrcpy(target, L"cs_6_6");
         }
 
         LPCWSTR dxc_args[] = {
@@ -54,7 +54,7 @@ namespace zec::rhi::dx12::shader_utils
             DXC_ARG_WARNINGS_ARE_ERRORS,
             L"-Qembed_debug",
             DXC_ARG_DEBUG,
-            DXC_ARG_PACK_MATRIX_ROW_MAJOR,
+            DXC_ARG_PACK_MATRIX_ROW_MAJOR
         };
 
         Microsoft::WRL::ComPtr<IDxcCompilerArgs> compiler_args;
