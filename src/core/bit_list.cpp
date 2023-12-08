@@ -21,6 +21,11 @@ namespace zec
         return array[word_index];
     }
 
+    BitList::WordType& BitList::get_word(size_t word_index)
+    {
+        return array[word_index];
+    }
+
     size_t BitList::grow_bit_count(size_t additional_entries)
     {
         size_t num_additional_words = (additional_entries + k_bits_per_word - 1) / k_bits_per_word;
@@ -46,7 +51,7 @@ namespace zec
     {
         bit_capacity = other.bit_capacity;
         num_set_bits = other.num_set_bits;
-        array.init(allocator, other.array.get_size());
+        array.init(allocator, other.bit_capacity / 8);
         array.grow(other.array.get_size());
         zec::memory::copy(array.begin(), other.array.begin(), other.array.get_byte_size());
     }

@@ -22,6 +22,7 @@ namespace zec
 
         bool is_bit_set(size_t index) const;
         WordType get_word(size_t word_index) const;
+        WordType& get_word(size_t word_index);
         size_t get_word_count() const { return array.get_size(); };
         size_t get_bit_size() const { return array.get_size() * k_bits_per_word; };
         size_t get_num_set_bits() const { return num_set_bits; };
