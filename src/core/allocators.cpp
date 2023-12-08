@@ -159,12 +159,11 @@ namespace zec
     {
         ASSERT(size > 0);
 
-        const size_t aligned_offset = memory::align(size, alignment);
-        ASSERT(aligned_offset < size);
+        const size_t aligned_offset = memory::align(bytes_allocated, alignment);
+        ASSERT(aligned_offset < total_capacity);
         const size_t new_bytes_allocated = aligned_offset + size;
         ASSERT(new_bytes_allocated < total_capacity);
         bytes_allocated = new_bytes_allocated;
-
         return ptr + aligned_offset;
     }
 
