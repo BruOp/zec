@@ -9,14 +9,7 @@
 
 namespace zec::rhi::dx12
 {
-    enum struct HeapType : u8
-    {
-        CBV_SRV_UAV = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-        SAMPLER = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
-        RTV = D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
-        DSV = D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
-        NUM_HEAPS = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES,
-    };
+    D3D12_DESCRIPTOR_HEAP_TYPE to_d3d_heap_type(const HeapType heap_type);
 
     struct DescriptorRangeHandle
     {
@@ -115,7 +108,7 @@ namespace zec::rhi::dx12
         DescriptorRangeHandle allocate_descriptors(ID3D12Device* device, ID3D12Resource* resource, const D3D12_UNORDERED_ACCESS_VIEW_DESC* uav_descs, const size_t num_descs);
         DescriptorRangeHandle allocate_descriptors(ID3D12Device* device, ID3D12Resource* resource, const D3D12_RENDER_TARGET_VIEW_DESC* rtv_desc);
         DescriptorRangeHandle allocate_descriptors(ID3D12Device* device, ID3D12Resource* resource, const D3D12_DEPTH_STENCIL_VIEW_DESC* dsv_desc);
-
+        DescriptorRangeHandle allocate_descriptors(ID3D12Device* device, const D3D12_SAMPLER_DESC* sampler_desc);
         // Use this only if you need to provide an allocation for libs that create the descriptors themselves. e.g. imgui
         DescriptorRangeHandle allocate_descriptors(HeapType heap_type, const size_t count);
 
@@ -162,11 +155,11 @@ namespace zec::rhi::dx12
         DescriptorHeap& get_heap(const HeapType type)
         {
             switch (type) {
-            case HeapType::CBV_SRV_UAV:
+            case HeapType::READ_WRITE_RESOURCES:
                 return srv_heap;
-            case HeapType::RTV:
+            case HeapType::RENDER_TARGETS:
                 return rtv_heap;
-            case HeapType::DSV:
+            case HeapType::DEPTH_TARGETS:
                 return dsv_heap;
             case HeapType::SAMPLER:
                 return sampler_heap;
@@ -177,11 +170,11 @@ namespace zec::rhi::dx12
         const DescriptorHeap& get_heap(const HeapType type) const
         {
             switch (type) {
-            case HeapType::CBV_SRV_UAV:
+            case HeapType::READ_WRITE_RESOURCES:
                 return srv_heap;
-            case HeapType::RTV:
+            case HeapType::RENDER_TARGETS:
                 return rtv_heap;
-            case HeapType::DSV:
+            case HeapType::DEPTH_TARGETS:
                 return dsv_heap;
             case HeapType::SAMPLER:
                 return sampler_heap;

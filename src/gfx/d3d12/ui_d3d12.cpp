@@ -49,8 +49,8 @@ namespace zec::ui
         // TODO: Use allocator for this
         state = new (zec::memory::alloc(sizeof(UIRenderState))) UIRenderState{};
         ASSERT(!is_valid(state->srv_handle));
-        state->srv_handle = render_context.descriptor_heap_manager.allocate_descriptors(HeapType::CBV_SRV_UAV, 1);
-        ID3D12DescriptorHeap* heap = render_context.descriptor_heap_manager.get_d3d_heaps(HeapType::CBV_SRV_UAV);
+        state->srv_handle = render_context.descriptor_heap_manager.allocate_descriptors(HeapType::READ_WRITE_RESOURCES, 1);
+        ID3D12DescriptorHeap* heap = render_context.descriptor_heap_manager.get_d3d_heaps(HeapType::READ_WRITE_RESOURCES);
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = render_context.descriptor_heap_manager.get_cpu_descriptor_handle(state->srv_handle);
         D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = render_context.descriptor_heap_manager.get_gpu_descriptor_handle(state->srv_handle);
         ImGui_ImplDX12_Init(

@@ -30,6 +30,7 @@ namespace zec::rhi
     RESOURCE_HANDLE(CommandContextHandle);
     RESOURCE_HANDLE(UploadContextHandle);
     RESOURCE_HANDLE(ShaderBlobsHandle);
+    RESOURCE_HANDLE(SamplerHandle);
 
     // TODO: ADD ManagedShaderBlobsHandle
     /*class ManagedShaderBlobsHandle
@@ -114,6 +115,15 @@ namespace zec::rhi
         R32G32B32A32_FLOAT = FLOAT_4,
 
         R8G8B8A8_UNORM_SRGB = UNORM8_4_SRGB,
+    };
+
+    enum struct HeapType : u8
+    {
+        READ_WRITE_RESOURCES,
+        SAMPLER,
+        RENDER_TARGETS,
+        DEPTH_TARGETS,
+        NUM_HEAPS,
     };
 
     enum struct ShaderVisibility : u8
@@ -254,6 +264,7 @@ namespace zec::rhi
         MIN_LINEAR_MAG_LINEAR_MIP_POINT,
         MIN_LINEAR_MAG_LINEAR_MIP_LINEAR,
         ANISOTROPIC,
+        COUNT,
     };
 
     enum struct SamplerWrapMode : u8
@@ -262,7 +273,8 @@ namespace zec::rhi
         MIRROR,
         CLAMP,
         BORDER,
-        MIRROR_ONCE
+        MIRROR_ONCE,
+        COUNT,
     };
 
     enum struct CommandQueueType : u8

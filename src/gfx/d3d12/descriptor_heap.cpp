@@ -4,6 +4,24 @@
 
 namespace zec::rhi::dx12
 {
+    D3D12_DESCRIPTOR_HEAP_TYPE to_d3d_heap_type(const HeapType heap_type)
+    {
+        switch (heap_type)
+        {
+        case HeapType::READ_WRITE_RESOURCES:
+            return D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        case HeapType::SAMPLER:
+            return D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+        case HeapType::RENDER_TARGETS:
+            return D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+        case HeapType::DEPTH_TARGETS:
+            return D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+        default:
+            ASSERT_FAIL("Encountered heap type that we can't translate to D3D12 type");
+            return D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        }
+    }
+
     namespace HeapSizes
     {
         static constexpr size_t CBV_SRV_UAV = 1000000;
@@ -13,9 +31,9 @@ namespace zec::rhi::dx12
     }
 
     DescriptorHeapManager::DescriptorHeapManager() :
-        srv_heap{ HeapType::CBV_SRV_UAV, HeapSizes::CBV_SRV_UAV },
-        rtv_heap{ HeapType::RTV, HeapSizes::RTV },
-        dsv_heap{ HeapType::DSV, HeapSizes::DSV },
+        srv_heap{ HeapType::READ_WRITE_RESOURCES, HeapSizes::CBV_SRV_UAV },
+        rtv_heap{ HeapType::RENDER_TARGETS, HeapSizes::RTV },
+        dsv_heap{ HeapType::DEPTH_TARGETS, HeapSizes::DSV },
         sampler_heap{ HeapType::SAMPLER, HeapSizes::SAMPLER }
     { }
 
@@ -40,7 +58,7 @@ namespace zec::rhi::dx12
 
     DescriptorRangeHandle DescriptorHeapManager::allocate_descriptors(ID3D12Device* device, ID3D12Resource* resource, const D3D12_SHADER_RESOURCE_VIEW_DESC* srv_desc)
     {
-        DescriptorHeap& heap = get_heap(HeapType::CBV_SRV_UAV);
+        DescriptorHeap& heap = get_heap(HeapType::READ_WRITE_RESOURCES);
         DescriptorRangeHandle descriptor_range = heap.allocate_descriptors(1);
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = heap.get_cpu_descriptor_handle(descriptor_range, 0);
         device->CreateShaderResourceView(resource, srv_desc, cpu_handle);
@@ -49,7 +67,7 @@ namespace zec::rhi::dx12
 
     DescriptorRangeHandle DescriptorHeapManager::allocate_descriptors(ID3D12Device* device, ID3D12Resource* resource, const D3D12_UNORDERED_ACCESS_VIEW_DESC* uav_descs, const size_t num_descs)
     {
-        DescriptorHeap& heap = get_heap(HeapType::CBV_SRV_UAV);
+        DescriptorHeap& heap = get_heap(HeapType::READ_WRITE_RESOURCES);
         DescriptorRangeHandle descriptor_range = heap.allocate_descriptors(num_descs);
         for (size_t i = 0; i < num_descs; i++) {
             D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = heap.get_cpu_descriptor_handle(descriptor_range, i);
@@ -60,7 +78,7 @@ namespace zec::rhi::dx12
 
     DescriptorRangeHandle DescriptorHeapManager::allocate_descriptors(ID3D12Device* device, ID3D12Resource* resource, const D3D12_RENDER_TARGET_VIEW_DESC* rtv_desc)
     {
-        DescriptorHeap& heap = get_heap(HeapType::RTV);
+        DescriptorHeap& heap = get_heap(HeapType::RENDER_TARGETS);
         DescriptorRangeHandle descriptor_range = heap.allocate_descriptors(1);
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = heap.get_cpu_descriptor_handle(descriptor_range, 0);
         device->CreateRenderTargetView(resource, rtv_desc, cpu_handle);
@@ -69,10 +87,19 @@ namespace zec::rhi::dx12
 
     DescriptorRangeHandle DescriptorHeapManager::allocate_descriptors(ID3D12Device* device, ID3D12Resource* resource, const D3D12_DEPTH_STENCIL_VIEW_DESC* dsv_desc)
     {
-        DescriptorHeap& heap = get_heap(HeapType::DSV);
+        DescriptorHeap& heap = get_heap(HeapType::DEPTH_TARGETS);
         DescriptorRangeHandle descriptor_range = heap.allocate_descriptors(1);
         D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = heap.get_cpu_descriptor_handle(descriptor_range, 0);
         device->CreateDepthStencilView(resource, dsv_desc, cpu_handle);
+        return descriptor_range;
+    }
+
+    DescriptorRangeHandle DescriptorHeapManager::allocate_descriptors(ID3D12Device* device, const D3D12_SAMPLER_DESC* sampler_desc)
+    {
+        DescriptorHeap& heap = get_heap(HeapType::SAMPLER);
+        DescriptorRangeHandle descriptor_range = heap.allocate_descriptors(1);
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = heap.get_cpu_descriptor_handle(descriptor_range, 0);
+        device->CreateSampler(sampler_desc, cpu_handle);
         return descriptor_range;
     }
 
@@ -82,7 +109,7 @@ namespace zec::rhi::dx12
     }
 
     DescriptorHeap::DescriptorHeap(HeapType heap_type, size_t heap_size) :
-        is_shader_visible{ heap_type == HeapType::CBV_SRV_UAV },
+        is_shader_visible{ heap_type == HeapType::READ_WRITE_RESOURCES || heap_type == HeapType::SAMPLER },
         heap_type{ heap_type },
         heap{ nullptr },
         capacity{ heap_size },

@@ -5,6 +5,7 @@
 #include "wrappers.h"
 #include "descriptor_heap.h"
 #include "buffers.h"
+#include "samplers.h"
 #include "textures.h"
 #include "upload_manager.h"
 #include "command_context.h"
@@ -75,6 +76,7 @@ namespace zec::rhi
 
         dx12::BufferList buffers = {};
         dx12::TextureList textures = {};
+        dx12::SamplerStore samplers = {};
     };
 
     namespace dx12

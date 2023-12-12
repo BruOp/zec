@@ -65,6 +65,16 @@ namespace zec
         void free(void* pointer) override;
 
         void clear();
+        void* get_ptr() {
+            return ptr;
+        };
+        size_t get_bytes_allocated() {
+            return bytes_allocated;
+        };
+        size_t get_capacity()
+        {
+            return total_capacity;
+        };
     private:
 
         u8* ptr = nullptr;

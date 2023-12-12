@@ -76,10 +76,13 @@ namespace zec::rhi
 
         // ------------ Textures ------------
         TextureHandle textures_create(TextureDesc texture_desc);
-        TextureHandle textures_create_from_file(CommandContextHandle cmd_ctx, const char* file_path);
+        TextureHandle textures_create_from_file(CommandContextHandle cmd_ctx, const wchar_t* file_path);
         void textures_save_to_file(const TextureHandle texture_handle, const wchar_t* file_path, const ResourceUsage current_usage);
 
         const TextureInfo& textures_get_info(const TextureHandle texture_handle) const;
+
+        // ------------ Samplers ------------
+        SamplerHandle samplers_create(SamplerDesc sampler_desc);
 
         // The following all involved command queues or lists. All functions are prefixed with cmd for searchability
         // For functions that accept a CommandContextHandle, you may NOT call them on different threads with the same CommandContext
@@ -106,13 +109,13 @@ namespace zec::rhi
         //--------- Resource Binding ----------
         void cmd_set_graphics_resource_layout(CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id) const;
         void cmd_set_graphics_pipeline_state(CommandContextHandle ctx, const PipelineStateHandle pso_handle) const;
-        void cmd_bind_graphics_resource_table(CommandContextHandle ctx, const u32 resource_layout_entry_idx) const;
+        void cmd_bind_graphics_resource_table(CommandContextHandle ctx, const u32 resource_layout_entry_idx, const HeapType heap_type = HeapType::READ_WRITE_RESOURCES) const;
         void cmd_bind_graphics_constants(CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot) const;
         void cmd_bind_graphics_constant_buffer(CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot) const;
 
         void cmd_set_compute_resource_layout(CommandContextHandle ctx, const ResourceLayoutHandle resource_layout_id) const;
         void cmd_set_compute_pipeline_state(CommandContextHandle ctx, const PipelineStateHandle pso_handle) const;
-        void cmd_bind_compute_resource_table(CommandContextHandle ctx, const u32 resource_layout_entry_idx) const;
+        void cmd_bind_compute_resource_table(CommandContextHandle ctx, const u32 resource_layout_entry_idx, const HeapType heap_type = HeapType::READ_WRITE_RESOURCES) const;
         void cmd_bind_compute_constants(CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot) const;
         void cmd_bind_compute_constant_buffer(CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
         //--------- Drawing ----------
