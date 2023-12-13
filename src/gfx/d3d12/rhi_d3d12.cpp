@@ -618,7 +618,7 @@ namespace zec::rhi
         {
             ASSERT(shader_compilation_desc.used_stages == PIPELINE_STAGE_COMPUTE);
             IDxcBlob* compute_shader = { nullptr };
-            res = shader_utils::compile_shader(shader_compilation_desc.shader_file_path, PIPELINE_STAGE_COMPUTE, &compute_shader, errors);
+            res = shader_utils::compile_shader(shader_compilation_desc, PIPELINE_STAGE_COMPUTE, &compute_shader, errors);
             blobs.compute_shader = { reinterpret_cast<void*>(compute_shader) };
         }
         else
@@ -626,13 +626,13 @@ namespace zec::rhi
             if (res == ZecResult::SUCCESS && shader_compilation_desc.used_stages & PIPELINE_STAGE_VERTEX)
             {
                 IDxcBlob* vertex_shader = {nullptr};
-                res = shader_utils::compile_shader(shader_compilation_desc.shader_file_path, PIPELINE_STAGE_VERTEX, &vertex_shader, errors);
+                res = shader_utils::compile_shader(shader_compilation_desc, PIPELINE_STAGE_VERTEX, &vertex_shader, errors);
                 blobs.vertex_shader = { reinterpret_cast<void*>(vertex_shader) };
             }
             if (res == ZecResult::SUCCESS && shader_compilation_desc.used_stages & PIPELINE_STAGE_PIXEL)
             {
                 IDxcBlob* pixel_shader = nullptr;
-                res = shader_utils::compile_shader(shader_compilation_desc.shader_file_path, PIPELINE_STAGE_PIXEL, &pixel_shader, errors);
+                res = shader_utils::compile_shader(shader_compilation_desc, PIPELINE_STAGE_PIXEL, &pixel_shader, errors);
                 blobs.pixel_shader = { reinterpret_cast<void*>(pixel_shader) };
             }
         }
@@ -661,7 +661,7 @@ namespace zec::rhi
 
     ResourceLayoutHandle Renderer::resource_layouts_create(const ResourceLayoutDesc& desc)
     {
-        constexpr u64 MAX_DWORDS_IN_RS = 64;
+        constexpr u64 MAX_DWORDS_IN_RS = 16;
         ASSERT(desc.num_constants < MAX_DWORDS_IN_RS);
         ASSERT(desc.num_constant_buffers < MAX_DWORDS_IN_RS / 2);
         ASSERT(desc.num_resource_tables < MAX_DWORDS_IN_RS);

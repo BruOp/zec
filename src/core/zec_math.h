@@ -517,7 +517,7 @@ namespace zec
         }
         mat34(const vec4 in_rows[3])
         {
-            memory::copy(data, in_rows, sizeof(data));
+            memory::copy(linear_data, in_rows, sizeof(linear_data));
         }
         mat34(const float in_data[12])
         {

@@ -460,10 +460,18 @@ namespace zec::rhi
         RenderTargetBlendDesc render_target_blend_descs[8] = { };
     };
 
+    struct ShaderCompilationDefine
+    {
+        wchar_t string[32] = L"";
+    };
+
     struct ShaderCompilationDesc
     {
+        static constexpr size_t k_max_defines = 16;
         u8 used_stages = PIPELINE_STAGE_INVALID;
+        u8 num_defines = 0;
         wchar shader_file_path[128] = L"";
+        ShaderCompilationDefine defines[k_max_defines] = {};
     };
 
     /// Can be used to create either a computer shader pipeline or a graphics pipeline

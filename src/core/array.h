@@ -1,10 +1,11 @@
 #pragma once
 #include <math.h>
 #include <type_traits>
+#include <initializer_list>
+
 #include "utils/assert.h"
 #include "utils/memory.h"
 #include "allocators.hpp"
-
 namespace zec
 {
     static constexpr size_t g_GB = 1024 * 1024 * 1024;
@@ -69,6 +70,14 @@ namespace zec
         size_t size = 0;
 
         FixedArray() = default;
+        constexpr FixedArray(std::initializer_list<T> init_list) : FixedArray()
+        {
+            for (const T& element : init_list)
+            {
+                data[size++] = element;
+            };
+        };
+
         FixedArray(const FixedArray<T, Capacity>& other) = default;
         //{
         //    memory::copy(data, other.data, other.size * sizeof(T));

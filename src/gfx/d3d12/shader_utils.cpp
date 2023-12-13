@@ -7,7 +7,7 @@
 
 namespace zec::rhi::dx12::shader_utils
 {
-    ZecResult compile_shader(const wchar* file_name, const PipelineStage stage, IDxcBlob** out_blob, std::string& errors)
+    ZecResult compile_shader(const ShaderCompilationDesc& desc, const PipelineStage stage, IDxcBlob** out_blob, std::string& errors)
     {
         Microsoft::WRL::ComPtr<IDxcUtils> dxc_utils;
         DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxc_utils));
@@ -20,7 +20,7 @@ namespace zec::rhi::dx12::shader_utils
 
         Microsoft::WRL::ComPtr<IDxcBlobEncoding> source_blob;
         {
-            HRESULT hr = dxc_utils->LoadFile(file_name, nullptr, &source_blob);
+            HRESULT hr = dxc_utils->LoadFile(desc.shader_file_path, nullptr, &source_blob);
             if (FAILED(hr))
             {
                 errors = GetDXErrorStringUTF8(hr);
@@ -49,23 +49,29 @@ namespace zec::rhi::dx12::shader_utils
             lstrcpy(target, L"cs_6_6");
         }
 
-        LPCWSTR dxc_args[] = {
+        constexpr size_t num_default_args = 5;
+        LPCWSTR dxc_args[num_default_args + (2u * ShaderCompilationDesc::k_max_defines)] = {
             DXC_ARG_SKIP_OPTIMIZATIONS,
             DXC_ARG_WARNINGS_ARE_ERRORS,
             L"-Qembed_debug",
             DXC_ARG_DEBUG,
             DXC_ARG_PACK_MATRIX_ROW_MAJOR
         };
+        for (size_t i = 0; i < desc.num_defines; ++i)
+        {
+            dxc_args[num_default_args + (2u * i)] = L"-D";
+            dxc_args[num_default_args + (2u * i) + 1] = desc.defines[i].string;
+        }
 
         Microsoft::WRL::ComPtr<IDxcCompilerArgs> compiler_args;
         DXCall(DxcCreateInstance(CLSID_DxcCompilerArgs, IID_PPV_ARGS(&compiler_args)));
-
+        size_t num_args = num_default_args + (2u * desc.num_defines);
         dxc_utils->BuildArguments(
-            file_name,
+            desc.shader_file_path,
             entry,
             target,
             dxc_args,
-            _countof(dxc_args),
+            num_args,
             nullptr,
             0,
             &compiler_args);
