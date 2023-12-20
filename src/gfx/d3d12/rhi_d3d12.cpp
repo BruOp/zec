@@ -851,27 +851,27 @@ namespace zec::rhi
                     for (size_t i = 0; i < MAX_NUM_DRAW_VERTEX_BUFFERS; i++) {
                         D3D12_INPUT_ELEMENT_DESC& d3d_desc = d3d_elements[i];
                         const auto& input_entry = desc.input_assembly_desc.elements[i];
-                        if (input_entry.attribute_type == MESH_ATTRIBUTE_INVALID) {
+                        if (input_entry.attribute_type == MeshAttribute::INVALID) {
                             break;
                         }
 
                         switch (input_entry.attribute_type) {
-                        case MESH_ATTRIBUTE_POSITION:
+                        case MeshAttribute::POSITION:
                             semantic_names[i] = "POSITION";
                             break;
-                        case MESH_ATTRIBUTE_NORMAL:
+                        case MeshAttribute::NORMAL:
                             semantic_names[i] = "NORMAL";
                             break;
-                        case MESH_ATTRIBUTE_TEXCOORD:
+                        case MeshAttribute::TEXCOORD:
                             semantic_names[i] = "TEXCOORD";
                             break;
-                        case MESH_ATTRIBUTE_BLENDINDICES:
+                        case MeshAttribute::BLENDINDICES:
                             semantic_names[i] = "BLENDINDICES";
                             break;
-                        case MESH_ATTRIBUTE_BLENDWEIGHTS:
+                        case MeshAttribute::BLENDWEIGHTS:
                             semantic_names[i] = "BLENDWEIGHT";
                             break;
-                        case MESH_ATTRIBUTE_COLOR:
+                        case MeshAttribute::COLOR:
                             semantic_names[i] = "COLOR";
                             break;
                         default:

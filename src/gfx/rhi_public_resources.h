@@ -55,18 +55,17 @@ namespace zec::rhi
         RESOURCE_USAGE_PRESENT = (1 << 9),
     };
 
-    enum MeshAttribute : u16
+    enum struct MeshAttribute : u8
     {
-        MESH_ATTRIBUTE_INVALID = 0,
-        MESH_ATTRIBUTE_POSITION = (1 << 0),
-        MESH_ATTRIBUTE_NORMAL = (1 << 1),
-        MESH_ATTRIBUTE_TEXCOORD = (1 << 2),
-        MESH_ATTRIBUTE_COLOR = (1 << 3),
-        MESH_ATTRIBUTE_BLENDINDICES = (1 << 4),
-        MESH_ATTRIBUTE_BLENDWEIGHTS = (1 << 5)
+        POSITION,
+        NORMAL,
+        TEXCOORD,
+        COLOR,
+        BLENDINDICES,
+        BLENDWEIGHTS,
+        COUNT,
+        INVALID,
     };
-
-    constexpr size_t kMeshAttributeCount = 6;
 
     enum struct BufferType : u16
     {
@@ -321,7 +320,7 @@ namespace zec::rhi
     {
         struct InputElementDesc
         {
-            MeshAttribute attribute_type = MESH_ATTRIBUTE_INVALID;
+            MeshAttribute attribute_type = MeshAttribute::INVALID;
             u32 semantic_index = 0;
             BufferFormat format = BufferFormat::INVALID;
             u32 input_slot = 0;
