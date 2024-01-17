@@ -246,7 +246,7 @@ namespace zec::rhi
                 sizeof(options)
             ));
 
-            D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_11_0;
+            D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_12_2;
             if (context.supported_feature_level < min_feature_level) {
                 std::wstring majorLevel = to_string<int>(min_feature_level >> 12);
                 std::wstring minorLevel = to_string<int>((min_feature_level >> 8) & 0xF);

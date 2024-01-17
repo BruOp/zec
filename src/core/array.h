@@ -47,7 +47,8 @@ namespace zec
             return data[idx];
         };
 
-
+        bool operator==(const TypedArrayView<T>& other) const = default;
+        
         inline size_t get_size() const { return size; }
         size_t get_byte_size() const { return sizeof(T) * size; }
 
@@ -56,6 +57,7 @@ namespace zec
 
         T* end() { return data + size; }
         const T* end() const { return data + size; }
+
     private:
         size_t size = 0;
         T* data = nullptr;
@@ -622,6 +624,16 @@ namespace zec
         {
             return sizeof(T) * size;
         }
+
+        operator TypedArrayView<T>()
+        {
+            return TypedArrayView<T>{ get_size(), data };
+        }
+        operator const TypedArrayView<T>() const
+        {
+            return TypedArrayView<T>{ get_size(), data };
+        }
+
     private:
         inline constexpr static float growth_factor = 1.5f;
         IAllocator* allocator = nullptr;

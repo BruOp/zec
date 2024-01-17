@@ -6,7 +6,11 @@ namespace zec
     class BitList
     {
     public:
+        // Number of bits per word
         typedef u32 WordType;
+        static constexpr size_t k_bits_per_word = sizeof(WordType) * 8;
+        static constexpr size_t k_word_bytesize = sizeof(WordType);
+
         BitList() = default;
         ~BitList() = default;
 
@@ -33,9 +37,8 @@ namespace zec
 
         void copy(const BitList& other, zec::IAllocator* allocator);
 
-        // Number of bits per word
-        static constexpr size_t k_bits_per_word = sizeof(WordType) * 8;
-        static constexpr size_t k_word_bytesize = sizeof(WordType);
+        bool operator==(const BitList& other) const;
+
     private:
         size_t bit_capacity = 0;
         size_t num_set_bits = 0;

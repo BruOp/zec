@@ -7,6 +7,11 @@ namespace zec
         size_t initial_capacity = (capacity + k_bits_per_word - 1) / k_bits_per_word;
         bit_capacity = initial_capacity * k_bits_per_word;
         array.init(allocator, initial_capacity);
+		// Fill it up with 1s
+		for (size_t i = 0; i < initial_capacity; ++i)
+		{
+			array[i] = UINT32_MAX;
+		}
     }
 
     bool BitList::is_bit_set(size_t index) const
