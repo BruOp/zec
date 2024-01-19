@@ -30,7 +30,6 @@ namespace zec
         TypedArrayView(const size_t size, void* ptr) : data(static_cast<T*>(ptr)), size(size) {};
 
         TypedArrayView(const TypedArrayView<T>& other) = default;
-        TypedArrayView& operator=(TypedArrayView<T>& other) = default;
         TypedArrayView& operator=(const TypedArrayView<T>& other) = default;
         TypedArrayView(TypedArrayView<T>&& other) = default;
         TypedArrayView& operator=(TypedArrayView<T>&& other) = default;
@@ -630,9 +629,9 @@ namespace zec
         {
             return TypedArrayView<T>{ get_size(), data };
         }
-        operator const TypedArrayView<T>() const
+        operator TypedArrayView<const T>() const
         {
-            return TypedArrayView<T>{ get_size(), data };
+            return TypedArrayView<const T>{ get_size(), data };
         }
 
     private:
