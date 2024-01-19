@@ -4,21 +4,22 @@ namespace zec
 {
     void BitList::init(zec::IAllocator* allocator, const size_t capacity)
     {
-        size_t initial_capacity = (capacity + k_bits_per_word - 1) / k_bits_per_word;
-        bit_capacity = initial_capacity * k_bits_per_word;
-        array.init(allocator, initial_capacity);
-		// Fill it up with 1s
-		for (size_t i = 0; i < initial_capacity; ++i)
-		{
-			array[i] = UINT32_MAX;
-		}
+        size_t word_capacity = (capacity + k_bits_per_word - 1) / k_bits_per_word;
+        bit_capacity = word_capacity * k_bits_per_word;
+        array.init(allocator, word_capacity);
+        array.grow(word_capacity);
+        for (size_t i = 0; i < word_capacity; i++)
+        {
+            array[i] = 0;
+        }
+        num_set_bits = 0;
     }
 
     bool BitList::is_bit_set(size_t index) const
     {
         WordType mask = (1u << u32(index % k_bits_per_word));
         WordType word = array[index / k_bits_per_word];
-        return (word & mask);
+        return (word & mask) == mask;
     }
 
     BitList::WordType BitList::get_word(size_t word_index) const

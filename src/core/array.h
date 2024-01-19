@@ -48,7 +48,7 @@ namespace zec
         };
 
         bool operator==(const TypedArrayView<T>& other) const = default;
-        
+
         inline size_t get_size() const { return size; }
         size_t get_byte_size() const { return sizeof(T) * size; }
 
@@ -448,6 +448,7 @@ namespace zec
             return UINT64_MAX;
         }
 
+        inline size_t get_size() const { return size; }
         size_t get_byte_size() const
         {
             return sizeof(T) * size;
