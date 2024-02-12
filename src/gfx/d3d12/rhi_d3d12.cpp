@@ -1130,15 +1130,15 @@ namespace zec::rhi
     };
 
 
-    void Renderer::buffers_update(const BufferHandle buffer_handle, const void* data, u64 byte_size)
+    void Renderer::buffers_update(const BufferHandle buffer_handle, const void* data, u64 byte_size, u64 write_offset)
     {
         ASSERT(is_valid(buffer_handle));
         BufferInfo& buffer_info = pcontext->buffers.infos[buffer_handle];
         ASSERT(buffer_info.cpu_accessible);
 
-        void* cpu_address = buffer_info.get_cpu_address(pcontext->current_frame_idx);
+        u8* cpu_address = reinterpret_cast<u8*>(buffer_info.get_cpu_address(pcontext->current_frame_idx));
 
-        memory::copy(cpu_address, data, byte_size);
+        memory::copy(cpu_address + write_offset, data, byte_size);
     };
 
     // --------------------------------------------

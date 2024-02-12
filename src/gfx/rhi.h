@@ -72,7 +72,7 @@ namespace zec::rhi
         BufferHandle buffers_create(BufferDesc buffer_desc);
         void buffers_set_data(const BufferHandle handle, const void* data, const u64 data_byte_size);
         void buffers_set_data(CommandContextHandle cmd_ctx, const BufferHandle handle, const void* data, const u64 data_byte_size);
-        void buffers_update(const BufferHandle buffer_id, const void* data, u64 byte_size);
+        void buffers_update(const BufferHandle buffer_id, const void* data, u64 byte_size, const u64 write_offset = 0);
 
         // ------------ Textures ------------
         TextureHandle textures_create(TextureDesc texture_desc);

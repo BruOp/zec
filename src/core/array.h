@@ -18,6 +18,9 @@ namespace zec
         u32 get_size() { return size; };
     };
 
+    template<typename T>
+    class Array;
+
     // Only for POD types
     template<typename T>
     class TypedArrayView
@@ -632,6 +635,19 @@ namespace zec
         operator TypedArrayView<const T>() const
         {
             return TypedArrayView<const T>{ get_size(), data };
+        }
+
+        void copy(const TypedArrayView<T>& other, const size_t write_offset = 0)
+        {
+            ASSERT(data != nullptr);
+            ASSERT(other.begin() != nullptr);
+            size_t additional_slots_required = write_offset + other.get_size() - get_size();
+            if (additional_slots_required)
+            {
+                grow(additional_slots_required);
+            }
+
+            memory::copy(data + write_offset, other.begin(), other.get_byte_size());
         }
 
     private:
