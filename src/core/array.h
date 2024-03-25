@@ -511,6 +511,9 @@ namespace zec
             size = 0;
         };
 
+        T* get_data() { return data; }
+        const T* get_data() const { return data; }
+
         T* begin() { return data; }
         const T* begin() const { return data; }
 
@@ -637,7 +640,7 @@ namespace zec
             return TypedArrayView<const T>{ get_size(), data };
         }
 
-        void copy(const TypedArrayView<T>& other, const size_t write_offset = 0)
+        void copy(const TypedArrayView<const T>& other, const size_t write_offset = 0)
         {
             ASSERT(data != nullptr);
             ASSERT(other.begin() != nullptr);

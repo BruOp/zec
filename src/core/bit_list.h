@@ -27,6 +27,8 @@ namespace zec
         bool is_bit_set(size_t index) const;
         WordType get_word(size_t word_index) const;
         WordType& get_word(size_t word_index);
+        WordType* get_data() { return array.get_data(); };
+        const WordType* get_data() const { return array.get_data(); };
         size_t get_word_count() const { return array.get_size(); };
         size_t get_bit_size() const { return array.get_size() * k_bits_per_word; };
         size_t get_num_set_bits() const { return num_set_bits; };
@@ -34,6 +36,7 @@ namespace zec
         size_t grow_bit_count(size_t additional_entries);
 
         void set_entry(size_t index, bool state);
+        void set_all_entries(bool state);
 
         void copy(const BitList& other, zec::IAllocator* allocator);
 

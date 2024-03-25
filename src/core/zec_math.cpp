@@ -1,5 +1,6 @@
 #include "utils/utils.h"
 #include "zec_math.h"
+#include <immintrin.h>
 
 namespace zec
 {
@@ -141,13 +142,15 @@ namespace zec
         constexpr size_t N = _countof(m1.rows);
         mat34 res{};
         for (size_t i = 0; i < N; i++) {
-            for (size_t j = 0; j < 4; j++) {
-                for (size_t k = 0; k < N; k++) {
-                    res[i][j] += m1[i][k] * m2[k][j];
-                }
-                // Make up for our missing last row in the second matrix, which would only have a 1 in [i][3]
-                res[i][j] += m1[i][3];
-            }
+            __m128 v_x = _mm_broadcast_ss(static_cast<const float*>(&m1.rows[i].x));
+            __m128 v_y = _mm_broadcast_ss(static_cast<const float*>(&m1.rows[i].y));
+            __m128 v_z = _mm_broadcast_ss(static_cast<const float*>(&m1.rows[i].z));
+
+            v_x = _mm_mul_ps(v_x, _mm_load_ps(reinterpret_cast<const float*>(&m2.rows[0])));
+            v_x = _mm_fmadd_ps(v_y, _mm_load_ps(reinterpret_cast<const float*>(&m2.rows[1])), v_x);
+            v_x = _mm_fmadd_ps(v_z, _mm_load_ps(reinterpret_cast<const float*>(&m2.rows[2])), v_x);
+            _mm_store_ps(reinterpret_cast<float*>(&res.rows[i]), v_x);
+            res.rows[i].w += m1.rows[i].w;
         }
         return res;
     }
@@ -209,14 +212,19 @@ namespace zec
 
     mat4 operator*(const mat4& m1, const mat4& m2)
     {
-        constexpr size_t N = _countof(m1.rows);
         mat4 res{};
+        constexpr size_t N = _countof(m1.rows);
         for (size_t i = 0; i < N; i++) {
-            for (size_t j = 0; j < N; j++) {
-                for (size_t k = 0; k < N; k++) {
-                    res[i][j] += m1[i][k] * m2[k][j];
-                }
-            }
+            __m128 v_x = _mm_broadcast_ss(static_cast<const float*>(&m1.rows[i].x));
+            __m128 v_y = _mm_broadcast_ss(static_cast<const float*>(&m1.rows[i].y));
+            __m128 v_z = _mm_broadcast_ss(static_cast<const float*>(&m1.rows[i].z));
+            __m128 v_w = _mm_broadcast_ss(static_cast<const float*>(&m1.rows[i].w));
+
+            v_x = _mm_mul_ps(v_x, _mm_load_ps(reinterpret_cast<const float*>(&m2.rows[0])));
+            v_x = _mm_fmadd_ps(v_y, _mm_load_ps(reinterpret_cast<const float*>(&m2.rows[1])), v_x);
+            v_x = _mm_fmadd_ps(v_z, _mm_load_ps(reinterpret_cast<const float*>(&m2.rows[2])), v_x);
+            v_x = _mm_fmadd_ps(v_w, _mm_load_ps(reinterpret_cast<const float*>(&m2.rows[3])), v_x);
+            _mm_store_ps(reinterpret_cast<float*>(&res.rows[i]), v_x);
         }
         return res;
     }

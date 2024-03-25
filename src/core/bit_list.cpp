@@ -53,6 +53,11 @@ namespace zec
         array[index / k_bits_per_word] = (element & ~(1u << n)) | (WordType(state) << n);
     }
 
+    void BitList::set_all_entries(bool state)
+    {
+        memset(array.get_data(), state ? 0xFF : 0, array.get_byte_size());
+    }
+
     void BitList::copy(const BitList& other, zec::IAllocator* allocator)
     {
         bit_capacity = other.bit_capacity;
