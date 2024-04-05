@@ -24,8 +24,8 @@ namespace zec
         virtual void shutdown() = 0;
 
         virtual void update(const TimeData& time_data) = 0;
-        virtual void copy() = 0;
-        virtual void render() = 0;
+        virtual void copy(const TimeData& time_data) = 0;
+        virtual void render(const TimeData& time_data) = 0;
 
         virtual void before_reset() = 0;
         virtual void after_reset() = 0;
@@ -41,7 +41,6 @@ namespace zec
         rhi::Renderer renderer = {};
         ui::UIRenderer ui_renderer = {};
     private:
-
         //void parse_command_line(const wchar* cmdLine);
 
         void init_internal();
@@ -53,5 +52,6 @@ namespace zec
         void before_reset_internal();
         void after_reset_internal();
 
+        bool has_focus = true;
     };
 }

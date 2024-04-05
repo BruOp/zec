@@ -55,7 +55,8 @@ namespace zec::rhi::dx12::shader_utils
             DXC_ARG_WARNINGS_ARE_ERRORS,
             L"-Qembed_debug",
             DXC_ARG_DEBUG,
-            DXC_ARG_PACK_MATRIX_ROW_MAJOR
+            DXC_ARG_PACK_MATRIX_ROW_MAJOR,
+            L"-HV 2021",
         };
         for (size_t i = 0; i < desc.num_defines; ++i)
         {

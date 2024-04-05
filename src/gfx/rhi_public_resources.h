@@ -80,6 +80,9 @@ namespace zec::rhi
         INVALID = 0,
         UNKNOWN,
         D32,
+        UNORM8,
+        UINT8,
+        UNORM16,
         UINT16,
         UINT32,
         UINT16_2,
@@ -97,6 +100,8 @@ namespace zec::rhi
         FLOAT_4,
 
         B8G8R8A8_UNORM,
+        B8G8R8A8_UNORM_SRGB,
+        R10G10B10A2_UNORM,
 
         // Compressed
         UNORM8_BC7,

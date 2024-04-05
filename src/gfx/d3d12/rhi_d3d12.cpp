@@ -176,21 +176,21 @@ namespace zec::rhi
 
         {
             UINT factory_flags = 0;
-        #if USE_DEBUG_DEVICE
+#if USE_DEBUG_DEVICE
             ID3D12Debug* debug_ptr;
             DXCall(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_ptr)));
             debug_ptr->EnableDebugLayer();
 
             factory_flags = DXGI_CREATE_FACTORY_DEBUG;
 
-        #if USE_GPU_VALIDATION
+#if USE_GPU_VALIDATION
             ID3D12Debug1* debug1;
             debug_ptr->QueryInterface(IID_PPV_ARGS(&debug1));
             debug1->SetEnableGPUBasedValidation(true);
             debug1->Release();
-        #endif // USE_GPU_VALIDATION
+#endif // USE_GPU_VALIDATION
             debug_ptr->Release();
-        #endif // USE_DEBUG_DEVICE
+#endif // USE_DEBUG_DEVICE
 
             DXCall(CreateDXGIFactory2(factory_flags, IID_PPV_ARGS(&context.factory)));
 
@@ -223,9 +223,18 @@ namespace zec::rhi
 
             DXCall(D3D12CreateDevice(context.adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&context.device)));
 
-            D3D_FEATURE_LEVEL feature_levels_arr[4] = {
-                D3D_FEATURE_LEVEL_12_0,
-                D3D_FEATURE_LEVEL_12_1,
+            D3D12_FEATURE_DATA_SHADER_MODEL shaderModel = { D3D_SHADER_MODEL_6_6 };
+            DXCall(context.device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shaderModel, sizeof(shaderModel)));
+            if (shaderModel.HighestShaderModel < D3D_SHADER_MODEL_6_6)
+            {
+#ifdef _DEBUG
+                OutputDebugStringA("ERROR: Shader Model 6.6 is not supported!\n");
+#endif
+                throw std::exception("Shader Model 6.0 is not supported!");
+            }
+
+            D3D_FEATURE_LEVEL feature_levels_arr[] = {
+                D3D_FEATURE_LEVEL_11_0,
             };
             D3D12_FEATURE_DATA_FEATURE_LEVELS feature_levels = { };
             feature_levels.NumFeatureLevels = std::size(feature_levels_arr);
@@ -244,14 +253,14 @@ namespace zec::rhi
                 sizeof(options)
             ));
 
-            D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_12_0;
+            D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_11_0;
             if (context.supported_feature_level < min_feature_level) {
                 std::wstring majorLevel = to_string<int>(min_feature_level >> 12);
                 std::wstring minorLevel = to_string<int>((min_feature_level >> 8) & 0xF);
                 throw Exception(L"The context.device doesn't support the minimum feature level required to run this sample (DX" + majorLevel + L"." + minorLevel + L")");
             }
 
-        #if USE_DEBUG_DEVICE
+#if USE_DEBUG_DEVICE
             ID3D12InfoQueue* infoQueue;
             DXCall(context.device->QueryInterface(IID_PPV_ARGS(&infoQueue)));
 
@@ -270,7 +279,7 @@ namespace zec::rhi
             infoQueue->AddStorageFilterEntries(&filter);
             infoQueue->Release();
 
-        #endif // USE_DEBUG_DEVICE
+#endif // USE_DEBUG_DEVICE
         }
 
         // Initialize Memory Allocator
@@ -433,22 +442,22 @@ namespace zec::rhi
         context.async_destruction_queue.flush();
         dx_destroy(&context.allocator);
 
-//#if USE_DEBUG_DEVICE
-//        ID3D12DebugDevice* debug_device = nullptr;
-//        DXCall(context.device->QueryInterface(&debug_device));
-//        if (debug_device) {
-//            DXCall(debug_device->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL | D3D12_RLDO_IGNORE_INTERNAL));
-//
-//            debug_device->Release();
-//        }
-//
-//        IDXGIDebug1* pDebug = nullptr;
-//        if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&pDebug))))
-//        {
-//            pDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_SUMMARY);
-//            pDebug->Release();
-//        }
-//#endif // USE_DEBUG_DEVICE
+        //#if USE_DEBUG_DEVICE
+        //        ID3D12DebugDevice* debug_device = nullptr;
+        //        DXCall(context.device->QueryInterface(&debug_device));
+        //        if (debug_device) {
+        //            DXCall(debug_device->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL | D3D12_RLDO_IGNORE_INTERNAL));
+        //
+        //            debug_device->Release();
+        //        }
+        //
+        //        IDXGIDebug1* pDebug = nullptr;
+        //        if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&pDebug))))
+        //        {
+        //            pDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_SUMMARY);
+        //            pDebug->Release();
+        //        }
+        //#endif // USE_DEBUG_DEVICE
 
         dx_destroy(&context.device);
         dx_destroy(&context.adapter);
@@ -623,7 +632,7 @@ namespace zec::rhi
         {
             if (res == ZecResult::SUCCESS && shader_compilation_desc.used_stages & PIPELINE_STAGE_VERTEX)
             {
-                IDxcBlob* vertex_shader = {nullptr};
+                IDxcBlob* vertex_shader = { nullptr };
                 res = shader_utils::compile_shader(shader_compilation_desc, PIPELINE_STAGE_VERTEX, &vertex_shader, errors);
                 blobs.vertex_shader = { reinterpret_cast<void*>(vertex_shader) };
             }
@@ -788,8 +797,8 @@ namespace zec::rhi
         root_signature_desc.NumStaticSamplers = desc.num_static_samplers;
         root_signature_desc.pStaticSamplers = static_sampler_descs;
         root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
-                                    | D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED
-                                    | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
+            | D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED
+            | D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
 
         ID3D12RootSignature* root_signature = nullptr;
 
@@ -937,7 +946,7 @@ namespace zec::rhi
 
     PipelineStateHandle Renderer::pipelines_create(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc)
     {
-        return pcontext->pipelines.push_back(create_pipeline_state_object_internal(*pcontext, shader_blobs_handle,resource_layout_handle, desc));
+        return pcontext->pipelines.push_back(create_pipeline_state_object_internal(*pcontext, shader_blobs_handle, resource_layout_handle, desc));
     }
 
     ZecResult Renderer::pipelines_recreate(const ShaderBlobsHandle& shader_blobs_handle, const ResourceLayoutHandle& resource_layout_handle, const PipelineStateObjectDesc& desc, const PipelineStateHandle pipeline_state_handle)
@@ -1360,6 +1369,7 @@ namespace zec::rhi
         }
 
         const DirectX::TexMetadata meta_data = image.GetMetadata();
+        bool is_3d = meta_data.IsVolumemap();
         TextureDesc texture_desc{
             .width = u32(meta_data.width),
             .height = u32(meta_data.height),
@@ -1367,6 +1377,7 @@ namespace zec::rhi
             .num_mips = u32(meta_data.mipLevels),
             .array_size = u32(meta_data.arraySize),
             .is_cubemap = u16(meta_data.IsCubemap()),
+            .is_3d = u16(is_3d),
             .format = from_d3d_format(meta_data.format),
             .usage = RESOURCE_USAGE_SHADER_READABLE,
         };
@@ -1375,7 +1386,6 @@ namespace zec::rhi
 
         RenderContext& context = *pcontext;
         ID3D12Resource* resource = context.textures.resources[texture_handle];
-        bool is_3d = meta_data.dimension == DirectX::TEX_DIMENSION_TEXTURE3D;
         const D3D12_RESOURCE_DESC d3d_desc = {
             .Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(meta_data.dimension),
             .Alignment = 0,
@@ -1393,12 +1403,12 @@ namespace zec::rhi
         };
 
         DXGI_FORMAT d3d_format = meta_data.format;
-        u32 num_subresources = meta_data.mipLevels * meta_data.arraySize;
+        u32 num_subresources = meta_data.arraySize * meta_data.mipLevels;
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts = (D3D12_PLACED_SUBRESOURCE_FOOTPRINT*)_alloca(sizeof(D3D12_PLACED_SUBRESOURCE_FOOTPRINT) * num_subresources);
         u32* num_rows = (u32*)_alloca(sizeof(u32) * num_subresources);
         u64* row_sizes = (u64*)_alloca(sizeof(u64) * num_subresources);
 
-        u64 mem_size = 0;
+        u64 mem_size = GetRequiredIntermediateSize(resource, 0, num_subresources);
         context.device->GetCopyableFootprints(
             &d3d_desc,
             0,
@@ -1501,7 +1511,7 @@ namespace zec::rhi
             .AddressW = dx12::to_d3d_address_mode(sampler_desc.wrap_w),
             .MipLODBias = 0.0f,
             .MaxAnisotropy = D3D12_MAX_MAXANISOTROPY,
-            .ComparisonFunc=D3D12_COMPARISON_FUNC_ALWAYS,
+            .ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS,
             .MinLOD = 0.0f,
             .MaxLOD = D3D12_FLOAT32_MAX,
         };
@@ -1713,14 +1723,14 @@ namespace zec::rhi
         index_buffer_view.SizeInBytes = u32(index_buffer_info.total_size);
 
         switch (index_buffer_info.stride) {
-            case 2u:
-                index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
-                break;
-            case 4u:
-                index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
-                break;
-            default:
-                throw std::runtime_error("Cannot create an index buffer that isn't u16 or u32");
+        case 2u:
+            index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
+            break;
+        case 4u:
+            index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
+            break;
+        default:
+            throw std::runtime_error("Cannot create an index buffer that isn't u16 or u32");
         }
 
         D3D12_VERTEX_BUFFER_VIEW vertex_views[MAX_NUM_DRAW_VERTEX_BUFFERS] = {};
@@ -1816,7 +1826,7 @@ namespace zec::rhi
         cmd_list->OMSetRenderTargets(num_render_targets, rtvs, FALSE, dsv_ptr);
     };
 
-    void Renderer::cmd_transition_resources( const CommandContextHandle ctx, ResourceTransitionDesc* transition_descs, u64 num_transitions)
+    void Renderer::cmd_transition_resources(const CommandContextHandle ctx, ResourceTransitionDesc* transition_descs, u64 num_transitions)
     {
         RenderContext& context = *pcontext;
         constexpr u64 MAX_NUM_BARRIERS = 16;

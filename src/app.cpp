@@ -57,7 +57,16 @@ namespace zec
             app->input_manager.handle_msg({ hWnd, msg, w_param, l_param });
         }
 
-        if (msg == WM_SIZE) {
+        if (msg == WM_ACTIVATE) {
+            app->has_focus = w_param != WA_INACTIVE;
+        }
+        else if (msg == WM_SETFOCUS) {
+            app->has_focus = true;
+        }
+        else if (msg == WM_KILLFOCUS) {
+            app->has_focus = false;
+        }
+        else if (msg == WM_SIZE) {
 
             if (w_param != SIZE_MINIMIZED) {
                 int width, height;
@@ -113,15 +122,18 @@ namespace zec
 
     void App::render_internal()
     {
+        if (!has_focus) {
+            return;
+        }
         renderer.reset_for_frame();
         {
             PROFILE_EVENT("App Copy");
-            copy();
+            copy(time_data);
         }
 
         {
             PROFILE_EVENT("App Render");
-            render();
+            render(time_data);
         }
 
         renderer.present_frame();

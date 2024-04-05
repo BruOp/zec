@@ -49,6 +49,12 @@ namespace zec::rhi::dx12
             return DXGI_FORMAT_UNKNOWN;
         case BufferFormat::D32:
             return DXGI_FORMAT_D32_FLOAT;
+        case BufferFormat::UNORM8:
+            return DXGI_FORMAT_R8_UNORM;
+        case BufferFormat::UINT8:
+            return DXGI_FORMAT_R8_UINT;
+        case BufferFormat::UNORM16:
+            return DXGI_FORMAT_R16_UNORM;
         case BufferFormat::UINT16:
             return DXGI_FORMAT_R16_UINT;
         case BufferFormat::UINT32:
@@ -83,6 +89,10 @@ namespace zec::rhi::dx12
             return DXGI_FORMAT_R32G32B32A32_FLOAT;
         case BufferFormat::B8G8R8A8_UNORM:
             return DXGI_FORMAT_B8G8R8A8_UNORM;
+        case BufferFormat::B8G8R8A8_UNORM_SRGB:
+            return DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+        case BufferFormat::R10G10B10A2_UNORM:
+            return DXGI_FORMAT_R10G10B10A2_UNORM;
         case BufferFormat::UNORM8_4_SRGB:
             //case BufferFormat::R8G8B8A8_UNORM_SRGB:
             return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
@@ -103,6 +113,12 @@ namespace zec::rhi::dx12
             return BufferFormat::UNKNOWN;
         case DXGI_FORMAT_D32_FLOAT:
             return BufferFormat::D32;
+        case DXGI_FORMAT_R8_UNORM:
+            return BufferFormat::UNORM8;
+        case DXGI_FORMAT_R8_UINT:
+            return BufferFormat::UINT8;
+        case DXGI_FORMAT_R16_UNORM:
+            return BufferFormat::UNORM16;
         case DXGI_FORMAT_R16_UINT:
             return BufferFormat::UINT16;
         case DXGI_FORMAT_R32_UINT:
@@ -121,6 +137,8 @@ namespace zec::rhi::dx12
             return BufferFormat::UNORM8_4;
         case DXGI_FORMAT_B8G8R8A8_UNORM:
             return BufferFormat::B8G8R8A8_UNORM;
+        case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+            return BufferFormat::B8G8R8A8_UNORM_SRGB;
         case DXGI_FORMAT_R16G16B16A16_UINT:
             return BufferFormat::UINT16_4;
         case DXGI_FORMAT_R16G16B16A16_UNORM:
@@ -129,7 +147,8 @@ namespace zec::rhi::dx12
             return BufferFormat::HALF_4;
         case DXGI_FORMAT_R32G32B32A32_FLOAT:
             return BufferFormat::FLOAT_4;
-
+        case DXGI_FORMAT_R10G10B10A2_UNORM:
+            return BufferFormat::R10G10B10A2_UNORM;
         case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
             return BufferFormat::UNORM8_4_SRGB;
         case DXGI_FORMAT_BC7_UNORM:
