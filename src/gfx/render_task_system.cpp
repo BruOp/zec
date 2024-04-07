@@ -221,7 +221,7 @@ namespace zec::render_graph
             {
                 const auto& output = render_pass_desc.outputs[i];
                 const bool is_backbuffer_output = output.identifier == out_list->resource_context->get_backbuffer_id();
-                const bool valid_backbuffer_use = output.type == PassResourceType::TEXTURE && output.usage == rhi::RESOURCE_USAGE_RENDER_TARGET;
+                const bool valid_backbuffer_use = output.type == PassResourceType::TEXTURE && ((output.usage & rhi::RESOURCE_USAGE_RENDER_TARGET) == rhi::RESOURCE_USAGE_RENDER_TARGET);
                 if (is_backbuffer_output && !valid_backbuffer_use)
                 {
                     out_result = Result{ StatusCodes::BACKBUFFER_USED_AS_NON_RT, output.identifier };

@@ -48,6 +48,9 @@ namespace zec::rhi::dx12::shader_utils
             lstrcpy(entry, L"CSMain");
             lstrcpy(target, L"cs_6_6");
         }
+        else {
+            ASSERT_FAIL("Too many bits set");
+        }
 
         constexpr size_t num_default_args = 5;
         LPCWSTR dxc_args[num_default_args + (2u * ShaderCompilationDesc::k_max_defines)] = {
