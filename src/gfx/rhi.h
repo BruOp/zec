@@ -38,6 +38,7 @@ namespace zec::rhi
         // Getters
         RenderConfigState get_config_state() const;
         u64 get_current_frame_idx() const;
+        u64 get_current_cpu_frame() const;
         TextureHandle get_current_back_buffer_handle();
 
         // Returns indices for use inside shaders (for direct indexing into our bindless descriptor tables)
@@ -117,7 +118,7 @@ namespace zec::rhi
         void cmd_set_compute_pipeline_state(CommandContextHandle ctx, const PipelineStateHandle pso_handle) const;
         void cmd_bind_compute_resource_table(CommandContextHandle ctx, const u32 resource_layout_entry_idx, const HeapType heap_type = HeapType::READ_WRITE_RESOURCES) const;
         void cmd_bind_compute_constants(CommandContextHandle ctx, const void* data, const u32 num_constants, const u32 binding_slot) const;
-        void cmd_bind_compute_constant_buffer(CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot);
+        void cmd_bind_compute_constant_buffer(CommandContextHandle ctx, const BufferHandle& buffer_handle, u32 binding_slot) const;
         //--------- Drawing ----------
         void cmd_draw_lines(CommandContextHandle ctx, const BufferHandle vertices) const;
         void cmd_draw(CommandContextHandle ctx, const BufferHandle index_buffer_view_id, const size_t num_instances = 1) const;

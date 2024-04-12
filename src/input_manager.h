@@ -4,7 +4,6 @@
 #include <bitset>
 
 #include "core/zec_types.h"
-#include "utils/assert.h"
 #include "timer.h"
 
 struct tagMSG;
@@ -81,8 +80,8 @@ namespace zec::input
         void set_axis_mode(const InputAxis axis, const AxisMode mode);
 
         InputState get_state() const;
-    private:
         void reset();
+    private:
 
         u32 width = 0;
         u32 height = 0;

@@ -2,6 +2,7 @@
 
 #include <windows.h>
 #include <windowsx.h>
+#include "utils/assert.h"
 
 // Taken from DirectXTK Keyboard.cpp
 //
@@ -371,6 +372,7 @@ namespace zec::input
 
     void InputManager::reset()
     {
+        pending_state.data.reset();
         previous_state = pending_state;
     }
 }

@@ -56,6 +56,10 @@ namespace zec
         if (!(io.WantCaptureMouse || io.WantCaptureKeyboard)) {
             app->input_manager.handle_msg({ hWnd, msg, w_param, l_param });
         }
+        else
+        {
+            app->input_manager.reset();
+        }
 
         if (msg == WM_ACTIVATE) {
             app->has_focus = w_param != WA_INACTIVE;
@@ -116,8 +120,8 @@ namespace zec
 
         update_time_data(time_data);
         update(time_data);
-
         input_manager.update(time_data);
+
     }
 
     void App::render_internal()

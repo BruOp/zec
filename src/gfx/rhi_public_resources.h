@@ -396,7 +396,7 @@ namespace zec::rhi
         ResourceLayoutEntryDesc constant_buffers[MAX_ENTRIES] = {};
         u32 num_constant_buffers;
         ResourceTableEntryDesc tables[MAX_ENTRIES] = {};
-        u32 num_resource_tables;
+        u32 num_resource_tables = 0;
         // TODO: Add regular sampler descriptors? Not just static samplers?
 
         SamplerDesc static_samplers[4] = {};

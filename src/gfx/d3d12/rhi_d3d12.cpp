@@ -478,6 +478,11 @@ namespace zec::rhi
         return pcontext->current_frame_idx;
     };
 
+    u64 Renderer::get_current_cpu_frame() const
+    {
+        return pcontext->current_cpu_frame;
+    };
+
     TextureHandle Renderer::get_current_back_buffer_handle()
     {
         return pcontext->swap_chain.back_buffers[get_current_frame_idx()];
@@ -1669,7 +1674,7 @@ namespace zec::rhi
         cmd_list->SetComputeRoot32BitConstants(binding_slot, num_constants, data, 0);
     };
 
-    void Renderer::cmd_bind_compute_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, const u32 binding_slot)
+    void Renderer::cmd_bind_compute_constant_buffer(const CommandContextHandle ctx, const BufferHandle& buffer_handle, const u32 binding_slot) const
     {
         ID3D12GraphicsCommandList* cmd_list = get_command_list(*pcontext, ctx);
         const BufferInfo& buffer_info = pcontext->buffers.infos[buffer_handle];
