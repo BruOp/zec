@@ -52,6 +52,7 @@ namespace zec::rhi::dx12::shader_utils
             ASSERT_FAIL("Too many bits set");
         }
 
+#if _DEBUG
         constexpr size_t num_default_args = 5;
         LPCWSTR dxc_args[num_default_args + (2u * ShaderCompilationDesc::k_max_defines)] = {
             DXC_ARG_SKIP_OPTIMIZATIONS,
@@ -59,8 +60,14 @@ namespace zec::rhi::dx12::shader_utils
             L"-Qembed_debug",
             DXC_ARG_DEBUG,
             DXC_ARG_PACK_MATRIX_ROW_MAJOR,
-            L"-HV 2021",
         };
+#else
+        constexpr size_t num_default_args = 2;
+        LPCWSTR dxc_args[num_default_args + (2u * ShaderCompilationDesc::k_max_defines)] = {
+            DXC_ARG_WARNINGS_ARE_ERRORS,
+            DXC_ARG_PACK_MATRIX_ROW_MAJOR,
+        };
+#endif
         for (size_t i = 0; i < desc.num_defines; ++i)
         {
             dxc_args[num_default_args + (2u * i)] = L"-D";
