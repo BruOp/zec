@@ -192,32 +192,49 @@ namespace zec::rhi
             debug_ptr->Release();
 #endif // USE_DEBUG_DEVICE
 
+            // The block below was grabbed from https://github.com/microsoft/DirectX-Graphics-Samples/blob/master/Samples/Desktop/D3D12MeshShaders/src/MeshletRender/D3D12MeshletRender.cpp#L46
             DXCall(CreateDXGIFactory2(factory_flags, IID_PPV_ARGS(&context.factory)));
-
             {
-                UINT i = 0;
+                IDXGIFactory6* factory6;
                 IDXGIAdapter1* p_adapter;
-                u32 best_video_memory = 0;
-                u32 best_adapter_idx = UINT32_MAX; // Which adapter has most video memory
-                while (context.factory->EnumAdapters1(i, &p_adapter) != DXGI_ERROR_NOT_FOUND) {
-                    DXGI_ADAPTER_DESC1 desc{};
-                    p_adapter->GetDesc1(&desc);
-                    write_log(L"Found adapter %s with %u dedicated video memory.", desc.Description, desc.DedicatedVideoMemory);
-                    if (desc.DedicatedVideoMemory > best_video_memory) {
-                        best_adapter_idx = i;
-                    }
-                    ++i;
-                    p_adapter->Release();
-                }
 
-                if (best_adapter_idx != UINT32_MAX) {
-                    context.factory->EnumAdapters1(best_adapter_idx, &context.adapter);
-                    DXGI_ADAPTER_DESC1 desc{  };
-                    context.adapter->GetDesc1(&desc);
-                    write_log("Creating DX12 device on adapter '%ls'", desc.Description);
-                }
-                else {
-                    throw Exception(L"Unabled to located DXGI 1.4 adapter that supports D3D12.");
+                if (SUCCEEDED(context.factory->QueryInterface(IID_PPV_ARGS(&factory6))))
+                {
+                    for (
+                        UINT adapterIndex = 0;
+                        SUCCEEDED(factory6->EnumAdapterByGpuPreference(
+                            adapterIndex,
+                            DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+                            IID_PPV_ARGS(&p_adapter)));
+                        ++adapterIndex)
+                    {
+                        DXGI_ADAPTER_DESC1 desc{};
+                        p_adapter->GetDesc1(&desc);
+
+                        if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+                        {
+                            // Don't select the Basic Render Driver adapter.
+                            continue;
+                        }
+
+                        // Check to see whether the adapter supports Direct3D 12, but don't create the
+                        // actual device yet.
+                        if (SUCCEEDED(D3D12CreateDevice(p_adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr)))
+                        {
+                            break;
+                        }
+                    }
+
+                    if (p_adapter != nullptr)
+                    {
+                        context.adapter = p_adapter;
+                        DXGI_ADAPTER_DESC1 desc{};
+                        context.adapter->GetDesc1(&desc);
+                        write_log("Creating DX12 device on adapter '%ls'", desc.Description);
+                    }
+                    else {
+                        throw Exception(L"Unabled to located DXGI 1.4 adapter that supports D3D12.");
+                    }
                 }
             }
 
@@ -231,33 +248,6 @@ namespace zec::rhi
                 OutputDebugStringA("ERROR: Shader Model 6.6 is not supported!\n");
 #endif
                 throw std::exception("Shader Model 6.0 is not supported!");
-            }
-
-            D3D_FEATURE_LEVEL feature_levels_arr[] = {
-                D3D_FEATURE_LEVEL_11_0,
-            };
-            D3D12_FEATURE_DATA_FEATURE_LEVELS feature_levels = { };
-            feature_levels.NumFeatureLevels = std::size(feature_levels_arr);
-            feature_levels.pFeatureLevelsRequested = feature_levels_arr;
-            DXCall(context.device->CheckFeatureSupport(
-                D3D12_FEATURE_FEATURE_LEVELS,
-                &feature_levels,
-                sizeof(feature_levels)
-            ));
-            context.supported_feature_level = feature_levels.MaxSupportedFeatureLevel;
-
-            D3D12_FEATURE_DATA_D3D12_OPTIONS options = {};
-            DXCall(context.device->CheckFeatureSupport(
-                D3D12_FEATURE_D3D12_OPTIONS,
-                &options,
-                sizeof(options)
-            ));
-
-            D3D_FEATURE_LEVEL min_feature_level = D3D_FEATURE_LEVEL_11_0;
-            if (context.supported_feature_level < min_feature_level) {
-                std::wstring majorLevel = to_string<int>(min_feature_level >> 12);
-                std::wstring minorLevel = to_string<int>((min_feature_level >> 8) & 0xF);
-                throw Exception(L"The context.device doesn't support the minimum feature level required to run this sample (DX" + majorLevel + L"." + minorLevel + L")");
             }
 
 #if USE_DEBUG_DEVICE
