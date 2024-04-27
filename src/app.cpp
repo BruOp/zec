@@ -5,10 +5,10 @@
 
 namespace zec
 {
-    App::App(const wchar* app_name) :
+    App::App(const wchar* app_name, const u32 width, const u32 height) :
         app_name{ app_name },
-        width{ 1600 },
-        height{ 900 },
+        width{ width },
+        height{ height },
         window{
             nullptr,
             app_name,
@@ -17,6 +17,10 @@ namespace zec
             i32(width),
             i32(height) },
             input_manager{ width, height }
+    {
+    };
+
+    App::App(const wchar* app_name) : App{ app_name, 1600, 900 }
     {
     }
 

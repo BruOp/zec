@@ -10,6 +10,7 @@ namespace zec
     class App
     {
     public:
+        App(const wchar* app_name, const u32 width, const u32 height);
         App(const wchar* app_name);
         virtual ~App();
 
