@@ -1092,7 +1092,6 @@ namespace zec::rhi
             void* cpu_address = buffer_info.get_cpu_address(i);
             memory::copy(cpu_address, data, data_byte_size);
         }
-
     };
 
     // Only use this for GPU exclusive buffers.

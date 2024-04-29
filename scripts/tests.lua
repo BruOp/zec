@@ -28,9 +28,6 @@ project ("zec_tests")
     "zec_lib"
   }
 
-  configuration {"vs*", "x64"}
   linkoptions {
     "/ignore:4199" -- LNK4199: /DELAYLOAD:*.dll ignored; no imports found from *.dll
   }
-
-  configuration{}

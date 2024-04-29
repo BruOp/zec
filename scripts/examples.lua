@@ -3,6 +3,7 @@ function exampleProject(...)
     project("example-" .. name)
     uuid(os.uuid("example-" .. name))
     kind "WindowedApp"
+    architecture "x64"
 
     files {
       path.join(EXAMPLES_DIR, name, "**.cpp"),
@@ -27,27 +28,17 @@ function exampleProject(...)
 
     defines {
       "_SECURE_SCL=0",
-      -- "_ITERATOR_DEBUG_LEVEL=0",
     }
 
     links {
       "zec_lib"
     }
 
-    configuration {"vs*", "x64"}
-    linkoptions {
-      "/ignore:4199" -- LNK4199: /DELAYLOAD:*.dll ignored; no imports found from *.dll
-    }
-
-    configuration { "Release" }
+    filter { "configurations:Release" }
       defines {
         "_ITERATOR_DEBUG_LEVEL=0"
       }
-
-    configuration{}
-
-    DLL_PATH = path.join(EXTERNAL_DIR, "../bin/*.dll")
-    postbuildcommands { "cp %{DLL_PATH} %{cfg.targetdir}" }
+    filter{}
 
     filter "files:**.ispc"
       buildmessage "Compiling ISPC files %{file.relpath}"
@@ -59,18 +50,16 @@ function exampleProject(...)
         "%{file.reldirectory}/%{file.basename}_ispc.h"
       }
 
-      filter { "Debug", "files:**.ispc" }
-        buildcommands {
-          'ispc -g -O0 "%{file.relpath}" -o "%{cfg.objdir}/%{file.basename}.obj" -h "./%{file.reldirectory}/%{file.basename}_ispc.h" --target=sse4,avx2 --opt=fast-math'
-        }
+    filter { "Debug", "files:**.ispc" }
+      buildcommands {
+        'ispc -g -O0 "%{file.relpath}" -o "%{cfg.objdir}/%{file.basename}.obj" -h "./%{file.reldirectory}/%{file.basename}_ispc.h" --target=sse4,avx2 --opt=fast-math'
+      }
 
-      filter { "Release", "files:**.ispc"}
-        buildcommands {
-          'ispc -O2 "%{file.relpath}" -o "%{cfg.objdir}/%{file.basename}.obj" -h "./%{file.reldirectory}/%{file.basename}_ispc.h" --target=sse4,avx2 --opt=fast-math'
-        }
+    filter { "Release", "files:**.ispc"}
+      buildcommands {
+        'ispc -O2 "%{file.relpath}" -o "%{cfg.objdir}/%{file.basename}.obj" -h "./%{file.reldirectory}/%{file.basename}_ispc.h" --target=sse4,avx2 --opt=fast-math'
+      }
 
-      configuration {}
-
-
+    filter {}
   end
 end

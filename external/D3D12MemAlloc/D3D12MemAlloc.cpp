@@ -26,7 +26,7 @@
 #pragma warning( disable : 26110 )
 
 
-#include "D3D12MemAlloc/D3D12MemAlloc.h"
+#include "D3D12MemAlloc.h"
 
 #ifndef D3D12MA_D3D12_HEADERS_ALREADY_INCLUDED
 #include <dxgi.h>

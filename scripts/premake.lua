@@ -2,7 +2,7 @@ ZEC_DIR = (path.getabsolute("..") .. "/")
 TESTS_DIR = (path.getabsolute("..") .. "/tests/")
 RUNTIME_DIR = (path.getabsolute("..") .. "/runtime/")
 EXAMPLES_DIR = (ZEC_DIR .. "examples/")
-EXTERNAL_DIR = (ZEC_DIR .. "external/include/")
+EXTERNAL_DIR = (ZEC_DIR .. "external/")
 EXTERNAL_LIB_DIR  = (ZEC_DIR .. "external/lib/")
 
 local BUILD_DIR = (ZEC_DIR .. ".build/")
@@ -14,29 +14,31 @@ include("./examples.lua")
 workspace "zec"
   language "C++"
   configurations {"Debug", "Release"}
-  platforms {"x64"}
+  architecture "x64"
   startproject "zec_lib"
-  cppdialect "C++latest"
-  premake.vstudio.toolset = "v142"
+  cppdialect "C++20"
+  cdialect "C11"
+  premake.vstudio.toolset = "v143"
+  toolset = "v143"
   location (BUILD_DIR)
 
   filter { "configurations:Debug" }
-  symbols "On"
+    symbols "On"
   filter { "configurations:Release" }
-  optimize "On"
+    optimize "On"
   -- Reset the filter for other settings
   filter { }
 
   nuget {
-    "directxtex_desktop_win10:2021.8.2.1",
-    "directxtk12_desktop_2017:2021.10.19.1",
-    "WinPixEventRuntime:1.0.210818001"
+    "Microsoft.Direct3D.D3D12:1.613.2",
+    "Microsoft.Direct3D.DXC:1.8.2403.24",
+    "directxtex_desktop_win10:2024.2.22.1",
+    "directxtk12_desktop_2019:2024.2.22.1",
+    "WinPixEventRuntime:1.0.240308001"
   }
 
   targetdir (BUILD_DIR .. "bin/%{cfg.longname}/%{prj.name}")
   objdir (BUILD_DIR .. "obj/%{cfg.longname}/%{prj.name}")
-
-  floatingpoint "fast"
 
   defines {
     "WIN32",
@@ -82,21 +84,24 @@ project("imgui")
   kind "StaticLib"
 
   files {
-    path.join(ZEC_DIR, "external/src/imgui/*.cpp"),
+    path.join(EXTERNAL_DIR, "imgui/**.cpp"),
     path.join(EXTERNAL_DIR, "imgui/**.h"),
+  }
+
+  undefines {
+    "NOGDI",
   }
 
   includedirs {
     path.join(EXTERNAL_DIR, "imgui/"),
   }
 
-
 project("optick")
   uuid(os.uuid("optick"))
   kind "StaticLib"
 
   files {
-    path.join(ZEC_DIR, "external/src/optick/*.cpp"),
+    path.join(EXTERNAL_DIR, "optick/**.cpp"),
     path.join(EXTERNAL_DIR, "optick/**.h"),
   }
 
@@ -105,17 +110,18 @@ project("optick")
   }
 
 ZEC_SRC_DIR = path.join(ZEC_DIR, "src")
+
 project("zec_lib")
   uuid(os.uuid("zec_lib"))
   kind "StaticLib"
 
   files {
-    path.join(ZEC_SRC_DIR, "shaders/**.hlsl"),
     path.join(ZEC_SRC_DIR, "**.cpp"),
     path.join(ZEC_SRC_DIR, "**.h"),
     path.join(ZEC_SRC_DIR, "**.hpp"),
-    path.join(ZEC_DIR, "external/src/*.cpp"),
-    path.join(ZEC_DIR, "external/src/*.c"),
+    path.join(EXTERNAL_DIR, "D3D12MemAlloc/**.cpp"),
+    path.join(EXTERNAL_DIR, "murmur/**.cpp"),
+    path.join(EXTERNAL_DIR, "tlsf/**.c"),
   }
 
   filter { "files:**.hlsl" }
@@ -131,6 +137,16 @@ project("zec_lib")
     EXTERNAL_DIR,
   }
 
+  filter {"configurations:Release"}
+    libdirs { path.join(EXTERNAL_LIB_DIR, "release") }
+
+    defines {
+      "_ITERATOR_DEBUG_LEVEL=0"
+    }
+
+  filter {"configurations:Debug"}
+    libdirs { path.join(EXTERNAL_LIB_DIR, "debug") }
+  filter {}
 
   links {
     "dxgi",
@@ -139,24 +155,6 @@ project("zec_lib")
     "Xinput9_1_0",
     "ws2_32",
     "imgui",
-    "optick"
-  }
-
-  configuration {"Release"}
-    libdirs { path.join(EXTERNAL_LIB_DIR, "release") }
-
-    defines {
-      "_ITERATOR_DEBUG_LEVEL=0"
-    }
-
-  configuration {"Debug"}
-    libdirs { path.join(EXTERNAL_LIB_DIR, "debug") }
-
-  configuration {}
-
-  links {
-    "boost_context",
-    "ftl",
     "dxcompiler",
   }
 
