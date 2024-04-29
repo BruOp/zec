@@ -1,0 +1,32 @@
+static const float TWO_PI = 6.283185307179586;
+static const float HALF_PI = 1.5707963267948966;
+static const float PI = 3.141592653589793;
+static const float INV_PI = 0.318309886;
+#define FLT_EPSILON 1.1920928955078125e-07F
+
+static const float BLUE_NOISE_TEXTURE_SIZE = 128;
+
+enum SamplersIndices
+{
+    POINT_WRAP,
+    POINT_MIRROR,
+    POINT_CLAMP,
+    LINEAR_WRAP,
+    LINEAR_MIRROR,
+    LINEAR_CLAMP,
+    ANISOTROPIC_WRAP,
+    ANISOTROPIC_MIRROR,
+    ANISOTROPIC_CLAMP,
+    // TODO: Comparison samplers
+    COUNT,
+};
+
+float3 float3_splat(float x)
+{
+    return float3(x, x, x);
+}
+
+float clamp_dot(float3 A, float3 B)
+{
+    return saturate(dot(A, B));
+}
