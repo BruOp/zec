@@ -1,7 +1,8 @@
-#include "app.h"
-#include "core/zec_math.h"
-#include "utils/exceptions.h"
-#include "imgui/imgui.h"
+#include <windows.h>
+#include <app.h>
+#include <core/zec_math.h>
+#include <utils/exceptions.h>
+#include <imgui/imgui.h>
 
 using namespace zec;
 
@@ -12,8 +13,12 @@ struct DrawData
     mat4 projection_matrix;
     mat4 VP;
 };
-
 static_assert(sizeof(DrawData) == 256);
+
+struct Mesh{
+    rhi::BufferHandle index_buffer = {};
+    rhi::BufferHandle vertex_buffers[2] = {};
+};
 
 class HelloWorldApp : public zec::App
 {
@@ -22,10 +27,10 @@ public:
 
     vec4 clear_color = { 0.5f, 0.5f, 0.5f, 1.0f };
 
-    MeshHandle cube_mesh = {};
-    BufferHandle cb_handle = {};
-    ResourceLayoutHandle resource_layout = {};
-    PipelineStateHandle pso_handle = {};
+    rhi::Draw mesh_draw{};
+    rhi::BufferHandle cb_handle = {};
+    rhi::ResourceLayoutHandle resource_layout = {};
+    rhi::PipelineStateHandle pso_handle = {};
     DrawData mesh_transform = {};
 
     float frame_times[120] = { 0.0f };
@@ -36,35 +41,46 @@ protected:
 
         // Create a root signature consisting of a descriptor table with a single CBV.
         {
-            ResourceLayoutDesc layout_desc{
-                .constant_buffers = {{ ShaderVisibility::VERTEX }},
+            rhi::ResourceLayoutDesc layout_desc{
+                .constant_buffers = {{ rhi::ShaderVisibility::VERTEX }},
                 .num_constant_buffers = 1,
             };
 
-            resource_layout = gfx::pipelines::create_resource_layout(layout_desc);
+            resource_layout = renderer.resource_layouts_create(layout_desc);
         }
 
         // Create the Pipeline State Object
         {
             // Compile the shader
-            PipelineStateObjectDesc pipeline_desc = {};
-            pipeline_desc.input_assembly_desc = { {
-                { MESH_ATTRIBUTE_POSITION, 0, BufferFormat::FLOAT_3, 0 },
-                { MESH_ATTRIBUTE_COLOR, 0, BufferFormat::UNORM8_4, 1 }
-            } };
-            pipeline_desc.shader_file_path = L"shaders/basic.hlsl";
-            pipeline_desc.rtv_formats[0] = BufferFormat::R8G8B8A8_UNORM_SRGB;
-            pipeline_desc.resource_layout = resource_layout;
-            pipeline_desc.raster_state_desc.cull_mode = CullMode::BACK_CCW;
-            pipeline_desc.depth_stencil_state.depth_write = FALSE;
-            pipeline_desc.used_stages = PIPELINE_STAGE_VERTEX | PIPELINE_STAGE_PIXEL;
+            rhi::ShaderCompilationDesc shader_compilation_desc = {
+                .used_stages = rhi::PIPELINE_STAGE_VERTEX | rhi::PIPELINE_STAGE_PIXEL,
+                .shader_file_path = L"shaders/basic.hlsl",
+            };
 
-            pso_handle = gfx::pipelines::create_pipeline_state_object(pipeline_desc);
+            std::string errors{};
+            rhi::ShaderBlobsHandle blobs_handle{};
+            ZecResult res = renderer.shaders_compile(shader_compilation_desc, blobs_handle, errors);
+            if (res != ZecResult::SUCCESS || !errors.empty())
+            {
+                OutputDebugStringA(errors.c_str());
+                ASSERT_FAIL("Shader compilation failed");
+            }
+
+            // PSO Desc
+            rhi::PipelineStateObjectDesc pipeline_desc = {};
+            pipeline_desc.input_assembly_desc = { {
+                { rhi::MeshAttribute::POSITION, 0, rhi::BufferFormat::FLOAT_3, 0 },
+                { rhi::MeshAttribute::COLOR, 0, rhi::BufferFormat::UNORM8_4, 1 }
+            } };
+            pipeline_desc.rtv_formats[0] = rhi::BufferFormat::R8G8B8A8_UNORM_SRGB;
+            pipeline_desc.raster_state_desc.cull_mode = rhi::CullMode::BACK_CCW;
+            pipeline_desc.depth_stencil_state.depth_write = FALSE;
+
+            pso_handle = renderer.pipelines_create(blobs_handle, resource_layout, pipeline_desc);
+            renderer.shaders_release_blobs(blobs_handle);
         }
 
-        // Create the vertex buffer.
-        CommandContextHandle cmd_ctx = gfx::cmd::provision(CommandQueueType::COPY);
-
+        rhi::CommandContextHandle cmd_ctx = renderer.cmd_provision(rhi::CommandQueueType::COPY);
         {
             // Define the geometry for a triangle.
             constexpr float cube_positions[] = {
@@ -104,35 +120,44 @@ protected:
                 7, 6, 5
             };
 
-            MeshDesc mesh_desc{};
-            mesh_desc.index_buffer_desc.usage = RESOURCE_USAGE_INDEX;
-            mesh_desc.index_buffer_desc.type = BufferType::DEFAULT;
-            mesh_desc.index_buffer_desc.byte_size = sizeof(cube_indices);
-            mesh_desc.index_buffer_desc.stride = sizeof(cube_indices[0]);
-            mesh_desc.index_buffer_data = cube_indices;
+            {
+                const rhi::BufferDesc index_buffer_desc = {
+                    .usage = rhi::RESOURCE_USAGE_INDEX,
+                    .type = rhi::BufferType::DEFAULT,
+                    .byte_size = sizeof(cube_indices),
+                    .stride = sizeof(cube_indices[0]),
+                };
+                mesh_draw.index_buffer = renderer.buffers_create(index_buffer_desc);
+                renderer.buffers_set_data(cmd_ctx, mesh_draw.index_buffer, cube_indices, sizeof(cube_indices));
+                mesh_draw.index_count = ARRAYSIZE(cube_indices);
+            }
 
-            mesh_desc.vertex_buffer_descs[0] = {
-                    RESOURCE_USAGE_VERTEX,
-                    BufferType::DEFAULT,
-                    sizeof(cube_positions),
-                    3 * sizeof(cube_positions[0])
-            };
-            mesh_desc.vertex_buffer_data[0] = cube_positions;
-            mesh_desc.vertex_buffer_descs[1] = {
-               RESOURCE_USAGE_VERTEX,
-               BufferType::DEFAULT,
-               sizeof(cube_colors),
-               sizeof(cube_colors[0])
-            };
-            mesh_desc.vertex_buffer_data[1] = cube_colors;
+            {
+                rhi::BufferDesc vertex_buffer_desc = {
+                    .usage = rhi::RESOURCE_USAGE_VERTEX,
+                    .type = rhi::BufferType::DEFAULT,
+                    .byte_size = sizeof(cube_positions),
+                    .stride = 3 * sizeof(cube_positions[0]),
+                };
+                mesh_draw.vertex_buffers[0] = renderer.buffers_create(vertex_buffer_desc);
+                renderer.buffers_set_data(cmd_ctx, mesh_draw.vertex_buffers[0], cube_positions, sizeof(cube_positions));
 
-            cube_mesh = gfx::meshes::create(cmd_ctx, mesh_desc);
+                vertex_buffer_desc = {
+                    .usage = rhi::RESOURCE_USAGE_VERTEX,
+                    .type = rhi::BufferType::DEFAULT,
+                    .byte_size = sizeof(cube_colors),
+                    .stride = sizeof(cube_colors[0]),
+                };
+                mesh_draw.vertex_buffers[1] = renderer.buffers_create(vertex_buffer_desc);
+                renderer.buffers_set_data(cmd_ctx, mesh_draw.vertex_buffers[1], cube_colors, sizeof(cube_colors));
 
+                mesh_draw.num_vertex_buffers = 2;
+            }
         }
-        CmdReceipt receipt = gfx::cmd::return_and_execute(&cmd_ctx, 1);
+        rhi::CmdReceipt receipt = renderer.cmd_return_and_execute(&cmd_ctx, 1);
 
         mesh_transform.model_transform = identity_mat4();
-        mesh_transform.view_transform = look_at({ 0.0f, 0.0f, -2.0f }, { 0.0f, 0.0f, 0.0f });
+        mesh_transform.view_transform = look_at4x4({ 0.0f, 0.0f, -2.0f }, { 0.0f, 0.0f, 0.0f });
         mesh_transform.projection_matrix = perspective_projection(
             float(width) / float(height),
             deg_to_rad(65.0f),
@@ -143,17 +168,17 @@ protected:
 
         // Create constant buffer
         {
-            BufferDesc cb_desc = {};
+            rhi::BufferDesc cb_desc = {};
             cb_desc.byte_size = sizeof(DrawData);
             cb_desc.stride = 0;
-            cb_desc.type = BufferType::DEFAULT;
-            cb_desc.usage = RESOURCE_USAGE_CONSTANT | RESOURCE_USAGE_DYNAMIC;
+            cb_desc.type = rhi::BufferType::DEFAULT;
+            cb_desc.usage = rhi::RESOURCE_USAGE_CONSTANT | rhi::RESOURCE_USAGE_DYNAMIC;
 
-            cb_handle = gfx::buffers::create(cb_desc);
-            gfx::buffers::set_data(cb_handle, &mesh_transform, sizeof(DrawData));
+            cb_handle = renderer.buffers_create(cb_desc);
+            renderer.buffers_set_data(cb_handle, &mesh_transform, sizeof(DrawData));
         }
 
-        gfx::cmd::cpu_wait(receipt);
+        renderer.cmd_cpu_wait(receipt);
     }
 
     void shutdown() override final
@@ -169,15 +194,15 @@ protected:
         rotate(mesh_transform.model_transform, q);
     }
 
-    void copy() override final
+    void copy(const zec::TimeData& time_data) override final
     {
-        gfx::buffers::update(cb_handle, &mesh_transform, sizeof(mesh_transform));
+        renderer.buffers_update(cb_handle, &mesh_transform, sizeof(mesh_transform));
     }
 
-    void render() override final
+    void render(const zec::TimeData& time_data) override final
     {
-        CommandContextHandle command_ctx = gfx::begin_frame();
-        ui::begin_frame();
+        rhi::CommandContextHandle command_ctx = renderer.begin_frame();
+        ui_renderer.begin_frame();
 
         {
             const auto framerate = ImGui::GetIO().Framerate;
@@ -190,28 +215,28 @@ protected:
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / framerate, framerate);
 
-            ImGui::PlotHistogram("Frame Times", frame_times, IM_ARRAYSIZE(frame_times), 0, 0, 0, D3D12_FLOAT32_MAX, ImVec2(240.0f, 80.0f));
+            ImGui::PlotHistogram("Frame Times", frame_times, IM_ARRAYSIZE(frame_times), 0, 0, 0);
 
             ImGui::End();
         }
+        ui_renderer.end_frame();
 
-        Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
-        Scissor scissor{ 0, 0, width, height };
+        rhi::Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
+        rhi::Scissor scissor{ 0, 0, width, height };
 
-        TextureHandle render_target = gfx::get_current_back_buffer_handle();
-        gfx::cmd::clear_render_target(command_ctx, render_target, clear_color);
+        rhi::TextureHandle render_target = renderer.get_current_back_buffer_handle();
+        renderer.cmd_clear_render_target(command_ctx, render_target, clear_color);
 
-        gfx::cmd::graphics::set_active_resource_layout(command_ctx, resource_layout);
-        gfx::cmd::graphics::set_pipeline_state(command_ctx, pso_handle);
-        gfx::cmd::graphics::bind_constant_buffer(command_ctx, cb_handle, 0);
-        gfx::cmd::set_viewports(command_ctx, &viewport, 1);
-        gfx::cmd::set_scissors(command_ctx, &scissor, 1);
+        renderer.cmd_set_graphics_resource_layout(command_ctx, resource_layout);
+        renderer.cmd_set_graphics_pipeline_state(command_ctx, pso_handle);
+        renderer.cmd_bind_graphics_constant_buffer(command_ctx, cb_handle, 0);
+        renderer.cmd_set_viewports(command_ctx, &viewport, 1);
+        renderer.cmd_set_scissors(command_ctx, &scissor, 1);
 
-        gfx::cmd::set_render_targets(command_ctx, &render_target, 1);
-        gfx::cmd::graphics::draw_mesh(command_ctx, cube_mesh);
-
-        ui::end_frame(command_ctx);
-        gfx::end_frame(command_ctx);
+        renderer.cmd_set_render_targets(command_ctx, &render_target, 1);
+        renderer.cmd_draw(command_ctx, mesh_draw);
+        ui_renderer.draw_frame(command_ctx);
+        renderer.end_frame(command_ctx);
     }
 
     void before_reset() override final
