@@ -159,13 +159,15 @@ project("zec_lib")
   }
 
 include("./tests.lua")
+include("./asset_lib.lua")
+include("./asset_converter.lua")
 include("./clustered_forward.lua")
 
 group "examples"
 exampleProject(
   "01-hello-world",
   "02-normal-mapping",
-  "03-gltf-loading",
+  "03-asset-loading",
   "04-ibl",
   "05-envmap-creation",
   "06-frustum-culling"

@@ -13,7 +13,7 @@ debugdir(RUNTIME_DIR)
 
 includedirs {
   EXTERNAL_DIR,
-  path.join(ZEC_DIR, "src"),
+  ZEC_SRC_DIR
 }
 
 flags {

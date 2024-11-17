@@ -19,7 +19,8 @@ function exampleProject(...)
 
     includedirs {
       EXTERNAL_DIR,
-      path.join(ZEC_DIR, "src"),
+      ZEC_SRC_DIR,
+      ASSET_LIB_DIR
     }
 
     flags {
@@ -31,7 +32,8 @@ function exampleProject(...)
     }
 
     links {
-      "zec_lib"
+      "zec_lib",
+      "asset_lib"
     }
 
     filter { "configurations:Release" }
