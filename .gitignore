@@ -1,5 +1,36 @@
 .build
-.vs
-.vscode
-runtime/imgui.ini
 
+# Visual Studio 2015/2017 cache/options directory
+.vs
+
+# VS Code files for those working on multiple tools
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# User-specific files (MonoDevelop/Xamarin Studio)
+*.userprefs
+
+# Mono auto generated files
+mono_crash.*
+
+
+# Local History for Visual Studio Code
+.history/
+
+# 10x editor files
+*.10x
+
+# Asset folders
+runtime/models/
+runtime/imgui.ini
