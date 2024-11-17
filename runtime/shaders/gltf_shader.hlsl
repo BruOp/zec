@@ -9,17 +9,18 @@ static const float PI = 3.141592653589793;
 
 cbuffer draw_constants_buffer : register(b0)
 {
-    float4x4 model;
-    float3x3 normal_transform;
     float4 base_color_factor;
     float3 emissive_factor;
     float metallic_factor;
     float roughness_factor;
+    float alpha_cutoff;
     uint base_color_texture_idx;
-    uint metallic_roughness_texture_idx;
     uint normal_texture_idx;
-    uint occlusion_texture_idx;
+    uint metallic_roughness_ao_texture_idx;
     uint emissive_texture_idx;
+    uint2 padding;
+    float3x4 model;
+    float3x4 normal_transform;
 };
 
 
@@ -142,9 +143,10 @@ PSInput VSMain(float3 position : POSITION, float3 normal : NORMAL, float2 uv : T
 {
     PSInput result;
 
-    result.position_ws = mul(model, float4(position, 1.0));
+    result.position_ws = float4(mul(model, float4(position, 1.0)), 1.0);
     result.position_cs = mul(VP, result.position_ws);
-    result.normal_ws = normalize(mul(normal_transform, normal));
+    float3x3 normal_transform3x3 = -float3x3(normal_transform._11_12_13, normal_transform._21_22_23, normal_transform._31_32_33);
+    result.normal_ws = normalize(mul(normal_transform3x3, normal));
     result.uv = uv;
 
     return result;
@@ -173,24 +175,21 @@ float4 PSMain(PSInput input) : SV_TARGET
         Texture2D normal_texture = tex2D_table[normal_texture_idx];
         normal = perturb_normal(normal_texture, normal, view_dir, input.uv);
     } else {
-        normal = normalize(input.normal_ws);
+        normal = normalize(normal);
     }
 
-    float occlusion = 0.0f;
+    float occlusion = 1.0f;
     float roughness = roughness_factor;
     float metallic = metallic_factor;
 
-    if (metallic_roughness_texture_idx != INVALID_TEXTURE_IDX) {
-        Texture2D metallic_roughness_texture = tex2D_table[metallic_roughness_texture_idx];
+    if (metallic_roughness_ao_texture_idx != INVALID_TEXTURE_IDX) {
+        Texture2D metallic_roughness_texture = tex2D_table[metallic_roughness_ao_texture_idx];
         float4 mr_texture_read = metallic_roughness_texture.Sample(default_sampler, input.uv);
+        occlusion *= mr_texture_read.r;
         metallic *= mr_texture_read.b;
         roughness *= mr_texture_read.g;
     }
     roughness = max(MIN_ROUGHNESS, roughness);
-    if (occlusion_texture_idx != INVALID_TEXTURE_IDX) {
-        Texture2D occlusion_texture = tex2D_table[occlusion_texture_idx];
-        occlusion = occlusion_texture.Sample(default_sampler, input.uv).r;
-    }
 
     float3 emissive = emissive_factor;
     if (emissive_texture_idx != INVALID_TEXTURE_IDX) {
@@ -204,7 +203,6 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     float attenuation = light_intensity / (light_dist * light_dist);
     float3 light_in = attenuation * light_color * clamp_dot(normal, light_dir);
-
 
     float3 f0 = lerp(float3_splat(DIELECTRIC_SPECULAR), base_color.rgb, metallic);
     float3 diffuse = calc_diffuse(base_color.xyz, metallic);

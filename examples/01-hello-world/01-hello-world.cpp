@@ -190,20 +190,7 @@ protected:
         frame_times[frame_idx % 120] = time_data.delta_milliseconds_f;
         frame_idx++;
 
-        quaternion q = from_axis_angle(vec3{ 0.0f, 1.0f, -1.0f }, time_data.delta_seconds_f);
-        rotate(mesh_transform.model_transform, q);
-    }
-
-    void copy(const zec::TimeData& time_data) override final
-    {
-        renderer.buffers_update(cb_handle, &mesh_transform, sizeof(mesh_transform));
-    }
-
-    void render(const zec::TimeData& time_data) override final
-    {
-        rhi::CommandContextHandle command_ctx = renderer.begin_frame();
         ui_renderer.begin_frame();
-
         {
             const auto framerate = ImGui::GetIO().Framerate;
 
@@ -220,6 +207,19 @@ protected:
             ImGui::End();
         }
         ui_renderer.end_frame();
+
+        quaternion q = from_axis_angle(vec3{ 0.0f, 1.0f, -1.0f }, time_data.delta_seconds_f);
+        rotate(mesh_transform.model_transform, q);
+    }
+
+    void copy(const zec::TimeData& time_data) override final
+    {
+        renderer.buffers_update(cb_handle, &mesh_transform, sizeof(mesh_transform));
+    }
+
+    void render(const zec::TimeData& time_data) override final
+    {
+        rhi::CommandContextHandle command_ctx = renderer.begin_frame();
 
         rhi::Viewport viewport = { 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) };
         rhi::Scissor scissor{ 0, 0, width, height };

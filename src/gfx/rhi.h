@@ -163,4 +163,19 @@ namespace zec::rhi
 
         RenderContext* pcontext = nullptr;
     };
+
+
+    class ManagedShaderBlobsHandle
+    {
+    public:
+        ManagedShaderBlobsHandle(Renderer* inrenderer) : renderer{ inrenderer } {};
+        ManagedShaderBlobsHandle(Renderer* inrenderer, ShaderBlobsHandle inhandle) : renderer{ inrenderer }, handle{ inhandle } {};
+        ~ManagedShaderBlobsHandle();
+
+        Renderer* renderer = nullptr;
+        ShaderBlobsHandle handle = {};
+
+        ShaderBlobsHandle& get() { return handle; };
+        ZecResult compile(const ShaderCompilationDesc& desc, std::string& errors);
+    };
 }

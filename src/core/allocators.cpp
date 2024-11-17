@@ -138,7 +138,7 @@ namespace zec
     StackAllocator::~StackAllocator()
     {
         ASSERT(bytes_allocated == 0);
-        ASSERT(ptr == nullptr);
+        ASSERT_MSG(ptr == nullptr, "Did not call shutdown on StackAllocator");
     }
 
     void StackAllocator::init(size_t size)

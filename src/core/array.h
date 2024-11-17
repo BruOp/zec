@@ -8,7 +8,8 @@
 #include "allocators.hpp"
 namespace zec
 {
-    static constexpr size_t g_GB = 1024 * 1024 * 1024;
+    static constexpr size_t g_MB = 1024 * 1024;
+    static constexpr size_t g_GB = g_MB * 1024;
 
     struct ArrayView
     {

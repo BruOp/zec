@@ -32,11 +32,6 @@ namespace zec::rhi
     RESOURCE_HANDLE(ShaderBlobsHandle);
     RESOURCE_HANDLE(SamplerHandle);
 
-    // TODO: ADD ManagedShaderBlobsHandle
-    /*class ManagedShaderBlobsHandle
-    {
-    };*/
-
     // ---------- Enums ----------
     enum ResourceUsage : u16
     {

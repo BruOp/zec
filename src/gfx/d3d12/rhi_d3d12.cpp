@@ -154,6 +154,18 @@ namespace zec::rhi
         //};
     }
 
+    ManagedShaderBlobsHandle::~ManagedShaderBlobsHandle()
+    {
+        ASSERT(renderer != nullptr);
+        renderer->shaders_release_blobs(handle);
+        handle = {};
+    }
+
+    ZecResult ManagedShaderBlobsHandle::compile(const ShaderCompilationDesc& desc, std::string& errors)
+    {
+        return renderer->shaders_compile(desc, handle, errors);
+    }
+
     Renderer::~Renderer()
     {
         ASSERT_MSG(pcontext == nullptr, "You forgot to clean up after yourself!");
