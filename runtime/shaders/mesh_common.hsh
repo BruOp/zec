@@ -1,0 +1,50 @@
+struct MeshTransform
+{
+    float3x4 model;
+    float3x4 normal;
+};
+
+struct ViewConstantData
+{
+    float4x4 VP;
+    float4x4 invVP;
+    float3x4 view;
+    float3 camera_position;
+    float padding[1];
+};
+
+struct MaterialTextureInfo
+{
+    uint index: 24;
+    uint sampler_idx: 8;
+};
+
+struct SceneConstantData
+{
+    float time;
+    uint radiance_map_idx;
+    uint irradiance_map_idx;
+    uint brdf_lut_idx;
+    uint num_spot_lights;
+    uint num_point_lights;
+    uint view_transforms_sb;
+    uint model_transform_sb;
+    uint materials_data_sb;
+    uint spot_light_buffer_idx;
+    uint point_light_buffer_idx;
+    uint blue_noise_tex_idx;
+};
+
+struct PBRMaterialData
+{
+    float4 albedo;
+    float3 emissive;
+    float metalness;
+    float roughness;
+    float alpha_cutoff;
+    MaterialTextureInfo albedo_texture;
+    MaterialTextureInfo normal_texture;
+    MaterialTextureInfo metalness_roughness_ao_texture;
+    MaterialTextureInfo emissive_texture;
+    float padding[2];
+};

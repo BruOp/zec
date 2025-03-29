@@ -5,6 +5,10 @@
 #include <asset_lib.h>
 #include <gfx/samplers.h>
 
+extern "C" { __declspec(dllexport) extern const UINT D3D12SDKVersion = 614; }
+
+extern "C" { __declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\"; }
+
 using namespace zec;
 
 struct ViewConstantData
@@ -49,9 +53,9 @@ struct TransformData
 
 struct DrawConstantData
 {
-    MaterialData material_data = {};
     mat34 model = {};
     mat3 normal_transform = {};
+    MaterialData material_data = {};
     u32 padding[24];
 };
 
@@ -124,19 +128,6 @@ protected:
                     { rhi::ShaderVisibility::ALL },
                 },
                 .num_constant_buffers = 2,
-                .tables = {
-                    {.usage = rhi::ResourceAccess::READ, .count = 4096 },
-                },
-                .num_resource_tables = 1,
-                .static_samplers = {
-                    {
-                        .filtering = rhi::SamplerFilterType::ANISOTROPIC,
-                        .wrap_u = rhi::SamplerWrapMode::WRAP,
-                        .wrap_v = rhi::SamplerWrapMode::WRAP,
-                        .binding_slot = 0,
-                    },
-                },
-                .num_static_samplers = 1,
             };
 
             resource_layout = renderer.resource_layouts_create(layout_desc);
@@ -146,10 +137,17 @@ protected:
         {
             std::string errors{};
             rhi::ManagedShaderBlobsHandle shader_blob{ &renderer };
-            shader_blob.compile(
-                { .used_stages = rhi::PIPELINE_STAGE_VERTEX | rhi::PIPELINE_STAGE_PIXEL, .shader_file_path = L"shaders/gltf_shader.hlsl" },
+            ZecResult res = shader_blob.compile(
+                { .used_stages = rhi::PIPELINE_STAGE_VERTEX | rhi::PIPELINE_STAGE_PIXEL, .shader_file_path = L"shaders/03_gltf_shader.hlsl" },
                 errors
             );
+
+            if (res != ZecResult::SUCCESS || !errors.empty())
+            {
+                OutputDebugStringA(errors.c_str());
+                ASSERT_FAIL("Shader compilation failed");
+            }
+
             rhi::PipelineStateObjectDesc pipeline_desc = {};
             pipeline_desc.input_assembly_desc = { {
                 { rhi::MeshAttribute::POSITION, 0, rhi::BufferFormat::FLOAT_3, 0 },
@@ -272,7 +270,7 @@ protected:
                     TransformData transform_data{};
                     transform_data.local_transform = compute_local_transform(node);
 
-                    set_scale(transform_data.normal_transform, -node.scale);
+                    set_scale(transform_data.normal_transform, node.scale);
                     transform_data.normal_transform = quat_to_mat3(node.rotation) * transform_data.normal_transform;
 
                     transform_nodes.push_back(transform_data);
@@ -287,6 +285,7 @@ protected:
                     {
                         ASSERT(node.parent_transform.idx < node_idx);
                         parent_transform = transform_nodes[node.parent_transform.idx].global_transform;
+                        transform_data.global_transform = parent_transform * transform_data.local_transform;
                     }
                     else
                     {
@@ -324,9 +323,9 @@ protected:
                         const TransformData& transform_data = transform_nodes[render_node.transform_id.idx];
                         const MaterialData& material = materials[submesh_desc.material_id.idx];
                         DrawConstantData draw_constants = {
-                                .material_data = material,
                                 .model = transform_data.global_transform,
                                 .normal_transform = transform_data.normal_transform,
+                                .material_data = material,
                         };
 
                         rhi::BufferDesc cb_desc = {
@@ -377,7 +376,6 @@ protected:
 
     void update(const zec::TimeData& time_data) override final
     {
-
         ui_renderer.begin_frame();
         {
             const auto framerate = ImGui::GetIO().Framerate;
@@ -425,7 +423,6 @@ protected:
 
         renderer.cmd_set_render_targets(cmd_ctx, &backbuffer, 1, depth_target);
 
-        renderer.cmd_bind_graphics_resource_table(cmd_ctx, 2);
         renderer.cmd_bind_graphics_constant_buffer(cmd_ctx, view_cb_handle, 1);
 
         for (size_t i = 0; i < draws.get_size(); i++) {

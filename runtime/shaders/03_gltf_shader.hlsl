@@ -1,6 +1,3 @@
-#pragma pack_matrix(row_major)
-
-static const uint INVALID_TEXTURE_IDX = (1u << 24u) - 1u;
 #include "common.hsh"
 #include "mesh_common.hsh"
 #include "ggx_helpers.hlsl"
@@ -11,9 +8,9 @@ static const uint INVALID_TEXTURE_IDX = (1u << 24u) - 1u;
 
 cbuffer draw_call_constants0 : register(b0)
 {
-    uint view_idx;
-    uint model_transform_idx;
-    uint material_idx;
+    float3x4 model;
+    float3x4 normal_transform;
+    PBRMaterialData material;
 };
 
 
@@ -23,17 +20,9 @@ cbuffer view_constants_buffer : register(b1)
     float4x4 proj;
     float4x4 VP;
     float3 camera_pos;
-    uint radiance_map_idx;
-    uint irradiance_map_idx;
-    uint brdf_lut_idx;
-    uint num_spot_lights;
-    uint num_point_lights;
-    uint spot_light_buffer_idx;
-    uint point_light_buffer_idx;
-    uint model_transform_sb;
-    uint materials_data_sb;
     float time;
 };
+
 //=================================================================================================
 // Helper Functions
 //=================================================================================================
@@ -48,13 +37,11 @@ struct PixelMaterialData
     float occlusion;
 };
 
-PixelMaterialData gather_material_data(uint material_buffer_idx, uint material_idx, float3 normal_ws, float2 uv, float3 view_dir)
+PixelMaterialData gather_material_data(PBRMaterialData material, float3 normal_ws, float2 uv, float3 view_dir)
 {
-    ByteAddressBuffer material_buffer = ResourceDescriptorHeap[material_buffer_idx];
-    PBRMaterialData material = material_buffer.Load < PBRMaterialData > (material_idx * sizeof(PBRMaterialData));
     PixelMaterialData out_data;
     out_data.albedo = material.albedo;
-    if (material.albedo_texture.index != INVALID_TEXTURE_IDX)
+    if (is_texture_id_valid(material.albedo_texture.index))
     {
         SamplerState albedo_sampler = SamplerDescriptorHeap[material.albedo_texture.sampler_idx];
         Texture2D albedo_texture = ResourceDescriptorHeap[material.albedo_texture.index];
@@ -69,7 +56,7 @@ PixelMaterialData gather_material_data(uint material_buffer_idx, uint material_i
 #endif
 
     out_data.normal = normal_ws;
-    if (material.normal_texture.index != INVALID_TEXTURE_IDX)
+    if (is_texture_id_valid(material.normal_texture.index))
     {
         out_data.normal = perturb_normal(material.normal_texture, out_data.normal, view_dir, uv);
     }
@@ -82,7 +69,7 @@ PixelMaterialData gather_material_data(uint material_buffer_idx, uint material_i
     out_data.roughness = material.roughness;
     out_data.metalness = material.metalness;
 
-    if (material.metalness_roughness_ao_texture.index != INVALID_TEXTURE_IDX)
+    if (is_texture_id_valid(material.metalness_roughness_ao_texture.index))
     {
         SamplerState metallic_roughness_sampler = SamplerDescriptorHeap[material.metalness_roughness_ao_texture.sampler_idx];
         Texture2D metalness_roughness_ao_texture = ResourceDescriptorHeap[material.metalness_roughness_ao_texture.index];
@@ -94,7 +81,7 @@ PixelMaterialData gather_material_data(uint material_buffer_idx, uint material_i
     out_data.roughness = max(MIN_ROUGHNESS, out_data.roughness);
 
     out_data.emissive = 0.f.xxx; //material.emissive;
-    //if (material.emissive_texture.index != INVALID_TEXTURE_IDX)
+    //if (is_texture_id_valid(material.emissive_texture.index))
     //{
     //    Texture2D emissive_texture = ResourceDescriptorHeap[material.emissive_texture.index];
     //    out_data.emissive *= emissive_texture.Sample(default_sampler, uv).rgb;
@@ -114,28 +101,21 @@ struct PSInput
 PSInput VSMain(float3 position : POSITION, float3 normal : NORMAL0, float2 uv : TEXCOORD0)
 {
     PSInput result;
-    StructuredBuffer<MeshTransform> mesh_transform_buffer = ResourceDescriptorHeap[model_transform_sb];
-    MeshTransform transforms = mesh_transform_buffer.Load(model_transform_idx);
-    StructuredBuffer<ViewConstantData> view_constant_buffer = ResourceDescriptorHeap[view_transforms_sb];
-    ViewConstantData view = view_constant_buffer.Load(view_idx);
-
-    result.position_ws = float4(mul(transforms.model, float4(position, 1.f)), 1.f);
-    result.position = mul(view.VP, result.position_ws);
-    float3x3 normal_transform = float3x3(transforms.normal._11_12_13, transforms.normal._21_22_23, transforms.normal._31_32_33);
-    result.normal_ws = mul(normal_transform, normal);
+    
+    result.position_ws = float4(mul(model, float4(position, 1.f)), 1.f);
+    result.position = mul(VP, result.position_ws);
+    float3x3 normalT = float3x3(normal_transform._11_12_13, normal_transform._21_22_23, normal_transform._31_32_33);
+    result.normal_ws = mul(normalT, normal);
     result.uv = uv;
     return result;
 }
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    StructuredBuffer<ViewConstantData> view_constant_buffer = ResourceDescriptorHeap[view_transforms_sb];
-    ViewConstantData view = view_constant_buffer.Load(view_idx);
-
-    float3 view_dir = normalize(view.camera_position - input.position_ws.xyz);
+    float3 view_dir = normalize(camera_pos - input.position_ws.xyz);
     float3 light_dir = -normalize(float3(1.f, 1.f, 0.f));
 
-    PixelMaterialData mat_data = gather_material_data(materials_data_sb, material_idx, normalize(input.normal_ws), input.uv, view_dir);
+    PixelMaterialData mat_data = gather_material_data(material, normalize(input.normal_ws), input.uv, view_dir);
 
     float3 out_color = 0.f.xxx;
     float3 brdf_diffuse = calc_diffuse(mat_data.albedo.rgb, mat_data.metalness);
@@ -151,6 +131,6 @@ float4 PSMain(PSInput input) : SV_TARGET
 #if defined(ALPHA_BLEND)
     return float4(out_color * mat_data.albedo.a, mat_data.albedo.a);
 #else
-    return float4(out_color, 1.0);
+    return float4(remap(mat_data.normal, -1.f, 1.f, 0.f, 1.f), 1.0);
 #endif
 }

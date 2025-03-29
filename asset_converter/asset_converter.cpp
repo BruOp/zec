@@ -622,10 +622,6 @@ int main(int argc, char** argv)
     allocator.init(k2GB);
     texture_path_allocator.init(1024 * 1024); // 1MB
     std::filesystem::path asset_path = argv[1];
-    wprintf(asset_path.c_str());
-    wprintf(L"\n");
-    printf(argv[2]);
-    wprintf(L"\n");
     if (asset_path.extension().compare(".gltf") == 0)
     {
         zec::assets::MeshAsset mesh_asset{};
@@ -633,7 +629,11 @@ int main(int argc, char** argv)
         std::filesystem::path output_path{ argv[2] };
         zec::asset_converter::convert_from_gltf(argv[1], allocator, texture_path_allocator, output_path, mesh_asset);
         zec::assets::save_binary_file(argv[2], mesh_asset);
-        printf("WE FUCKING DID IT MATE");
+        wprintf(L"Model created at %s", output_path.c_str());
+    }
+    else
+    {
+        printf("Asset path invalid.");
     }
     texture_path_allocator.shutdown();
     allocator.shutdown();

@@ -30,7 +30,7 @@ workspace "zec"
   filter { }
 
   nuget {
-    "Microsoft.Direct3D.D3D12:1.613.2",
+    "Microsoft.Direct3D.D3D12:1.614.1",
     "Microsoft.Direct3D.DXC:1.8.2403.24",
     "directxtex_desktop_win10:2024.2.22.1",
     "directxtk12_desktop_2019:2024.2.22.1",

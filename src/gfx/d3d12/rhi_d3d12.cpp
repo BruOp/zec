@@ -1,4 +1,5 @@
-#pragma once
+#include "gfx/rhi.h"
+
 #include <filesystem>
 #include <string>
 #include <Windows.h>
@@ -6,7 +7,6 @@
 #include "core/zec_types.h"
 #include "core/zec_math.h"
 #include "gfx/rhi_public_resources.h"
-#include "gfx/rhi.h"
 #include "window.h"
 
 #include "shader_utils.h"
@@ -259,7 +259,7 @@ namespace zec::rhi
 #ifdef _DEBUG
                 OutputDebugStringA("ERROR: Shader Model 6.6 is not supported!\n");
 #endif
-                throw std::exception("Shader Model 6.0 is not supported!");
+                throw std::exception("Shader Model 6.6 is not supported!");
             }
 
 #if USE_DEBUG_DEVICE

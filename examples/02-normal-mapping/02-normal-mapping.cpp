@@ -7,6 +7,10 @@
 
 using namespace zec;
 
+extern "C" { __declspec(dllexport) extern const UINT D3D12SDKVersion = 614; }
+
+extern "C" { __declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\"; }
+
 struct ViewConstantData
 {
     mat4 view;

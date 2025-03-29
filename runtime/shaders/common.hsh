@@ -4,22 +4,8 @@ static const float PI = 3.141592653589793;
 static const float INV_PI = 0.318309886;
 #define FLT_EPSILON 1.1920928955078125e-07F
 
+static const uint INVALID_TEXTURE_IDX = (1u << 24u) - 1u;
 static const float BLUE_NOISE_TEXTURE_SIZE = 128;
-
-enum SamplersIndices
-{
-    POINT_WRAP,
-    POINT_MIRROR,
-    POINT_CLAMP,
-    LINEAR_WRAP,
-    LINEAR_MIRROR,
-    LINEAR_CLAMP,
-    ANISOTROPIC_WRAP,
-    ANISOTROPIC_MIRROR,
-    ANISOTROPIC_CLAMP,
-    // TODO: Comparison samplers
-    COUNT,
-};
 
 float3 float3_splat(float x)
 {
@@ -29,4 +15,16 @@ float3 float3_splat(float x)
 float clamp_dot(float3 A, float3 B)
 {
     return saturate(dot(A, B));
+}
+
+float3 remap(float3 val, float3 min_old, float3 max_old, float3 min_new, float3 max_new)
+{
+    float3 normalized = (val - min_old) / (max_old - min_old);
+    return (normalized * (max_new - min_new)) + min_new;
+
+}
+
+bool is_texture_id_valid(uint idx)
+{
+    return idx != INVALID_TEXTURE_IDX;
 }
